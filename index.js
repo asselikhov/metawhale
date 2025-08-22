@@ -3,40 +3,24 @@ const mongoose = require('mongoose');
 const cron = require('node-cron');
 const axios = require('axios');
 const express = require('express');
+const asciichart = require('asciichart');
 require('dotenv').config();
 
-// Инициализация бота с защитой от множественных запусков
-const bot = new TelegramBot(process.env.TELEGRAM_BOT_TOKEN, { 
-  polling: {
-    interval: 300,
-    autoStart: true,
-    params: {
-      timeout: 10
-    }
-  }
-});
+// Инициализация бота с webhook (не polling)
+const bot = new TelegramBot(process.env.TELEGRAM_BOT_TOKEN);
 
-// Обработка ошибок polling
-bot.on('polling_error', (error) => {
-  console.error('⚠️ Ошибка polling:', error.message);
-  
-  // Особая обработка ошибки 409 (Conflict)
-  if (error.message.includes('409') || error.message.includes('Conflict')) {
-    console.log('🔄 Обнаружен конфликт - перезапуск через 5 секунд...');
-    
-    setTimeout(() => {
-      try {
-        bot.stopPolling({ cancel: true }).then(() => {
-          setTimeout(() => {
-            bot.startPolling();
-            console.log('✅ Поллинг перезапущен');
-          }, 2000);
-        });
-      } catch (restartError) {
-        console.error('⚠️ Ошибка перезапуска:', restartError.message);
-      }
-    }, 5000);
-  }
+// Настройка webhook URL
+const WEBHOOK_URL = process.env.WEBHOOK_URL || 'https://metawhale.onrender.com';
+const WEBHOOK_PATH = '/webhook/' + process.env.TELEGRAM_BOT_TOKEN;
+const WEBHOOK_FULL_URL = WEBHOOK_URL + WEBHOOK_PATH;
+
+console.log(`🔗 Webhook URL: ${WEBHOOK_FULL_URL}`);
+
+// Настройка webhook
+bot.setWebHook(WEBHOOK_FULL_URL).then(() => {
+  console.log('✅ Webhook установлен успешно');
+}).catch((error) => {
+  console.error('❌ Ошибка установки webhook:', error);
 });
 
 // Схема пользователя MongoDB
@@ -71,132 +55,67 @@ mongoose.connect(process.env.MONGODB_URI)
   .then(() => console.log('✅ Подключен к MongoDB'))
   .catch(err => console.error('❌ Ошибка подключения к MongoDB:', err));
 
-// Обработка команды /start
-bot.onText(/\/start/, async (msg) => {
-  const chatId = msg.chat.id;
-  const user = msg.from;
-
-  try {
-    await User.findOneAndUpdate(
-      { chatId: chatId.toString() },
-      {
-        chatId: chatId.toString(),
-        username: user.username,
-        firstName: user.first_name,
-        lastName: user.last_name,
-        isActive: true,
-        subscribedAt: new Date()
-      },
-      { upsert: true, new: true }
-    );
-
-    const welcomeMessage = `
-🚀 Добро пожаловать в CES Price Bot!
-
-Я буду отправлять вам обновления цены токена CES дважды в день:
-• 8:00 утра по московскому времени
-• 20:00 вечера по московскому времени
-
-🪙 Токен CES
-Контракт: ${process.env.CES_CONTRACT_ADDRESS}
-Сеть: Polygon
-
-📋 Доступные команды:
-/price - Получить текущую цену CES
-/subscribe - Подписаться на ежедневные обновления
-/unsubscribe - Отписаться от обновлений
-/stats - Посмотреть статистику цены
-/help - Показать справку
-    `;
-
-    await bot.sendMessage(chatId, welcomeMessage);
-    
-    // Отправляем текущую цену в качестве приветствия
-    await sendPriceToUser(chatId);
-  } catch (error) {
-    console.error('Ошибка в команде /start:', error);
-    bot.sendMessage(chatId, '❌ Извините, произошла ошибка. Попробуйте еще раз.');
-  }
-});
-
 // Обработка команды /price
 bot.onText(/\/price/, async (msg) => {
   const chatId = msg.chat.id;
   await sendPriceToUser(chatId);
 });
 
-// Обработка команды /subscribe
-bot.onText(/\/subscribe/, async (msg) => {
-  const chatId = msg.chat.id;
-  
-  try {
-    await User.findOneAndUpdate(
-      { chatId: chatId.toString() },
-      { isActive: true },
-      { upsert: true }
-    );
-    
-    bot.sendMessage(chatId, '✅ Вы подписались на ежедневные обновления цены CES!\n\n📅 Время отправки: 8:00 и 20:00 по Москве');
-  } catch (error) {
-    console.error('Ошибка в команде /subscribe:', error);
-    bot.sendMessage(chatId, '❌ Произошла ошибка. Попробуйте еще раз.');
-  }
-});
-
-// Обработка команды /unsubscribe
-bot.onText(/\/unsubscribe/, async (msg) => {
-  const chatId = msg.chat.id;
-  
-  try {
-    await User.findOneAndUpdate(
-      { chatId: chatId.toString() },
-      { isActive: false }
-    );
-    
-    bot.sendMessage(chatId, '❌ Вы отписались от ежедневных обновлений.\n\nИспользуйте /subscribe для повторной подписки.');
-  } catch (error) {
-    console.error('Ошибка в команде /unsubscribe:', error);
-    bot.sendMessage(chatId, '❌ Произошла ошибка. Попробуйте еще раз.');
-  }
-});
-
-// Обработка команды /stats
-bot.onText(/\/stats/, async (msg) => {
-  const chatId = msg.chat.id;
-  await sendPriceStats(chatId);
-});
-
-// Обработка команды /help
-bot.onText(/\/help/, (msg) => {
-  const chatId = msg.chat.id;
-  const helpMessage = `
-📆 Справка по CES Price Bot
-
-📋 Команды:
-/price - Получить текущую цену CES
-/subscribe - Подписаться на обновления (8:00 и 20:00 МСК)
-/unsubscribe - Отписаться от обновлений
-/stats - Посмотреть статистику за 24 часа
-/help - Показать эту справку
-
-🪙 О токене CES:
-Контракт: ${process.env.CES_CONTRACT_ADDRESS}
-Сеть: Polygon
-Источник данных: CoinGecko API
-
-⏰ Расписание автоматических обновлений:
-• 8:00 утра по московскому времени
-• 20:00 вечера по московскому времени
-
-💡 Бот показывает цену в долларах США, изменение за 24 часа и объем торгов.
-  `;
-  
-  bot.sendMessage(chatId, helpMessage);
-});
-
 // Глобальная переменная для отслеживания последнего запроса к API
 let lastApiCall = 0;
 const API_CALL_INTERVAL = parseInt(process.env.API_CALL_INTERVAL) || 10000; // 10 секунд между запросами
+
+// Функция создания ASCII графика цены
+function createPriceChart(priceHistory) {
+  try {
+    // Получаем последние 20 точек данных
+    const last20Points = priceHistory.slice(-20);
+    
+    if (last20Points.length < 2) {
+      return null;
+    }
+    
+    const prices = last20Points.map(item => item.price);
+    const timestamps = last20Points.map(item => {
+      return new Date(item.timestamp).toLocaleTimeString('ru-RU', {
+        hour: '2-digit',
+        minute: '2-digit',
+        timeZone: 'Europe/Moscow'
+      });
+    });
+    
+    // Создаем ASCII график
+    const chart = asciichart.plot(prices, {
+      height: 10,
+      format: function (x, i) {
+        return '$' + x.toFixed(4);
+      }
+    });
+    
+    // Определяем тренд
+    const firstPrice = prices[0];
+    const lastPrice = prices[prices.length - 1];
+    const isPositive = lastPrice >= firstPrice;
+    const trendEmoji = isPositive ? '📈' : '📉';
+    const trendText = isPositive ? 'Рост' : 'Падение';
+    
+    const chartMessage = `📊 График CES (20 точек)
+
+\`\`\`
+${chart}
+\`\`\`
+
+${trendEmoji} Тренд: ${trendText}
+🔥 Мин: $${Math.min(...prices).toFixed(4)}
+🚀 Макс: $${Math.max(...prices).toFixed(4)}
+⏰ Период: ${timestamps[0]} - ${timestamps[timestamps.length - 1]} МСК`;
+    
+    return chartMessage;
+  } catch (error) {
+    console.error('Ошибка создания графика:', error);
+    return null;
+  }
+}
 
 // Функция получения цены CES из CoinGecko с обработкой лимитов
 async function getCESPrice() {
@@ -294,6 +213,14 @@ async function sendPriceToUser(chatId) {
       await new PriceHistory(priceData).save();
     }
     
+    // Получаем историю цен для графика
+    const now = new Date();
+    const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    
+    const priceHistory = await PriceHistory.find({
+      timestamp: { $gte: oneDayAgo }
+    }).sort({ timestamp: 1 }).limit(24);
+    
     const changeEmoji = priceData.change24h >= 0 ? '📈' : '📉';
     const changeSign = priceData.change24h >= 0 ? '+' : '';
     const cacheIndicator = priceData.cached ? ' 🟠 (кеш)' : '';
@@ -306,107 +233,29 @@ async function sendPriceToUser(chatId) {
 Объем за 24ч: $${formatNumber(priceData.volume24h)}
     `;
     
+    // Отправляем текстовое сообщение
     await bot.sendMessage(chatId, message);
+    
+    // Создаем и отправляем ASCII график, если есть данные
+    if (priceHistory.length >= 2) {
+      console.log('📊 Создание ASCII графика цены...');
+      const chartMessage = createPriceChart(priceHistory);
+      
+      if (chartMessage) {
+        await bot.sendMessage(chatId, chartMessage, { parse_mode: 'Markdown' });
+        console.log('✅ График успешно отправлен');
+      } else {
+        console.log('⚠️ Не удалось создать график');
+      }
+    } else {
+      console.log('📊 Недостаточно данных для создания графика');
+    }
+    
   } catch (error) {
     console.error('Ошибка отправки цены пользователю:', error);
     bot.sendMessage(chatId, '❌ Не удается получить цену CES в данный момент. Попробуйте позже.');
   }
 }
-
-// Функция отправки статистики цены
-async function sendPriceStats(chatId) {
-  try {
-    const now = new Date();
-    const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-    
-    const prices = await PriceHistory.find({
-      timestamp: { $gte: oneDayAgo }
-    }).sort({ timestamp: 1 });
-
-    if (prices.length === 0) {
-      bot.sendMessage(chatId, '📊 Данные о ценах пока недоступны. Попробуйте позже.');
-      return;
-    }
-
-    const currentPrice = prices[prices.length - 1].price;
-    const oldestPrice = prices[0].price;
-    const highestPrice = Math.max(...prices.map(p => p.price));
-    const lowestPrice = Math.min(...prices.map(p => p.price));
-    
-    const priceChange = ((currentPrice - oldestPrice) / oldestPrice) * 100;
-    const changeEmoji = priceChange >= 0 ? '📈' : '📉';
-    const changeSign = priceChange >= 0 ? '+' : '';
-
-    const message = `
-📊 Статистика CES за 24 часа
-
-💰 Текущая цена: $${currentPrice.toFixed(2)}
-📈 Максимум: $${highestPrice.toFixed(2)}
-📉 Минимум: $${lowestPrice.toFixed(2)}
-${changeEmoji} Общее изменение: ${changeSign}${priceChange.toFixed(2)}%
-
-📋 Точек данных: ${prices.length}
-⏰ Обновлено: ${new Date().toLocaleString('ru-RU', { timeZone: 'Europe/Moscow' })} (МСК)
-    `;
-
-    bot.sendMessage(chatId, message);
-  } catch (error) {
-    console.error('Ошибка отправки статистики:', error);
-    bot.sendMessage(chatId, '❌ Не удается получить статистику. Попробуйте позже.');
-  }
-}
-
-// Функция массовой рассылки цены всем активным пользователям
-async function broadcastPrice() {
-  try {
-    const users = await User.find({ isActive: true });
-    console.log(`📢 Отправка цены ${users.length} пользователям`);
-    
-    let successCount = 0;
-    let errorCount = 0;
-    
-    for (const user of users) {
-      try {
-        await sendPriceToUser(user.chatId);
-        await User.findByIdAndUpdate(user._id, { lastNotified: new Date() });
-        successCount++;
-        
-        // Задержка для избежания лимитов Telegram
-        await new Promise(resolve => setTimeout(resolve, 100));
-      } catch (error) {
-        console.error(`Ошибка отправки пользователю ${user.chatId}:`, error);
-        errorCount++;
-        
-        // Если пользователь заблокировал бота, деактивируем его
-        if (error.code === 403) {
-          await User.findByIdAndUpdate(user._id, { isActive: false });
-          console.log(`Пользователь ${user.chatId} заблокировал бота, деактивирован`);
-        }
-      }
-    }
-    
-    console.log(`✅ Рассылка завершена: успешно ${successCount}, ошибок ${errorCount}`);
-  } catch (error) {
-    console.error('Ошибка массовой рассылки:', error);
-  }
-}
-
-// Планировщик рассылки цен (Московское время)
-// 8:00 утра по Москве
-cron.schedule('0 8 * * *', () => {
-  console.log('🌅 Запуск утренней рассылки цен (8:00 МСК)');
-  broadcastPrice();
-}, {
-  timezone: 'Europe/Moscow'
-});
-
-// 20:00 вечера по Москве  
-cron.schedule('0 20 * * *', () => {
-  console.log('🌆 Запуск вечерней рассылки цен (20:00 МСК)');
-  broadcastPrice();
-}, {
-  timezone: 'Europe/Moscow'
-});
 
 // Утилита для форматирования больших чисел
 function formatNumber(num) {
@@ -422,8 +271,32 @@ function formatNumber(num) {
   return num.toFixed(2);
 }
 
-// Express сервер для проверки здоровья (необходим для Render)
+// Express сервер для webhook и проверки здоровья
 const app = express();
+
+// Middleware для парсинга JSON
+app.use(express.json());
+
+// Webhook endpoint для Telegram
+app.post(WEBHOOK_PATH, (req, res) => {
+  try {
+    console.log('📨 Получено сообщение от Telegram');
+    bot.processUpdate(req.body);
+    res.sendStatus(200);
+  } catch (error) {
+    console.error('❌ Ошибка обработки webhook:', error);
+    res.sendStatus(500);
+  }
+});
+
+// Keep-alive endpoint для предотвращения засыпания на Render
+app.get('/ping', (req, res) => {
+  res.json({ 
+    status: 'alive', 
+    timestamp: new Date().toISOString(),
+    message: 'Бот активен и работает'
+  });
+});
 
 app.get('/', (req, res) => {
   res.json({ 
@@ -459,20 +332,39 @@ app.listen(PORT, () => {
   console.log(`🌐 Сервер проверки здоровья запущен на порту ${PORT}`);
 });
 
+// Функция самопинга для предотвращения засыпания на Render
+function setupSelfPing() {
+  const SELF_PING_INTERVAL = 14 * 60 * 1000; // 14 минут
+  const selfPingUrl = `${WEBHOOK_URL}/ping`;
+  
+  setInterval(async () => {
+    try {
+      const response = await axios.get(selfPingUrl, { timeout: 10000 });
+      console.log('🏓 Самопинг успешен:', response.data.timestamp);
+    } catch (error) {
+      console.log('⚠️ Ошибка самопинга:', error.message);
+    }
+  }, SELF_PING_INTERVAL);
+  
+  console.log(`🏓 Самопинг настроен: каждые ${SELF_PING_INTERVAL / 60000} минут`);
+}
+
+// Запуск самопинга через 1 минуту после старта
+setTimeout(setupSelfPing, 60000);
+
 console.log('🚀 CES Price Telegram Bot успешно запущен!');
-console.log('📅 Запланированные рассылки: 8:00 и 20:00 по московскому времени');
+console.log('📊 Доступна только команда /price с графиком');
+console.log('🔗 Режим: Webhook (не засыпает на Render)');
 
 // Обработка завершения процесса
 process.on('SIGINT', () => {
   console.log('⛔ Завершение работы бота...');
-  bot.stopPolling();
   mongoose.connection.close();
   process.exit(0);
 });
 
 process.on('SIGTERM', () => {
   console.log('⛔ Получен SIGTERM, корректное завершение...');
-  bot.stopPolling();
   mongoose.connection.close();
   process.exit(0);
 });
