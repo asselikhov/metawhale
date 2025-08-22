@@ -644,8 +644,21 @@ async function createPriceChart(priceHistory) {
     await page.setContent(chartHTML);
     console.log('🌈 HTML загружен, ожидаем анимации...');
     
+    // Ожидаем загрузки Chart.js и других библиотек
+    try {
+      await page.waitForFunction(() => {
+        return typeof window.Chart !== 'undefined' && 
+               typeof window.d3 !== 'undefined' && 
+               typeof window.THREE !== 'undefined' &&
+               typeof window.gsap !== 'undefined';
+      }, { timeout: 10000 });
+      console.log('✅ Все библиотеки загружены!');
+    } catch (waitError) {
+      console.log('⚠️ Некоторые библиотеки могут быть не загружены, продолжаем...');
+    }
+    
     // Ожидаем загрузки всех анимаций и эффектов
-    await page.waitForTimeout(4000);
+    await new Promise(resolve => setTimeout(resolve, 4000));
     console.log('📷 Анимации завершены, делаем скриншот...');
     
     // Делаем скриншот ШЕДЕВРА
