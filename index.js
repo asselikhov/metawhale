@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 const cron = require('node-cron');
 const axios = require('axios');
 const express = require('express');
-const asciichart = require('asciichart');
+const puppeteer = require('puppeteer');
 require('dotenv').config();
 
 // Инициализация бота с webhook (не polling)
@@ -61,22 +61,40 @@ bot.onText(/\/price/, async (msg) => {
   await sendPriceToUser(chatId);
 });
 
+// Обработка команды /start
+bot.onText(/\/start/, async (msg) => {
+  const chatId = msg.chat.id;
+  const welcomeMessage = `🚀 Добро пожаловать в CES Price Bot!
+
+🪙 Токен CES
+Контракт: ${process.env.CES_CONTRACT_ADDRESS}
+Сеть: Polygon
+
+📋 Доступные команды:
+/price - Получить текущую цену CES с красивым графиком
+/start - Показать это сообщение
+
+💰 Получите актуальную цену токена CES командой /price`;
+  
+  await bot.sendMessage(chatId, welcomeMessage);
+});
+
 // Глобальная переменная для отслеживания последнего запроса к API
 let lastApiCall = 0;
 const API_CALL_INTERVAL = parseInt(process.env.API_CALL_INTERVAL) || 10000; // 10 секунд между запросами
 
-// Функция создания ASCII графика цены
-function createPriceChart(priceHistory) {
+// Функция создания красивого графика цены
+async function createPriceChart(priceHistory) {
   try {
-    // Получаем последние 20 точек данных
-    const last20Points = priceHistory.slice(-20);
+    // Получаем последние 24 точки данных
+    const last24Points = priceHistory.slice(-24);
     
-    if (last20Points.length < 2) {
+    if (last24Points.length < 2) {
       return null;
     }
     
-    const prices = last20Points.map(item => item.price);
-    const timestamps = last20Points.map(item => {
+    const prices = last24Points.map(item => item.price);
+    const timestamps = last24Points.map(item => {
       return new Date(item.timestamp).toLocaleTimeString('ru-RU', {
         hour: '2-digit',
         minute: '2-digit',
@@ -84,33 +102,149 @@ function createPriceChart(priceHistory) {
       });
     });
     
-    // Создаем ASCII график
-    const chart = asciichart.plot(prices, {
-      height: 10,
-      format: function (x, i) {
-        return '$' + x.toFixed(4);
-      }
-    });
-    
-    // Определяем тренд
+    // Определяем тренд для цвета
     const firstPrice = prices[0];
     const lastPrice = prices[prices.length - 1];
     const isPositive = lastPrice >= firstPrice;
-    const trendEmoji = isPositive ? '📈' : '📉';
-    const trendText = isPositive ? 'Рост' : 'Падение';
+    const lineColor = isPositive ? '#00D8AA' : '#FF4757';
+    const gradientColor = isPositive ? 'rgba(0, 216, 170, 0.3)' : 'rgba(255, 71, 87, 0.3)';
     
-    const chartMessage = `📊 График CES (20 точек)
-
-\`\`\`
-${chart}
-\`\`\`
-
-${trendEmoji} Тренд: ${trendText}
-🔥 Мин: $${Math.min(...prices).toFixed(4)}
-🚀 Макс: $${Math.max(...prices).toFixed(4)}
-⏰ Период: ${timestamps[0]} - ${timestamps[timestamps.length - 1]} МСК`;
+    // Создаем HTML с Chart.js
+    const chartHTML = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+        <style>
+            body {
+                margin: 0;
+                padding: 20px;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                font-family: 'Arial', sans-serif;
+            }
+            .chart-container {
+                position: relative;
+                width: 800px;
+                height: 500px;
+                background: white;
+                border-radius: 15px;
+                padding: 20px;
+                box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+            }
+            .title {
+                text-align: center;
+                font-size: 24px;
+                font-weight: bold;
+                color: #2C3E50;
+                margin-bottom: 20px;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="chart-container">
+            <div class="title">💰 CES Token Price Chart (24h)</div>
+            <canvas id="chart" width="800" height="400"></canvas>
+        </div>
+        <script>
+            const ctx = document.getElementById('chart').getContext('2d');
+            const chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: ${JSON.stringify(timestamps)},
+                    datasets: [{
+                        label: 'CES Price (USD)',
+                        data: ${JSON.stringify(prices)},
+                        borderColor: '${lineColor}',
+                        backgroundColor: '${gradientColor}',
+                        borderWidth: 3,
+                        fill: true,
+                        tension: 0.4,
+                        pointBackgroundColor: '${lineColor}',
+                        pointBorderColor: '#ffffff',
+                        pointBorderWidth: 2,
+                        pointRadius: 4,
+                        pointHoverRadius: 6
+                    }]
+                },
+                options: {
+                    responsive: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        x: {
+                            display: true,
+                            title: {
+                                display: true,
+                                text: 'Время (МСК)',
+                                font: {
+                                    size: 14,
+                                    weight: 'bold'
+                                },
+                                color: '#34495E'
+                            },
+                            grid: {
+                                color: 'rgba(0,0,0,0.1)'
+                            },
+                            ticks: {
+                                color: '#7F8C8D',
+                                maxTicksLimit: 8
+                            }
+                        },
+                        y: {
+                            display: true,
+                            title: {
+                                display: true,
+                                text: 'Цена (USD)',
+                                font: {
+                                    size: 14,
+                                    weight: 'bold'
+                                },
+                                color: '#34495E'
+                            },
+                            grid: {
+                                color: 'rgba(0,0,0,0.1)'
+                            },
+                            ticks: {
+                                color: '#7F8C8D',
+                                callback: function(value) {
+                                    return '$' + value.toFixed(4);
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        </script>
+    </body>
+    </html>
+    `;
     
-    return chartMessage;
+    // Используем Puppeteer для создания скриншота
+    const browser = await puppeteer.launch({ 
+      headless: 'new',
+      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
+    });
+    const page = await browser.newPage();
+    await page.setViewport({ width: 840, height: 560 });
+    await page.setContent(chartHTML);
+    
+    // Ожидаем загрузки графика
+    await page.waitForTimeout(2000);
+    
+    // Делаем скриншот
+    const imageBuffer = await page.screenshot({ 
+      type: 'png',
+      fullPage: false,
+      clip: { x: 0, y: 0, width: 840, height: 560 }
+    });
+    
+    await browser.close();
+    
+    return imageBuffer;
+    
   } catch (error) {
     console.error('Ошибка создания графика:', error);
     return null;
@@ -233,22 +367,25 @@ async function sendPriceToUser(chatId) {
 Объем за 24ч: $${formatNumber(priceData.volume24h)}
     `;
     
-    // Отправляем текстовое сообщение
+    // Отправляем текстовое сообщение с ценой
     await bot.sendMessage(chatId, message);
     
-    // Создаем и отправляем ASCII график, если есть данные
+    // Создаем и отправляем красивый график как изображение
     if (priceHistory.length >= 2) {
-      console.log('📊 Создание ASCII графика цены...');
-      const chartMessage = createPriceChart(priceHistory);
+      console.log('📋 Создание красивого графика...');
+      const chartImage = await createPriceChart(priceHistory);
       
-      if (chartMessage) {
-        await bot.sendMessage(chatId, chartMessage, { parse_mode: 'Markdown' });
-        console.log('✅ График успешно отправлен');
+      if (chartImage) {
+        // Отправляем график как фотографию
+        await bot.sendPhoto(chatId, chartImage, {
+          caption: `📊 Красивый график CES (24ч)\n\n🔥 Мин: $${Math.min(...priceHistory.map(p => p.price)).toFixed(4)}\n🚀 Макс: $${Math.max(...priceHistory.map(p => p.price)).toFixed(4)}`
+        });
+        console.log('✅ Красивый график успешно отправлен!');
       } else {
         console.log('⚠️ Не удалось создать график');
       }
     } else {
-      console.log('📊 Недостаточно данных для создания графика');
+      console.log('📋 Недостаточно данных для создания графика');
     }
     
   } catch (error) {
@@ -353,7 +490,7 @@ function setupSelfPing() {
 setTimeout(setupSelfPing, 60000);
 
 console.log('🚀 CES Price Telegram Bot успешно запущен!');
-console.log('📊 Доступна только команда /price с графиком');
+console.log('📊 Команды: /start и /price с красивыми графиками');
 console.log('🔗 Режим: Webhook (не засыпает на Render)');
 
 // Обработка завершения процесса
