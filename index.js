@@ -64,13 +64,7 @@ bot.onText(/\/price/, async (msg) => {
 // Обработка команды /start
 bot.onText(/\/start/, async (msg) => {
   const chatId = msg.chat.id;
-  const welcomeMessage = `Добро пожаловать в Rustling Grass 🌾 assistant!
-
-📋 Доступные команды:
-/price - Получить текущую цену CES с красивым графиком
-/start - Показать это сообщение
-
-💰 Получите актуальную цену токена CES командой /price`;
+  const welcomeMessage = `Добро пожаловать в Rustling Grass 🌾 assistant !`;
   
   await bot.sendMessage(chatId, welcomeMessage);
 });
@@ -481,24 +475,59 @@ async function createPriceChart(priceHistory) {
         
         let chromePath = null;
         
-        // Попробуем найти Chrome через find команду
-        try {
-          const findResult = execSync('find /opt/render/.cache/puppeteer -name "chrome" -type f -executable 2>/dev/null | head -1', { encoding: 'utf8' }).trim();
-          if (findResult && fs.existsSync(findResult)) {
-            chromePath = findResult;
-            console.log(`✅ Найден Chrome через find: ${chromePath}`);
+        // Сначала проверим переменную среды PUPPETEER_EXECUTABLE_PATH
+        if (process.env.PUPPETEER_EXECUTABLE_PATH) {
+          try {
+            const envPath = process.env.PUPPETEER_EXECUTABLE_PATH.replace('*', '139.0.7258.138');
+            if (fs.existsSync(envPath)) {
+              chromePath = envPath;
+              console.log(`✅ Найден Chrome через переменную среды: ${chromePath}`);
+            }
+          } catch (envError) {
+            console.log('⚠️ Ошибка проверки переменной среды:', envError.message);
           }
-        } catch (findError) {
-          console.log('⚠️ Find команда не сработала:', findError.message);
+        }
+        
+        // Попробуем найти Chrome через find команду в известных местах
+        if (!chromePath) {
+          try {
+            // Поиск в /opt/render/.cache/puppeteer/
+            let findResult = '';
+            try {
+              findResult = execSync('find /opt/render/.cache/puppeteer -name "chrome" -type f -executable 2>/dev/null | head -1', { encoding: 'utf8' }).trim();
+            } catch (findError1) {
+              // Попробуем поиск в домашней директории
+              try {
+                findResult = execSync('find ~ -name "chrome" -type f -executable -path "*/puppeteer/*" 2>/dev/null | head -1', { encoding: 'utf8' }).trim();
+              } catch (findError2) {
+                // Попробуем глобальный поиск Chrome
+                try {
+                  findResult = execSync('which google-chrome || which chromium || which chrome', { encoding: 'utf8' }).trim();
+                } catch (findError3) {
+                  console.log('⚠️ Все попытки find не сработали');
+                }
+              }
+            }
+            
+            if (findResult && fs.existsSync(findResult)) {
+              chromePath = findResult;
+              console.log(`✅ Найден Chrome через find: ${chromePath}`);
+            }
+          } catch (findError) {
+            console.log('⚠️ Find команда не сработала:', findError.message);
+          }
         }
         
         // Если find не сработал, попробуем известные пути
         if (!chromePath) {
           const possiblePaths = [
+            '/opt/render/.cache/puppeteer/chrome/linux-139.0.7258.138/chrome-linux64/chrome',
             '/opt/render/.cache/puppeteer/chrome/linux-131.0.6778.204/chrome-linux64/chrome',
             '/opt/render/.cache/puppeteer/chrome/linux-130.0.6723.116/chrome-linux64/chrome',
             '/opt/render/.cache/puppeteer/chrome/linux-129.0.6668.100/chrome-linux64/chrome',
-            '/opt/render/.cache/puppeteer/chrome/linux-139.0.7258.138/chrome-linux64/chrome'
+            // Дополнительные возможные пути
+            process.env.HOME + '/.cache/puppeteer/chrome/linux-139.0.7258.138/chrome-linux64/chrome',
+            '/home/render/.cache/puppeteer/chrome/linux-139.0.7258.138/chrome-linux64/chrome'
           ];
           
           for (const pathToCheck of possiblePaths) {
@@ -540,18 +569,40 @@ async function createPriceChart(priceHistory) {
             ]
           });
         } else {
-          // Последняя попытка - вывести содержимое директории для отладки
+          // Последняя попытка - вывести содержимое директорий для отладки
           try {
-            const lsResult = execSync('ls -la /opt/render/.cache/puppeteer/', { encoding: 'utf8' });
-            console.log('📂 Содержимое /opt/render/.cache/puppeteer/:');
-            console.log(lsResult);
+            console.log('📂 Отладка: Поиск всех возможных мест Chrome...');
             
-            const chromeDir = execSync('find /opt/render/.cache/puppeteer -name "chrome" -type d 2>/dev/null', { encoding: 'utf8' }).trim();
-            if (chromeDir) {
-              console.log('📂 Найдена директория Chrome:', chromeDir);
-              const chromeContent = execSync(`ls -la "${chromeDir}"`, { encoding: 'utf8' });
-              console.log(chromeContent);
+            // Проверяем различные директории
+            const dirsToCheck = [
+              '/opt/render/',
+              '/opt/render/.cache/',
+              '/opt/render/.cache/puppeteer/',
+              process.env.HOME + '/.cache/',
+              process.env.HOME + '/.cache/puppeteer/'
+            ];
+            
+            for (const dir of dirsToCheck) {
+              try {
+                const lsResult = execSync(`ls -la "${dir}" 2>/dev/null || echo "Директория ${dir} не существует"`, { encoding: 'utf8' });
+                console.log(`📂 ${dir}:`);
+                console.log(lsResult.slice(0, 500)); // Ограничиваем вывод
+              } catch (dirError) {
+                console.log(`⚠️ Не удалось проверить ${dir}: ${dirError.message}`);
+              }
             }
+            
+            // Поиск любых файлов chrome в системе
+            try {
+              const allChromeFiles = execSync('find / -name "chrome" -type f 2>/dev/null | grep -E "(puppeteer|chromium)" | head -5', { encoding: 'utf8' });
+              if (allChromeFiles.trim()) {
+                console.log('🔍 Найденные файлы Chrome в системе:');
+                console.log(allChromeFiles);
+              }
+            } catch (searchError) {
+              console.log('⚠️ Не удалось выполнить глобальный поиск Chrome');
+            }
+            
           } catch (debugError) {
             console.log('⚠️ Ошибка отладки:', debugError.message);
           }

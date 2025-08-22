@@ -3,7 +3,7 @@ services:
     name: ces-price-telegram-bot
     env: node
     plan: free
-    buildCommand: yarn install && npx puppeteer browsers install chrome
+    buildCommand: yarn install && mkdir -p /opt/render/.cache/puppeteer && npx puppeteer browsers install chrome --path /opt/render/.cache/puppeteer && ls -la /opt/render/.cache/puppeteer/chrome/
     startCommand: yarn start
     healthCheckPath: /health
     envVars:
