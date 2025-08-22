@@ -461,13 +461,17 @@ async function createPriceChart(priceHistory) {
     // Используем Puppeteer для создания скриншота УЛЬТРАСОВРЕМЕННОГО графика
     const browser = await puppeteer.launch({ 
       headless: 'new',
+      executablePath: process.env.NODE_ENV === 'production' ? '/opt/render/.cache/puppeteer/chrome/linux-139.0.7258.138/chrome-linux64/chrome' : undefined,
       args: [
         '--no-sandbox', 
         '--disable-setuid-sandbox', 
         '--disable-dev-shm-usage',
         '--enable-webgl',
         '--enable-accelerated-2d-canvas',
-        '--enable-gpu-rasterization'
+        '--enable-gpu-rasterization',
+        '--disable-background-timer-throttling',
+        '--disable-backgrounding-occluded-windows',
+        '--disable-renderer-backgrounding'
       ]
     });
     const page = await browser.newPage();
@@ -490,7 +494,13 @@ async function createPriceChart(priceHistory) {
     return imageBuffer;
     
   } catch (error) {
-    console.error('Ошибка создания КРУТОГО графика:', error);
+    console.error('Ошибка создания КРУТОГО графика:', error.message);
+    
+    // Если проблема с Chrome/Puppeteer, попробуем без чартов
+    if (error.message.includes('Could not find Chrome') || error.message.includes('puppeteer')) {
+      console.log('⚠️ Проблема с Puppeteer, возвращаем null');
+    }
+    
     return null;
   }
 }
@@ -626,7 +636,10 @@ async function sendPriceToUser(chatId) {
         });
         console.log('✨ УЛЬТРАСОВРЕМЕННЫЙ график с D3.js, Three.js и GSAP успешно отправлен!');
       } else {
-        console.log('⚠️ Не удалось создать график');
+        console.log('⚠️ Не удалось создать график (возможно, проблема с Puppeteer)');
+        // Отправляем текстовое описание вместо графика
+        const textChart = `📊 Информация о цене CES (24ч)\n\n🔥 Минимум: $${Math.min(...priceHistory.map(p => p.price)).toFixed(4)}\n🚀 Максимум: $${Math.max(...priceHistory.map(p => p.price)).toFixed(4)}\n📈 Точек данных: ${priceHistory.length}\n\n⚠️ График недоступен (технические работы)`;
+        await bot.sendMessage(chatId, textChart);
       }
     } else {
       console.log('📋 Недостаточно данных для создания графика');

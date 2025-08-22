@@ -3,7 +3,7 @@ services:
     name: ces-price-telegram-bot
     env: node
     plan: free
-    buildCommand: yarn install
+    buildCommand: yarn install && npx puppeteer browsers install chrome
     startCommand: yarn start
     healthCheckPath: /health
     envVars:
@@ -21,3 +21,5 @@ services:
         value: "Europe/Moscow"
       - key: WEBHOOK_URL
         value: "https://metawhale.onrender.com"
+      - key: NODE_ENV
+        value: "production"
