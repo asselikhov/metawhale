@@ -491,20 +491,25 @@ async function createPriceChart(priceHistory) {
         // Попробуем найти Chrome через find команду в известных местах
         if (!chromePath) {
           try {
-            // Поиск в /opt/render/.cache/puppeteer/
+            // Поиск в директории проекта
             let findResult = '';
             try {
-              findResult = execSync('find /opt/render/.cache/puppeteer -name "chrome" -type f -executable 2>/dev/null | head -1', { encoding: 'utf8' }).trim();
+              findResult = execSync('find ./chrome-cache -name "chrome" -type f -executable 2>/dev/null | head -1', { encoding: 'utf8' }).trim();
             } catch (findError1) {
-              // Попробуем поиск в домашней директории
+              // Попробуем поиск в /opt/render/.cache/puppeteer/
               try {
-                findResult = execSync('find ~ -name "chrome" -type f -executable -path "*/puppeteer/*" 2>/dev/null | head -1', { encoding: 'utf8' }).trim();
+                findResult = execSync('find /opt/render/.cache/puppeteer -name "chrome" -type f -executable 2>/dev/null | head -1', { encoding: 'utf8' }).trim();
               } catch (findError2) {
-                // Попробуем глобальный поиск Chrome
+                // Попробуем поиск в домашней директории
                 try {
-                  findResult = execSync('which google-chrome || which chromium || which chrome', { encoding: 'utf8' }).trim();
+                  findResult = execSync('find ~ -name "chrome" -type f -executable -path "*/puppeteer/*" 2>/dev/null | head -1', { encoding: 'utf8' }).trim();
                 } catch (findError3) {
-                  console.log('⚠️ Все попытки find не сработали');
+                  // Попробуем глобальный поиск Chrome
+                  try {
+                    findResult = execSync('which google-chrome || which chromium || which chrome', { encoding: 'utf8' }).trim();
+                  } catch (findError4) {
+                    console.log('⚠️ Все попытки find не сработали');
+                  }
                 }
               }
             }
@@ -521,6 +526,12 @@ async function createPriceChart(priceHistory) {
         // Если find не сработал, попробуем известные пути
         if (!chromePath) {
           const possiblePaths = [
+            // Пути в директории проекта
+            './chrome-cache/chrome/linux-139.0.7258.138/chrome-linux64/chrome',
+            './chrome-cache/chrome/linux-131.0.6778.204/chrome-linux64/chrome',
+            './chrome-cache/chrome/linux-130.0.6723.116/chrome-linux64/chrome',
+            './chrome-cache/chrome/linux-129.0.6668.100/chrome-linux64/chrome',
+            // Пути в /opt/render/.cache/puppeteer/
             '/opt/render/.cache/puppeteer/chrome/linux-139.0.7258.138/chrome-linux64/chrome',
             '/opt/render/.cache/puppeteer/chrome/linux-131.0.6778.204/chrome-linux64/chrome',
             '/opt/render/.cache/puppeteer/chrome/linux-130.0.6723.116/chrome-linux64/chrome',
@@ -543,11 +554,18 @@ async function createPriceChart(priceHistory) {
         if (!chromePath) {
           try {
             const glob = require('glob');
-            const globPattern = '/opt/render/.cache/puppeteer/chrome/linux-*/chrome-linux64/chrome';
-            const matches = glob.sync(globPattern);
-            if (matches.length > 0) {
-              chromePath = matches[0];
-              console.log(`✅ Найден Chrome через glob: ${chromePath}`);
+            const globPatterns = [
+              './chrome-cache/chrome/linux-*/chrome-linux64/chrome',
+              '/opt/render/.cache/puppeteer/chrome/linux-*/chrome-linux64/chrome'
+            ];
+            
+            for (const globPattern of globPatterns) {
+              const matches = glob.sync(globPattern);
+              if (matches.length > 0) {
+                chromePath = matches[0];
+                console.log(`✅ Найден Chrome через glob: ${chromePath}`);
+                break;
+              }
             }
           } catch (globError) {
             console.log('⚠️ Glob поиск не сработал:', globError.message);
@@ -575,6 +593,8 @@ async function createPriceChart(priceHistory) {
             
             // Проверяем различные директории
             const dirsToCheck = [
+              './chrome-cache/',
+              './chrome-cache/chrome/',
               '/opt/render/',
               '/opt/render/.cache/',
               '/opt/render/.cache/puppeteer/',

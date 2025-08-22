@@ -3,7 +3,7 @@ services:
     name: ces-price-telegram-bot
     env: node
     plan: free
-    buildCommand: yarn install && mkdir -p /opt/render/.cache/puppeteer && npx puppeteer browsers install chrome --path /opt/render/.cache/puppeteer && ls -la /opt/render/.cache/puppeteer/chrome/
+    buildCommand: yarn install && mkdir -p ./chrome-cache && PUPPETEER_CACHE_DIR=./chrome-cache npx puppeteer browsers install chrome && ls -la ./chrome-cache/chrome/
     startCommand: yarn start
     healthCheckPath: /health
     envVars:
@@ -24,8 +24,8 @@ services:
       - key: NODE_ENV
         value: "production"
       - key: PUPPETEER_CACHE_DIR
-        value: "/opt/render/.cache/puppeteer"
+        value: "./chrome-cache"
       - key: PUPPETEER_SKIP_CHROMIUM_DOWNLOAD
         value: "false"
       - key: PUPPETEER_EXECUTABLE_PATH
-        value: "/opt/render/.cache/puppeteer/chrome/linux-*/chrome-linux64/chrome"
+        value: "./chrome-cache/chrome/linux-*/chrome-linux64/chrome"
