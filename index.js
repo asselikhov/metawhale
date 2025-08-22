@@ -66,10 +66,6 @@ bot.onText(/\/start/, async (msg) => {
   const chatId = msg.chat.id;
   const welcomeMessage = `Добро пожаловать в Rustling Grass 🌾 assistant!
 
-🪙 Токен CES
-Контракт: ${process.env.CES_CONTRACT_ADDRESS}
-Сеть: Polygon
-
 📋 Доступные команды:
 /price - Получить текущую цену CES с красивым графиком
 /start - Показать это сообщение
@@ -481,20 +477,51 @@ async function createPriceChart(priceHistory) {
       try {
         const fs = require('fs');
         const path = require('path');
-        
-        // Поиск Chrome в возможных местах
-        const possiblePaths = [
-          '/opt/render/.cache/puppeteer/chrome/linux-131.0.6778.204/chrome-linux64/chrome',
-          '/opt/render/.cache/puppeteer/chrome/linux-130.0.6723.116/chrome-linux64/chrome',
-          '/opt/render/.cache/puppeteer/chrome/linux-129.0.6668.100/chrome-linux64/chrome'
-        ];
+        const { execSync } = require('child_process');
         
         let chromePath = null;
-        for (const pathToCheck of possiblePaths) {
-          if (fs.existsSync(pathToCheck)) {
-            chromePath = pathToCheck;
-            console.log(`✅ Найден Chrome: ${chromePath}`);
-            break;
+        
+        // Попробуем найти Chrome через find команду
+        try {
+          const findResult = execSync('find /opt/render/.cache/puppeteer -name "chrome" -type f -executable 2>/dev/null | head -1', { encoding: 'utf8' }).trim();
+          if (findResult && fs.existsSync(findResult)) {
+            chromePath = findResult;
+            console.log(`✅ Найден Chrome через find: ${chromePath}`);
+          }
+        } catch (findError) {
+          console.log('⚠️ Find команда не сработала:', findError.message);
+        }
+        
+        // Если find не сработал, попробуем известные пути
+        if (!chromePath) {
+          const possiblePaths = [
+            '/opt/render/.cache/puppeteer/chrome/linux-131.0.6778.204/chrome-linux64/chrome',
+            '/opt/render/.cache/puppeteer/chrome/linux-130.0.6723.116/chrome-linux64/chrome',
+            '/opt/render/.cache/puppeteer/chrome/linux-129.0.6668.100/chrome-linux64/chrome',
+            '/opt/render/.cache/puppeteer/chrome/linux-139.0.7258.138/chrome-linux64/chrome'
+          ];
+          
+          for (const pathToCheck of possiblePaths) {
+            if (fs.existsSync(pathToCheck)) {
+              chromePath = pathToCheck;
+              console.log(`✅ Найден Chrome по пути: ${chromePath}`);
+              break;
+            }
+          }
+        }
+        
+        // Если все еще не найден, попробуем поиск по glob паттерну
+        if (!chromePath) {
+          try {
+            const glob = require('glob');
+            const globPattern = '/opt/render/.cache/puppeteer/chrome/linux-*/chrome-linux64/chrome';
+            const matches = glob.sync(globPattern);
+            if (matches.length > 0) {
+              chromePath = matches[0];
+              console.log(`✅ Найден Chrome через glob: ${chromePath}`);
+            }
+          } catch (globError) {
+            console.log('⚠️ Glob поиск не сработал:', globError.message);
           }
         }
         
@@ -513,7 +540,23 @@ async function createPriceChart(priceHistory) {
             ]
           });
         } else {
-          throw new Error('Не удалось найти Chrome');
+          // Последняя попытка - вывести содержимое директории для отладки
+          try {
+            const lsResult = execSync('ls -la /opt/render/.cache/puppeteer/', { encoding: 'utf8' });
+            console.log('📂 Содержимое /opt/render/.cache/puppeteer/:');
+            console.log(lsResult);
+            
+            const chromeDir = execSync('find /opt/render/.cache/puppeteer -name "chrome" -type d 2>/dev/null', { encoding: 'utf8' }).trim();
+            if (chromeDir) {
+              console.log('📂 Найдена директория Chrome:', chromeDir);
+              const chromeContent = execSync(`ls -la "${chromeDir}"`, { encoding: 'utf8' });
+              console.log(chromeContent);
+            }
+          } catch (debugError) {
+            console.log('⚠️ Ошибка отладки:', debugError.message);
+          }
+          
+          throw new Error('Не удалось найти Chrome в кэше Puppeteer');
         }
       } catch (secondError) {
         console.error('Ошибка запуска Puppeteer с ручным путем:', secondError.message);
@@ -657,11 +700,10 @@ async function sendPriceToUser(chatId) {
     
     const changeEmoji = priceData.change24h >= 0 ? '📈' : '📉';
     const changeSign = priceData.change24h >= 0 ? '+' : '';
-    const cacheIndicator = priceData.cached ? ' 🟠 (кеш)' : '';
     
     const message = `
 ➖➖➖➖➖➖➖➖➖➖➖➖➖
-💰 Цена токена CES: $${priceData.price.toFixed(2)}${priceData.priceRub > 0 ? ` | ₽${priceData.priceRub.toFixed(2)}` : ''}${cacheIndicator}
+💰 Цена токена CES: $${priceData.price.toFixed(2)}${priceData.priceRub > 0 ? ` | ₽${priceData.priceRub.toFixed(2)}` : ''}
 ➖➖➖➖➖➖➖➖➖➖➖➖➖
 Изменение за 24ч: ${changeSign}${priceData.change24h.toFixed(2)}%
 Объем за 24ч: $${formatNumber(priceData.volume24h)}

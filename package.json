@@ -31,7 +31,8 @@
     "gsap": "^3.12.2",
     "chartjs-adapter-date-fns": "^3.0.0",
     "date-fns": "^2.29.3",
-    "p5": "^1.7.0"
+    "p5": "^1.7.0",
+    "glob": "^8.1.0"
   },
   "devDependencies": {
     "nodemon": "^3.0.2"
