@@ -573,6 +573,7 @@ async function createPriceChart(priceHistory) {
         }
         
         if (chromePath) {
+          console.log(`🚀 Попытка запуска Puppeteer с найденным Chrome: ${chromePath}`);
           browser = await puppeteer.launch({ 
             headless: 'new',
             executablePath: chromePath,
@@ -586,6 +587,7 @@ async function createPriceChart(priceHistory) {
               '--disable-gpu'
             ]
           });
+          console.log('✅ Puppeteer успешно запущен с найденным Chrome!');
         } else {
           // Последняя попытка - вывести содержимое директорий для отладки
           try {
@@ -634,12 +636,17 @@ async function createPriceChart(priceHistory) {
         throw secondError;
       }
     }
+    console.log('🎭 Начинаем создание страницы...');
     const page = await browser.newPage();
+    console.log('📱 Страница создана, устанавливаем viewport...');
     await page.setViewport({ width: 900, height: 600 });
+    console.log('🗺️ Viewport установлен, загружаем HTML...');
     await page.setContent(chartHTML);
+    console.log('🌈 HTML загружен, ожидаем анимации...');
     
     // Ожидаем загрузки всех анимаций и эффектов
     await page.waitForTimeout(4000);
+    console.log('📷 Анимации завершены, делаем скриншот...');
     
     // Делаем скриншот ШЕДЕВРА
     const imageBuffer = await page.screenshot({ 
@@ -647,14 +654,17 @@ async function createPriceChart(priceHistory) {
       fullPage: false,
       clip: { x: 0, y: 0, width: 900, height: 600 }
     });
+    console.log('✨ Скриншот создан! Закрываем браузер...');
     
     await browser.close();
+    console.log('🔒 Браузер закрыт.');
     
     console.log('🎨 УЛЬТРАСОВРЕМЕННЫЙ график создан с D3.js, Three.js и GSAP!');
     return imageBuffer;
     
   } catch (error) {
-    console.error('Ошибка создания КРУТОГО графика:', error.message);
+    console.error('❌ Ошибка создания КРУТОГО графика:', error.message);
+    console.error('🔍 Stack trace:', error.stack);
     
     // Если проблема с Chrome/Puppeteer, попробуем без чартов
     if (error.message.includes('Could not find Chrome') || error.message.includes('puppeteer')) {
