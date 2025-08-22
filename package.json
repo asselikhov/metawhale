@@ -30,6 +30,7 @@
     "three": "^0.160.0",
     "gsap": "^3.12.2",
     "chartjs-adapter-date-fns": "^3.0.0",
+    "chartjs-chart-financial": "^0.2.1",
     "date-fns": "^2.29.3",
     "p5": "^1.7.0",
     "glob": "^8.1.0"

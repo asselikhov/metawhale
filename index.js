@@ -98,18 +98,15 @@ async function createPriceChart(priceHistory) {
     const isPositive = lastPrice >= firstPrice;
     const priceChange = ((lastPrice - firstPrice) / firstPrice * 100).toFixed(2);
     
-    // Создаем УЛЬТРАСОВРЕМЕННЫЙ HTML с D3.js, Three.js и GSAP анимациями
+    // Создаем профессиональный свечной график в стиле TradingView
     const chartHTML = `
     <!DOCTYPE html>
     <html>
     <head>
-        <script src="https://d3js.org/d3.v7.min.js"></script>
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
         <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-financial"></script>
+        <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
         <style>
-            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;900&display=swap');
-            
             * {
                 margin: 0;
                 padding: 0;
@@ -117,331 +114,213 @@ async function createPriceChart(priceHistory) {
             }
             
             body {
-                font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-                background: linear-gradient(135deg, 
-                    #667eea 0%, 
-                    #764ba2 25%, 
-                    #f093fb 50%, 
-                    #f5576c 75%, 
-                    #4facfe 100%);
-                background-size: 400% 400%;
-                animation: gradientShift 8s ease infinite;
-                overflow: hidden;
+                background: #131722;
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
                 width: 100vw;
                 height: 100vh;
                 display: flex;
                 align-items: center;
                 justify-content: center;
-            }
-            
-            @keyframes gradientShift {
-                0% { background-position: 0% 50%; }
-                50% { background-position: 100% 50%; }
-                100% { background-position: 0% 50%; }
+                color: #d1d4dc;
             }
             
             .chart-container {
-                width: 900px;
-                height: 600px;
-                background: rgba(255, 255, 255, 0.95);
-                backdrop-filter: blur(20px);
-                border-radius: 24px;
-                padding: 30px;
-                box-shadow: 
-                    0 25px 50px rgba(0, 0, 0, 0.25),
-                    0 0 0 1px rgba(255, 255, 255, 0.2);
-                position: relative;
-                overflow: hidden;
-                border: 1px solid rgba(255, 255, 255, 0.3);
+                width: 1200px;
+                height: 800px;
+                background: #1e222d;
+                border-radius: 8px;
+                padding: 20px;
+                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+                border: 1px solid #2a2e39;
             }
             
-            .chart-container::before {
-                content: '';
-                position: absolute;
-                top: 0;
-                left: 0;
-                right: 0;
-                bottom: 0;
-                background: linear-gradient(45deg, 
-                    rgba(255, 255, 255, 0.1) 0%, 
-                    transparent 50%, 
-                    rgba(255, 255, 255, 0.1) 100%);
-                z-index: 1;
-                pointer-events: none;
+            .header {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 20px;
+                padding-bottom: 15px;
+                border-bottom: 1px solid #2a2e39;
             }
             
-            .title {
-                text-align: center;
-                font-size: 32px;
-                font-weight: 900;
-                background: linear-gradient(135deg, #667eea, #764ba2);
-                -webkit-background-clip: text;
-                -webkit-text-fill-color: transparent;
-                margin-bottom: 10px;
-                z-index: 2;
-                position: relative;
-                text-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            }
-            
-            .subtitle {
-                text-align: center;
-                font-size: 18px;
-                color: #6B7280;
-                margin-bottom: 30px;
-                z-index: 2;
-                position: relative;
-                font-weight: 500;
+            .symbol {
+                font-size: 24px;
+                font-weight: 600;
+                color: #2962ff;
             }
             
             .price-info {
                 display: flex;
-                justify-content: space-between;
-                margin-bottom: 20px;
-                z-index: 2;
-                position: relative;
+                gap: 20px;
+                align-items: center;
             }
             
-            .price-stat {
-                text-align: center;
-                padding: 15px;
-                background: rgba(255, 255, 255, 0.8);
-                border-radius: 16px;
-                backdrop-filter: blur(10px);
-                border: 1px solid rgba(255, 255, 255, 0.2);
-                min-width: 120px;
-                transition: all 0.3s ease;
-            }
-            
-            .price-stat:hover {
-                transform: translateY(-2px);
-                box-shadow: 0 8px 25px rgba(0,0,0,0.15);
-            }
-            
-            .stat-label {
-                font-size: 12px;
-                color: #9CA3AF;
-                font-weight: 600;
-                text-transform: uppercase;
-                letter-spacing: 0.5px;
-            }
-            
-            .stat-value {
-                font-size: 20px;
+            .current-price {
+                font-size: 28px;
                 font-weight: 700;
-                margin-top: 5px;
+                color: #f0f3fa;
             }
             
-            .positive { color: #10B981; }
-            .negative { color: #EF4444; }
+            .price-change {
+                font-size: 16px;
+                font-weight: 600;
+                padding: 4px 8px;
+                border-radius: 4px;
+            }
+            
+            .positive {
+                color: #089981;
+                background: rgba(8, 153, 129, 0.1);
+            }
+            
+            .negative {
+                color: #f23645;
+                background: rgba(242, 54, 69, 0.1);
+            }
             
             #chart {
-                border-radius: 16px;
-                z-index: 2;
-                position: relative;
-                box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-            }
-            
-            .particles {
-                position: absolute;
-                top: 0;
-                left: 0;
                 width: 100%;
-                height: 100%;
-                pointer-events: none;
-                z-index: 0;
+                height: 720px;
             }
         </style>
     </head>
     <body>
         <div class="chart-container">
-            <canvas class="particles"></canvas>
-            <div class="title">💎 CES TOKEN ANALYTICS</div>
-            <div class="subtitle">Real-time Price Movement • 24H Data</div>
-            
-            <div class="price-info">
-                <div class="price-stat">
-                    <div class="stat-label">CURRENT</div>
-                    <div class="stat-value">$${lastPrice.toFixed(4)}</div>
-                </div>
-                <div class="price-stat">
-                    <div class="stat-label">CHANGE</div>
-                    <div class="stat-value ${isPositive ? 'positive' : 'negative'}">
+            <div class="header">
+                <div class="symbol">CES/USD</div>
+                <div class="price-info">
+                    <div class="current-price">$${lastPrice.toFixed(4)}</div>
+                    <div class="price-change ${isPositive ? 'positive' : 'negative'}">
                         ${isPositive ? '+' : ''}${priceChange}%
                     </div>
                 </div>
-                <div class="price-stat">
-                    <div class="stat-label">MIN</div>
-                    <div class="stat-value">$${Math.min(...prices).toFixed(4)}</div>
-                </div>
-                <div class="price-stat">
-                    <div class="stat-label">MAX</div>
-                    <div class="stat-value">$${Math.max(...prices).toFixed(4)}</div>
-                </div>
             </div>
-            
-            <canvas id="chart" width="840" height="400"></canvas>
+            <canvas id="chart"></canvas>
         </div>
         
         <script>
-            // УЛЬТРАСОВРЕМЕННАЯ анимация частиц с Three.js
-            const particlesCanvas = document.querySelector('.particles');
-            const scene = new THREE.Scene();
-            const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-            const renderer = new THREE.WebGLRenderer({ canvas: particlesCanvas, alpha: true });
-            renderer.setSize(900, 600);
+            // Подготовка данных для свечного графика
+            const priceData = ${JSON.stringify(prices)};
+            const timeLabels = ${JSON.stringify(timestamps)};
             
-            const particles = new THREE.BufferGeometry();
-            const particleCount = 100;
-            const positions = new Float32Array(particleCount * 3);
-            
-            for (let i = 0; i < particleCount * 3; i++) {
-                positions[i] = (Math.random() - 0.5) * 10;
-            }
-            
-            particles.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-            const material = new THREE.PointsMaterial({ 
-                color: 0x667eea, 
-                size: 0.02,
-                transparent: true,
-                opacity: 0.6
+            // Создаем свечные данные (искусственно создаем OHLC)
+            const candleData = priceData.map((price, index) => {
+                const variation = price * 0.002; // 0.2% вариация
+                const open = index === 0 ? price : priceData[index - 1];
+                const close = price;
+                const high = Math.max(open, close) + variation;
+                const low = Math.min(open, close) - variation;
+                
+                return {
+                    x: timeLabels[index],
+                    o: open,
+                    h: high,
+                    l: low,
+                    c: close
+                };
             });
             
-            const mesh = new THREE.Points(particles, material);
-            scene.add(mesh);
-            camera.position.z = 5;
-            
-            function animateParticles() {
-                requestAnimationFrame(animateParticles);
-                mesh.rotation.x += 0.001;
-                mesh.rotation.y += 0.002;
-                renderer.render(scene, camera);
-            }
-            animateParticles();
-            
-            // КРУТЕЙШИЙ график с D3.js анимациями
             const ctx = document.getElementById('chart').getContext('2d');
-            const gradient = ctx.createLinearGradient(0, 0, 0, 400);
-            
-            if (${isPositive}) {
-                gradient.addColorStop(0, 'rgba(16, 185, 129, 0.8)');
-                gradient.addColorStop(0.5, 'rgba(16, 185, 129, 0.4)');
-                gradient.addColorStop(1, 'rgba(16, 185, 129, 0.0)');
-            } else {
-                gradient.addColorStop(0, 'rgba(239, 68, 68, 0.8)');
-                gradient.addColorStop(0.5, 'rgba(239, 68, 68, 0.4)');
-                gradient.addColorStop(1, 'rgba(239, 68, 68, 0.0)');
-            }
             
             const chart = new Chart(ctx, {
-                type: 'line',
+                type: 'candlestick',
                 data: {
-                    labels: ${JSON.stringify(timestamps)},
                     datasets: [{
-                        label: 'CES Price',
-                        data: ${JSON.stringify(prices)},
-                        borderColor: ${isPositive ? "'#10B981'" : "'#EF4444'"},
-                        backgroundColor: gradient,
-                        borderWidth: 4,
-                        fill: true,
-                        tension: 0.4,
-                        pointBackgroundColor: ${isPositive ? "'#10B981'" : "'#EF4444'"},
-                        pointBorderColor: '#ffffff',
-                        pointBorderWidth: 3,
-                        pointRadius: 6,
-                        pointHoverRadius: 8,
-                        pointHoverBorderWidth: 4,
-                        borderCapStyle: 'round',
-                        borderJoinStyle: 'round'
+                        label: 'CES/USD',
+                        data: candleData,
+                        borderColor: {
+                            up: '#089981',
+                            down: '#f23645',
+                            unchanged: '#999'
+                        },
+                        backgroundColor: {
+                            up: 'rgba(8, 153, 129, 0.8)',
+                            down: 'rgba(242, 54, 69, 0.8)',
+                            unchanged: 'rgba(153, 153, 153, 0.8)'
+                        }
                     }]
                 },
                 options: {
-                    responsive: false,
+                    responsive: true,
+                    maintainAspectRatio: false,
                     plugins: {
-                        legend: { display: false }
-                    },
-                    scales: {
-                        x: {
-                            display: true,
-                            title: {
-                                display: true,
-                                text: 'Время (МСК)',
-                                font: { size: 14, weight: 'bold' },
-                                color: '#374151'
-                            },
-                            grid: {
-                                color: 'rgba(0,0,0,0.05)',
-                                lineWidth: 1
-                            },
-                            ticks: {
-                                color: '#6B7280',
-                                font: { size: 12, weight: '500' }
-                            }
+                        legend: {
+                            display: false
                         },
-                        y: {
-                            display: true,
-                            title: {
-                                display: true,
-                                text: 'Цена (USD)',
-                                font: { size: 14, weight: 'bold' },
-                                color: '#374151'
-                            },
-                            grid: {
-                                color: 'rgba(0,0,0,0.05)',
-                                lineWidth: 1
-                            },
-                            ticks: {
-                                color: '#6B7280',
-                                font: { size: 12, weight: '500' },
-                                callback: function(value) {
-                                    return '$' + value.toFixed(4);
+                        tooltip: {
+                            backgroundColor: '#2a2e39',
+                            titleColor: '#f0f3fa',
+                            bodyColor: '#d1d4dc',
+                            borderColor: '#434651',
+                            borderWidth: 1,
+                            cornerRadius: 4,
+                            callbacks: {
+                                title: function(context) {
+                                    return context[0].label;
+                                },
+                                label: function(context) {
+                                    const data = context.raw;
+                                    return [
+                                        'Open: $' + data.o.toFixed(4),
+                                        'High: $' + data.h.toFixed(4),
+                                        'Low: $' + data.l.toFixed(4),
+                                        'Close: $' + data.c.toFixed(4)
+                                    ];
                                 }
                             }
                         }
                     },
-                    animation: {
-                        duration: 2000,
-                        easing: 'easeInOutQuart'
+                    scales: {
+                        x: {
+                            type: 'category',
+                            grid: {
+                                color: '#2a2e39',
+                                lineWidth: 1
+                            },
+                            ticks: {
+                                color: '#868b93',
+                                font: {
+                                    size: 11
+                                },
+                                maxTicksLimit: 12
+                            },
+                            border: {
+                                color: '#2a2e39'
+                            }
+                        },
+                        y: {
+                            position: 'right',
+                            grid: {
+                                color: '#2a2e39',
+                                lineWidth: 1
+                            },
+                            ticks: {
+                                color: '#868b93',
+                                font: {
+                                    size: 11
+                                },
+                                callback: function(value) {
+                                    return '$' + value.toFixed(4);
+                                }
+                            },
+                            border: {
+                                color: '#2a2e39'
+                            }
+                        }
                     },
-                    interaction: {
-                        intersect: false,
-                        mode: 'index'
+                    layout: {
+                        padding: {
+                            top: 10,
+                            right: 10,
+                            bottom: 10,
+                            left: 10
+                        }
+                    },
+                    animation: {
+                        duration: 1000,
+                        easing: 'easeInOutQuart'
                     }
                 }
-            });
-            
-            // GSAP анимации для суперкрутых эффектов
-            gsap.from('.chart-container', {
-                scale: 0.8,
-                opacity: 0,
-                duration: 1.2,
-                ease: 'back.out(1.7)'
-            });
-            
-            gsap.from('.price-stat', {
-                y: 50,
-                opacity: 0,
-                duration: 0.8,
-                stagger: 0.1,
-                ease: 'power3.out',
-                delay: 0.3
-            });
-            
-            gsap.from('.title', {
-                y: -30,
-                opacity: 0,
-                duration: 1,
-                ease: 'elastic.out(1, 0.5)',
-                delay: 0.2
-            });
-            
-            // Пульсирующая анимация для статистики
-            gsap.to('.price-stat', {
-                scale: 1.05,
-                duration: 2,
-                repeat: -1,
-                yoyo: true,
-                ease: 'sine.inOut',
-                stagger: 0.2
             });
         </script>
     </body>
@@ -639,7 +518,7 @@ async function createPriceChart(priceHistory) {
     console.log('🎭 Начинаем создание страницы...');
     const page = await browser.newPage();
     console.log('📱 Страница создана, устанавливаем viewport...');
-    await page.setViewport({ width: 900, height: 600 });
+    await page.setViewport({ width: 1200, height: 800 });
     console.log('🗺️ Viewport установлен, загружаем HTML...');
     await page.setContent(chartHTML);
     console.log('🌈 HTML загружен, ожидаем анимации...');
@@ -647,14 +526,11 @@ async function createPriceChart(priceHistory) {
     // Ожидаем загрузки Chart.js и других библиотек
     try {
       await page.waitForFunction(() => {
-        return typeof window.Chart !== 'undefined' && 
-               typeof window.d3 !== 'undefined' && 
-               typeof window.THREE !== 'undefined' &&
-               typeof window.gsap !== 'undefined';
+        return typeof window.Chart !== 'undefined';
       }, { timeout: 10000 });
-      console.log('✅ Все библиотеки загружены!');
+      console.log('✅ Chart.js загружен!');
     } catch (waitError) {
-      console.log('⚠️ Некоторые библиотеки могут быть не загружены, продолжаем...');
+      console.log('⚠️ Chart.js может быть не загружен, продолжаем...');
     }
     
     // Ожидаем загрузки всех анимаций и эффектов
@@ -665,7 +541,7 @@ async function createPriceChart(priceHistory) {
     const imageBuffer = await page.screenshot({ 
       type: 'png',
       fullPage: false,
-      clip: { x: 0, y: 0, width: 900, height: 600 }
+      clip: { x: 0, y: 0, width: 1200, height: 800 }
     });
     console.log('✨ Скриншот создан! Закрываем браузер...');
     
@@ -813,9 +689,7 @@ async function sendPriceToUser(chatId) {
       
       if (chartImage) {
         // Отправляем график как фотографию
-        await bot.sendPhoto(chatId, chartImage, {
-          caption: `🎨 УЛЬТРАСОВРЕМЕННЫЙ график CES (24ч)\n\n💎 Создан с D3.js + Three.js + GSAP\n🔥 Мин: $${Math.min(...priceHistory.map(p => p.price)).toFixed(4)}\n🚀 Макс: $${Math.max(...priceHistory.map(p => p.price)).toFixed(4)}`
-        });
+        await bot.sendPhoto(chatId, chartImage);
         console.log('✨ УЛЬТРАСОВРЕМЕННЫЙ график с D3.js, Three.js и GSAP успешно отправлен!');
       } else {
         console.log('⚠️ Не удалось создать график (возможно, проблема с Puppeteer)');
