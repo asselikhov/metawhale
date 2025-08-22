@@ -5,8 +5,39 @@ const axios = require('axios');
 const express = require('express');
 require('dotenv').config();
 
-// Инициализация бота
-const bot = new TelegramBot(process.env.TELEGRAM_BOT_TOKEN, { polling: true });
+// Инициализация бота с защитой от множественных запусков
+const bot = new TelegramBot(process.env.TELEGRAM_BOT_TOKEN, { 
+  polling: {
+    interval: 300,
+    autoStart: true,
+    params: {
+      timeout: 10
+    }
+  }
+});
+
+// Обработка ошибок polling
+bot.on('polling_error', (error) => {
+  console.error('⚠️ Ошибка polling:', error.message);
+  
+  // Особая обработка ошибки 409 (Conflict)
+  if (error.message.includes('409') || error.message.includes('Conflict')) {
+    console.log('🔄 Обнаружен конфликт - перезапуск через 5 секунд...');
+    
+    setTimeout(() => {
+      try {
+        bot.stopPolling({ cancel: true }).then(() => {
+          setTimeout(() => {
+            bot.startPolling();
+            console.log('✅ Поллинг перезапущен');
+          }, 2000);
+        });
+      } catch (restartError) {
+        console.error('⚠️ Ошибка перезапуска:', restartError.message);
+      }
+    }, 5000);
+  }
+});
 
 // Схема пользователя MongoDB
 const userSchema = new mongoose.Schema({
@@ -60,17 +91,17 @@ bot.onText(/\/start/, async (msg) => {
     );
 
     const welcomeMessage = `
-🚀 *Добро пожаловать в CES Price Bot!*
+🚀 Добро пожаловать в CES Price Bot!
 
 Я буду отправлять вам обновления цены токена CES дважды в день:
 • 8:00 утра по московскому времени
 • 20:00 вечера по московскому времени
 
-🪙 *Токен CES*
-Контракт: \`${process.env.CES_CONTRACT_ADDRESS}\`
+🪙 Токен CES
+Контракт: ${process.env.CES_CONTRACT_ADDRESS}
 Сеть: Polygon
 
-📋 *Доступные команды:*
+📋 Доступные команды:
 /price - Получить текущую цену CES
 /subscribe - Подписаться на ежедневные обновления
 /unsubscribe - Отписаться от обновлений
@@ -78,7 +109,7 @@ bot.onText(/\/start/, async (msg) => {
 /help - Показать справку
     `;
 
-    await bot.sendMessage(chatId, welcomeMessage, { parse_mode: 'Markdown' });
+    await bot.sendMessage(chatId, welcomeMessage);
     
     // Отправляем текущую цену в качестве приветствия
     await sendPriceToUser(chatId);
@@ -139,37 +170,58 @@ bot.onText(/\/stats/, async (msg) => {
 bot.onText(/\/help/, (msg) => {
   const chatId = msg.chat.id;
   const helpMessage = `
-📖 *Справка по CES Price Bot*
+📆 Справка по CES Price Bot
 
-📋 *Команды:*
+📋 Команды:
 /price - Получить текущую цену CES
 /subscribe - Подписаться на обновления (8:00 и 20:00 МСК)
 /unsubscribe - Отписаться от обновлений
 /stats - Посмотреть статистику за 24 часа
 /help - Показать эту справку
 
-🪙 *О токене CES:*
-Контракт: \`${process.env.CES_CONTRACT_ADDRESS}\`
+🪙 О токене CES:
+Контракт: ${process.env.CES_CONTRACT_ADDRESS}
 Сеть: Polygon
 Источник данных: CoinGecko API
 
-⏰ *Расписание автоматических обновлений:*
+⏰ Расписание автоматических обновлений:
 • 8:00 утра по московскому времени
 • 20:00 вечера по московскому времени
 
-💡 *Дополнительная информация:*
-Бот показывает цену в долларах США, изменение за 24 часа, рыночную капитализацию и объем торгов.
+💡 Бот показывает цену в долларах США, изменение за 24 часа и объем торгов.
   `;
   
-  bot.sendMessage(chatId, helpMessage, { parse_mode: 'Markdown' });
+  bot.sendMessage(chatId, helpMessage);
 });
 
-// Функция получения цены CES из CoinGecko
+// Глобальная переменная для отслеживания последнего запроса к API
+let lastApiCall = 0;
+const API_CALL_INTERVAL = parseInt(process.env.API_CALL_INTERVAL) || 10000; // 10 секунд между запросами
+
+// Функция получения цены CES из CoinGecko с обработкой лимитов
 async function getCESPrice() {
   try {
+    // Проверяем интервал между запросами
+    const now = Date.now();
+    const timeSinceLastCall = now - lastApiCall;
+    
+    if (timeSinceLastCall < API_CALL_INTERVAL) {
+      const waitTime = API_CALL_INTERVAL - timeSinceLastCall;
+      console.log(`⏳ Ожидание ${waitTime}мс перед следующим запросом к API`);
+      await new Promise(resolve => setTimeout(resolve, waitTime));
+    }
+    
+    lastApiCall = Date.now();
+    
     // Попытка получить данные по адресу контракта (сеть Polygon)
     const contractResponse = await axios.get(
-      `${process.env.COINGECKO_API_URL}/simple/token_price/polygon-pos?contract_addresses=${process.env.CES_CONTRACT_ADDRESS}&vs_currencies=usd,rub&include_24hr_change=true&include_market_cap=true&include_24hr_vol=true`
+      `${process.env.COINGECKO_API_URL}/simple/token_price/polygon-pos?contract_addresses=${process.env.CES_CONTRACT_ADDRESS}&vs_currencies=usd,rub&include_24hr_change=true&include_market_cap=true&include_24hr_vol=true`,
+      {
+        timeout: 10000,
+        headers: {
+          'User-Agent': 'CES-Price-Bot/1.0'
+        }
+      }
     );
 
     const contractAddress = process.env.CES_CONTRACT_ADDRESS.toLowerCase();
@@ -205,7 +257,29 @@ async function getCESPrice() {
 
     throw new Error('Токен CES не найден');
   } catch (error) {
-    console.error('Ошибка получения цены CES:', error);
+    console.error('Ошибка получения цены CES:', error.message);
+    
+    // Обработка ошибки 429 (Too Many Requests)
+    if (error.response && error.response.status === 429) {
+      const retryAfter = parseInt(error.response.headers['retry-after']) || 60;
+      console.log(`⚠️ Превышен лимит запросов. Повтор через ${retryAfter} секунд`);
+      
+      // Возвращаем последнюю сохраненную цену из базы данных
+      const lastPrice = await PriceHistory.findOne().sort({ timestamp: -1 });
+      if (lastPrice) {
+        console.log('⚡ Используем последнюю сохраненную цену');
+        return {
+          price: lastPrice.price,
+          priceRub: lastPrice.priceRub || 0,
+          change24h: lastPrice.change24h || 0,
+          changeRub24h: lastPrice.changeRub24h || 0,
+          marketCap: lastPrice.marketCap || 0,
+          volume24h: lastPrice.volume24h || 0,
+          cached: true
+        };
+      }
+    }
+    
     throw error;
   }
 }
@@ -215,27 +289,24 @@ async function sendPriceToUser(chatId) {
   try {
     const priceData = await getCESPrice();
     
-    // Сохранение цены в базу данных
-    await new PriceHistory(priceData).save();
+    // Сохранение цены в базу данных (только для новых данных)
+    if (!priceData.cached) {
+      await new PriceHistory(priceData).save();
+    }
     
     const changeEmoji = priceData.change24h >= 0 ? '📈' : '📉';
     const changeSign = priceData.change24h >= 0 ? '+' : '';
+    const cacheIndicator = priceData.cached ? ' 🟠 (кеш)' : '';
     
     const message = `
-💰 *Цена токена CES*
-
-💵 Цена: $${priceData.price.toFixed(6)}
-${priceData.priceRub > 0 ? `🇷🇺 Цена: ₽${priceData.priceRub.toFixed(2)}` : ''}
-
-${changeEmoji} Изменение за 24ч: ${changeSign}${priceData.change24h.toFixed(2)}%
-📊 Рыночная кап.: $${formatNumber(priceData.marketCap)}
-💹 Объем за 24ч: $${formatNumber(priceData.volume24h)}
-
-🔗 Контракт: \`${process.env.CES_CONTRACT_ADDRESS}\`
-⏰ ${new Date().toLocaleString('ru-RU', { timeZone: 'Europe/Moscow' })} (МСК)
+➖➖➖➖➖➖➖➖➖➖➖➖➖
+💰 Цена токена CES: $${priceData.price.toFixed(2)}${priceData.priceRub > 0 ? ` | ₽${priceData.priceRub.toFixed(2)}` : ''}${cacheIndicator}
+➖➖➖➖➖➖➖➖➖➖➖➖➖
+Изменение за 24ч: ${changeSign}${priceData.change24h.toFixed(2)}%
+Объем за 24ч: $${formatNumber(priceData.volume24h)}
     `;
     
-    await bot.sendMessage(chatId, message, { parse_mode: 'Markdown' });
+    await bot.sendMessage(chatId, message);
   } catch (error) {
     console.error('Ошибка отправки цены пользователю:', error);
     bot.sendMessage(chatId, '❌ Не удается получить цену CES в данный момент. Попробуйте позже.');
@@ -267,18 +338,18 @@ async function sendPriceStats(chatId) {
     const changeSign = priceChange >= 0 ? '+' : '';
 
     const message = `
-📊 *Статистика CES за 24 часа*
+📊 Статистика CES за 24 часа
 
-💰 Текущая цена: $${currentPrice.toFixed(6)}
-📈 Максимум: $${highestPrice.toFixed(6)}
-📉 Минимум: $${lowestPrice.toFixed(6)}
+💰 Текущая цена: $${currentPrice.toFixed(2)}
+📈 Максимум: $${highestPrice.toFixed(2)}
+📉 Минимум: $${lowestPrice.toFixed(2)}
 ${changeEmoji} Общее изменение: ${changeSign}${priceChange.toFixed(2)}%
 
 📋 Точек данных: ${prices.length}
 ⏰ Обновлено: ${new Date().toLocaleString('ru-RU', { timeZone: 'Europe/Moscow' })} (МСК)
     `;
 
-    bot.sendMessage(chatId, message, { parse_mode: 'Markdown' });
+    bot.sendMessage(chatId, message);
   } catch (error) {
     console.error('Ошибка отправки статистики:', error);
     bot.sendMessage(chatId, '❌ Не удается получить статистику. Попробуйте позже.');
