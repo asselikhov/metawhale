@@ -3,7 +3,7 @@ services:
     name: ces-price-telegram-bot
     env: node
     plan: free
-    buildCommand: yarn install && npx puppeteer browsers install chrome
+    buildCommand: yarn install && npx puppeteer browsers install chrome --path /opt/render/.cache/puppeteer
     startCommand: yarn start
     healthCheckPath: /health
     envVars:
@@ -23,3 +23,5 @@ services:
         value: "https://metawhale.onrender.com"
       - key: NODE_ENV
         value: "production"
+      - key: PUPPETEER_CACHE_DIR
+        value: "/opt/render/.cache/puppeteer"

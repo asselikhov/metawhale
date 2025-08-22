@@ -459,18 +459,67 @@ async function createPriceChart(priceHistory) {
     `;
     
     // Используем Puppeteer для создания скриншота УЛЬТРАСОВРЕМЕННОГО графика
-    const browser = await puppeteer.launch({ 
-      headless: 'new',
-      args: [
-        '--no-sandbox', 
-        '--disable-setuid-sandbox', 
-        '--disable-dev-shm-usage',
-        '--disable-background-timer-throttling',
-        '--disable-backgrounding-occluded-windows',
-        '--disable-renderer-backgrounding',
-        '--disable-gpu'
-      ]
-    });
+    let browser;
+    try {
+      // Попробуем запустить с стандартными настройками
+      browser = await puppeteer.launch({ 
+        headless: 'new',
+        args: [
+          '--no-sandbox', 
+          '--disable-setuid-sandbox', 
+          '--disable-dev-shm-usage',
+          '--disable-background-timer-throttling',
+          '--disable-backgrounding-occluded-windows',
+          '--disable-renderer-backgrounding',
+          '--disable-gpu'
+        ]
+      });
+    } catch (error) {
+      console.log('⚠️ Ошибка запуска Puppeteer с автоопределением Chrome:', error.message);
+      
+      // Попробуем с ручным путем
+      try {
+        const fs = require('fs');
+        const path = require('path');
+        
+        // Поиск Chrome в возможных местах
+        const possiblePaths = [
+          '/opt/render/.cache/puppeteer/chrome/linux-131.0.6778.204/chrome-linux64/chrome',
+          '/opt/render/.cache/puppeteer/chrome/linux-130.0.6723.116/chrome-linux64/chrome',
+          '/opt/render/.cache/puppeteer/chrome/linux-129.0.6668.100/chrome-linux64/chrome'
+        ];
+        
+        let chromePath = null;
+        for (const pathToCheck of possiblePaths) {
+          if (fs.existsSync(pathToCheck)) {
+            chromePath = pathToCheck;
+            console.log(`✅ Найден Chrome: ${chromePath}`);
+            break;
+          }
+        }
+        
+        if (chromePath) {
+          browser = await puppeteer.launch({ 
+            headless: 'new',
+            executablePath: chromePath,
+            args: [
+              '--no-sandbox', 
+              '--disable-setuid-sandbox', 
+              '--disable-dev-shm-usage',
+              '--disable-background-timer-throttling',
+              '--disable-backgrounding-occluded-windows',
+              '--disable-renderer-backgrounding',
+              '--disable-gpu'
+            ]
+          });
+        } else {
+          throw new Error('Не удалось найти Chrome');
+        }
+      } catch (secondError) {
+        console.error('Ошибка запуска Puppeteer с ручным путем:', secondError.message);
+        throw secondError;
+      }
+    }
     const page = await browser.newPage();
     await page.setViewport({ width: 900, height: 600 });
     await page.setContent(chartHTML);
