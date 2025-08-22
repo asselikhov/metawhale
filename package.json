@@ -1,0 +1,35 @@
+{
+  "name": "ces-price-telegram-bot",
+  "version": "1.0.0",
+  "description": "Telegram bot that sends CES token price twice daily",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js"
+  },
+  "keywords": [
+    "telegram",
+    "bot",
+    "cryptocurrency",
+    "ces",
+    "price",
+    "mongodb",
+    "nodejs"
+  ],
+  "author": "asselikhov",
+  "license": "MIT",
+  "dependencies": {
+    "node-telegram-bot-api": "^0.65.1",
+    "mongoose": "^8.0.3",
+    "node-cron": "^3.0.3",
+    "axios": "^1.6.2",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

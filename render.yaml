@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: ces-price-telegram-bot
+    env: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: MONGODB_URI
+        sync: false
+      - key: CES_CONTRACT_ADDRESS
+        value: "0x1bdf71ede1a4777db1eebe7232bcda20d6fc1610"
+      - key: COINGECKO_API_URL
+        value: "https://api.coingecko.com/api/v3"
+      - key: TIMEZONE
+        value: "Europe/Moscow"

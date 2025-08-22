@@ -1,0 +1,100 @@
+# Зависимости
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Переменные окружения
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Логи
+logs
+*.log
+
+# Runtime данные
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Директория покрытия тестов
+coverage/
+*.lcov
+
+# Покрытие nyc тестов
+.nyc_output
+
+# Зависимости
+node_modules/
+jspm_packages/
+
+# Кеш npm
+.npm
+
+# Кеш eslint
+.eslintcache
+
+# Кеш Microbundle
+.rpt2_cache/
+.rts2_cache_cjs/
+.rts2_cache_es/
+.rts2_cache_umd/
+
+# История REPL
+.node_repl_history
+
+# Результат 'npm pack'
+*.tgz
+
+# Файл целостности Yarn
+.yarn-integrity
+
+# Кеш parcel-bundler
+.cache
+.parcel-cache
+
+# Билд Next.js
+.next
+
+# Билд Nuxt.js
+.nuxt
+dist
+
+# Файлы Gatsby
+.cache/
+public
+
+# Билды Storybook
+.out
+.storybook-out
+
+# Временные папки
+tmp/
+temp/
+
+# Файлы и директории редакторов
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS файлы
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Файлы проекта
+*.sqlite
+*.db
+
+# Локальные настройки
+.vscode/settings.json
