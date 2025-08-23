@@ -120,6 +120,9 @@ async function getCMCPrice() {
             ath: quote.USD.ath || quote.USD.price,
             source: 'coinmarketcap'
           };
+        }
+      }
+    } catch (idError) {
       console.log('⚠️ Поиск по ID 36465 неудачен:', idError.message);
       
       if (idError.response) {
