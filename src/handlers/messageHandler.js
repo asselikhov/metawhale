@@ -268,17 +268,20 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
                      `Спорные сделки: ${reputation.disputeRate}%\n` +
                      `Всего сделок: ${reputation.totalTrades}`;
       
-      const keyboard = Markup.inlineKeyboard([
-        [Markup.button.callback('📈 Купить CES', 'p2p_buy_ces'), Markup.button.callback('📉 Продать CES', 'p2p_sell_ces')],
-        [Markup.button.callback('📊 Рынок ордеров', 'p2p_market_orders'), Markup.button.callback('📋 Мои ордера', 'p2p_my_orders')],
-        [Markup.button.callback('🏆 Топ трейдеров', 'p2p_top_traders'), Markup.button.callback('🧮 Аналитика', 'p2p_analytics')]
-      ]);
+      // Simplified keyboard structure
+      const keyboard = {
+        inline_keyboard: [
+          [{ text: '📈 Купить CES', callback_data: 'p2p_buy_ces' }, { text: '📉 Продать CES', callback_data: 'p2p_sell_ces' }],
+          [{ text: '📊 Рынок ордеров', callback_data: 'p2p_market_orders' }, { text: '📋 Мои ордера', callback_data: 'p2p_my_orders' }],
+          [{ text: '🏆 Топ трейдеров', callback_data: 'p2p_top_traders' }, { text: '🧮 Аналитика', callback_data: 'p2p_analytics' }]
+        ]
+      };
       
       console.log(`📤 Sending P2P menu to user ${chatId} (callback version)`);
       console.log(`📝 Message: ${message}`);
       console.log(`⌨ Keyboard: ${JSON.stringify(keyboard)}`);
       
-      // Try to send image with text and buttons
+      // Try to send image with text and buttons in one message
       try {
         // First check if file exists
         const fs = require('fs');
@@ -289,19 +292,32 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
         if (fs.existsSync(imagePath)) {
           console.log(`✅ Image file exists: ${imagePath}`);
           console.log(`🖼 Sending image from path: ${imagePath}`);
-          const result = await ctx.replyWithPhoto({ source: imagePath }, { caption: message, reply_markup: keyboard });
-          console.log(`✅ Image sent successfully to user ${chatId}`, result);
+          const result = await ctx.replyWithPhoto({ source: imagePath }, { 
+            caption: message,
+            reply_markup: keyboard
+          });
+          console.log(`✅ Image with buttons sent successfully to user ${chatId}`, result);
         } else {
           console.log(`❌ Image file does not exist: ${imagePath}`);
-          // Fallback to sending text only
-          console.log(`🔄 Fallback: sending text only to user ${chatId}`);
-          await ctx.reply(message, keyboard);
+          // Fallback to sending text with buttons
+          console.log(`🔄 Fallback: sending text with buttons to user ${chatId}`);
+          await ctx.reply(message, { reply_markup: keyboard });
         }
       } catch (photoError) {
-        console.error('Error sending P2P menu photo:', photoError);
-        // Fallback to sending text only if photo fails
-        console.log(`🔄 Fallback: sending text only to user ${chatId}`);
-        await ctx.reply(message, keyboard);
+        console.error('Error sending P2P menu photo with buttons:', photoError);
+        // Try fallback: send image and buttons separately
+        try {
+          console.log(`🔄 Fallback: sending image and buttons separately to user ${chatId}`);
+          const path = require('path');
+          const imagePath = path.join(__dirname, '../../p2plogo.png');
+          await ctx.replyWithPhoto({ source: imagePath }, { caption: message });
+          await ctx.reply('Выберите действие:', { reply_markup: keyboard });
+        } catch (fallbackError) {
+          console.error('Error in fallback method:', fallbackError);
+          // Last resort: send text with buttons
+          console.log(`🔄 Last resort: sending text with buttons to user ${chatId}`);
+          await ctx.reply(message, { reply_markup: keyboard });
+        }
       }
       
     } catch (error) {
