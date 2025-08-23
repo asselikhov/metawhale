@@ -67,7 +67,8 @@ bot.command('price', async (ctx) => {
 
 // Глобальная переменная для отслеживания последнего запроса к API
 let lastApiCall = 0;
-const API_CALL_INTERVAL = parseInt(process.env.API_CALL_INTERVAL) || 10000; // 10 секунд между запросами
+// Короткий интервал между запросами только для предотвращения частых вызовов /price
+const API_CALL_INTERVAL = parseInt(process.env.API_CALL_INTERVAL) || 3000; // 3 секунды между командами
 
 // Функция создания графиков удалена для ускорения работы бота
 
@@ -326,7 +327,7 @@ async function getCESPrice() {
     
     if (timeSinceLastCall < API_CALL_INTERVAL) {
       const waitTime = API_CALL_INTERVAL - timeSinceLastCall;
-      console.log(`⏳ Ожидание ${waitTime}мс перед следующим запросом к API`);
+      console.log(`⏳ Ожидание ${waitTime}мс между командами /price`);
       await new Promise(resolve => setTimeout(resolve, waitTime));
     }
     
@@ -435,13 +436,13 @@ async function sendPriceToUser(ctx) {
     const isNewATH = priceData.price >= priceData.ath;
     const athDisplay = isNewATH ? `🏆 $ ${priceData.ath.toFixed(2)}` : `$ ${priceData.ath.toFixed(2)}`;
     
-    // Индикатор источника данных
-    const sourceEmoji = priceData.source === 'database' ? '🗄️' : '🄲🄼🄲';
+    // Индикатор источника данных (только для базы данных)
+    const sourceEmoji = priceData.source === 'database' ? '🗄️' : '';
     const athSourceEmoji = priceData.athSource === 'web+database' ? '🌐' : (priceData.athSource === 'database' ? '🗄️' : '📊');
     
     // Новый формат сообщения согласно требованиям
     const message = `➖➖➖➖➖➖➖➖➖➖➖➖➖➖➖
-💰 Цена токена CES: $ ${priceData.price.toFixed(2)}${priceData.priceRub > 0 ? ` | ₽ ${priceData.priceRub.toFixed(2)}` : ' | ₽ 0.00'} ${sourceEmoji}
+💰 Цена токена CES: $ ${priceData.price.toFixed(2)}${priceData.priceRub > 0 ? ` | ₽ ${priceData.priceRub.toFixed(2)}` : ' | ₽ 0.00'}${sourceEmoji ? ` ${sourceEmoji}` : ''}
 ➖➖➖➖➖➖➖➖➖➖➖➖➖➖➖
 ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${formatNumber(priceData.volume24h)} • 🅐🅣🅗 ${athDisplay} ${athSourceEmoji}`;
     
