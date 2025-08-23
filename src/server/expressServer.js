@@ -5,7 +5,7 @@
 
 const express = require('express');
 const axios = require('axios');
-const config = require('../config');
+const config = require('../config/configuration');
 const { User, PriceHistory } = require('../database/models');
 
 class Server {

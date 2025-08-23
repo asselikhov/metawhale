@@ -3,7 +3,7 @@
  */
 
 const mongoose = require('mongoose');
-const config = require('../config');
+const config = require('../config/configuration');
 
 // User Schema
 const userSchema = new mongoose.Schema({

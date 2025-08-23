@@ -5,7 +5,7 @@
 
 const { ethers } = require('ethers');
 const crypto = require('crypto');
-const config = require('../config');
+const config = require('../config/configuration');
 const { User, Wallet } = require('../database/models');
 
 class WalletService {

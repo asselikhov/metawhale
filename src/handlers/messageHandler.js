@@ -28,16 +28,10 @@ class MessageHandler {
       
       const welcomeMessage = 'Добро пожаловать в Rustling Grass 🌾 assistant !';
       
-      // Main menu with buttons
-      const mainMenu = Markup.inlineKeyboard([
-        [
-          Markup.button.callback('👤 Личный кабинет', 'personal_cabinet'),
-          Markup.button.callback('🔄 P2P', 'p2p_menu')
-        ],
-        [
-          Markup.button.callback('💰 Цена CES', 'get_price')
-        ]
-      ]);
+      // Main menu with regular keyboard buttons (only 2 buttons as requested)
+      const mainMenu = Markup.keyboard([
+        ['👤 Личный кабинет', '🔄 P2P']
+      ]).resize();
       
       await ctx.reply(welcomeMessage, mainMenu);
       
@@ -84,7 +78,94 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
     }
   }
 
-  // Handle personal cabinet
+  // Handle text messages from regular keyboard buttons
+  async handleTextMessage(ctx) {
+    try {
+      const text = ctx.message.text;
+      
+      if (text.includes('Личный кабинет')) {
+        return await this.handlePersonalCabinetText(ctx);
+      }
+      
+      if (text.includes('P2P')) {
+        return await this.handleP2PMenuText(ctx);
+      }
+      
+      // Default response for unknown text
+      await ctx.reply('😕 Не понимаю эту команду. Используйте кнопки меню или команду /start');
+      
+    } catch (error) {
+      console.error('Text message handler error:', error);
+      await ctx.reply('❌ Произошла ошибка. Попробуйте еще раз.');
+    }
+  }
+
+  // Handle Personal Cabinet from text message
+  async handlePersonalCabinetText(ctx) {
+    try {
+      const chatId = ctx.chat.id.toString();
+      const walletInfo = await walletService.getUserWallet(chatId);
+      
+      if (!walletInfo) {
+        return await ctx.reply('❌ Пользователь не найден. Выполните /start');
+      }
+      
+      let message = '👤 **Личный кабинет**\n\n';
+      
+      if (walletInfo.hasWallet) {
+        message += `🌐 **Polygon Wallet**\n`;
+        message += `📍 Адрес: \`${walletInfo.address}\`\n`;
+        message += `📎 Баланс CES: **${walletInfo.balance.toFixed(4)} CES**\n`;
+        message += `⏰ Обновлено: ${walletInfo.lastUpdate.toLocaleString('ru-RU')}\n\n`;
+        
+        const keyboard = Markup.inlineKeyboard([
+          [Markup.button.callback('✏️ Редактировать', 'edit_wallet')],
+          [Markup.button.callback('🔄 Обновить баланс', 'refresh_balance')],
+          [Markup.button.callback('💰 Цена CES', 'get_price')]
+        ]);
+        
+        await ctx.reply(message, { parse_mode: 'Markdown', ...keyboard });
+        
+      } else {
+        message += '❌ Кошелек не создан\n\n';
+        message += 'Создайте кошелек для хранения токенов CES';
+        
+        const keyboard = Markup.inlineKeyboard([
+          [Markup.button.callback('➕ Создать кошелек', 'create_wallet')],
+          [Markup.button.callback('💰 Цена CES', 'get_price')]
+        ]);
+        
+        await ctx.reply(message, keyboard);
+      }
+      
+    } catch (error) {
+      console.error('Error showing personal cabinet:', error);
+      await ctx.reply('❌ Ошибка загрузки личного кабинета. Попробуйте позже.');
+    }
+  }
+
+  // Handle P2P from text message
+  async handleP2PMenuText(ctx) {
+    try {
+      const message = '🔄 **P2P Обмен**\n\n' +
+                     'Функциональность P2P обмена находится в разработке.\n\n' +
+                     'Скоро здесь вы сможете:\n' +
+                     '• 💸 Отправлять CES токены\n' +
+                     '• 📥 Получать переводы\n' +
+                     '• 📊 Просматривать историю транзакций\n' +
+                     '• 🔁 Обменивать токены';
+      
+      const keyboard = Markup.inlineKeyboard([
+        [Markup.button.callback('💰 Цена CES', 'get_price')]
+      ]);
+      
+      await ctx.reply(message, { parse_mode: 'Markdown', ...keyboard });
+      
+    } catch (error) {
+      console.error('P2P menu error:', error);
+      await ctx.reply('❌ Ошибка загрузки P2P меню. Попробуйте позже.');
+    }
+  }
   async handlePersonalCabinet(ctx) {
     try {
       const chatId = ctx.chat.id.toString();
@@ -224,20 +305,24 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
   // Handle back to main menu
   async handleBackToMenu(ctx) {
     try {
-      const mainMenu = Markup.inlineKeyboard([
-        [
-          Markup.button.callback('👤 Личный кабинет', 'personal_cabinet'),
-          Markup.button.callback('🔄 P2P', 'p2p_menu')
-        ],
-        [
-          Markup.button.callback('💰 Цена CES', 'get_price')
-        ]
-      ]);
+      const mainMenu = Markup.keyboard([
+        ['👤 Личный кабинет', '🔄 P2P']
+      ]).resize();
       
       await ctx.editMessageText('🌾 Главное меню', mainMenu);
     } catch (error) {
       console.error('Back to menu error:', error);
-      await ctx.editMessageText('❌ Ошибка загрузки главного меню');
+      // Fallback: send new message if editing fails
+      try {
+        const mainMenu = Markup.keyboard([
+          ['👤 Личный кабинет', '🔄 P2P']
+        ]).resize();
+        
+        await ctx.reply('🌾 Главное меню', mainMenu);
+      } catch (fallbackError) {
+        console.error('Fallback menu error:', fallbackError);
+        await ctx.reply('❌ Ошибка загрузки главного меню');
+      }
     }
   }
 

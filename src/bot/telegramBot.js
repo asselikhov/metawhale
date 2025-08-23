@@ -4,7 +4,7 @@
  */
 
 const { Telegraf } = require('telegraf');
-const config = require('../config');
+const config = require('../config/configuration');
 const messageHandler = require('../handlers/messageHandler');
 
 class Bot {
@@ -42,6 +42,9 @@ class Bot {
     // Commands
     this.bot.start(messageHandler.handleStart.bind(messageHandler));
     this.bot.command('price', messageHandler.handlePrice.bind(messageHandler));
+
+    // Text messages (for regular keyboard buttons)
+    this.bot.on('text', messageHandler.handleTextMessage.bind(messageHandler));
 
     // Callback handlers
     this.bot.action('personal_cabinet', messageHandler.handlePersonalCabinet.bind(messageHandler));

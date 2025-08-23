@@ -4,7 +4,7 @@
  */
 
 const cron = require('node-cron');
-const config = require('../config');
+const config = require('../config/configuration');
 const priceService = require('./priceService');
 const { PriceHistory } = require('../database/models');
 

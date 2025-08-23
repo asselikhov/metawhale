@@ -4,7 +4,7 @@
  */
 
 const axios = require('axios');
-const config = require('../config');
+const config = require('../config/configuration');
 const { PriceHistory } = require('../database/models');
 
 class PriceService {

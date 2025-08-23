@@ -3,12 +3,12 @@
  * Professional modular Telegram bot for CES token price monitoring
  */
 
-const config = require('./src/config');
+const config = require('./src/config/configuration');
 const { connectDatabase, disconnectDatabase } = require('./src/database/models');
-const bot = require('./src/bot');
-const server = require('./src/server');
+const bot = require('./src/bot/telegramBot');
+const server = require('./src/server/expressServer');
 const schedulerService = require('./src/services/schedulerService');
-const Utils = require('./src/utils');
+const Utils = require('./src/utils/helpers');
 
 class Application {
   constructor() {
