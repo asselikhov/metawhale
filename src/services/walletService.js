@@ -6,7 +6,7 @@
 const { ethers } = require('ethers');
 const crypto = require('crypto');
 const config = require('../config/configuration');
-const { User, Wallet } = require('../database/models');
+const { User, Wallet, Transaction } = require('../database/models');
 
 class WalletService {
   constructor() {
@@ -227,6 +227,169 @@ class WalletService {
     } catch (error) {
       console.error('Error deleting wallet:', error);
       throw error;
+    }
+  }
+
+  // Send CES tokens to another user
+  async sendCESTokens(fromChatId, toAddress, amount) {
+    try {
+      console.log(`💸 Initiating CES transfer: ${amount} CES from ${fromChatId} to ${toAddress}`);
+      
+      // Get sender info
+      const fromUser = await User.findOne({ chatId: fromChatId });
+      if (!fromUser || !fromUser.walletAddress) {
+        throw new Error('Отправитель не найден или у него нет кошелька');
+      }
+      
+      // Validate amount
+      if (amount <= 0) {
+        throw new Error('Сумма должна быть больше 0');
+      }
+      
+      // Check balance
+      const currentBalance = await this.getCESBalance(fromUser.walletAddress);
+      if (currentBalance < amount) {
+        throw new Error(`Недостаточно средств. Доступно: ${currentBalance.toFixed(4)} CES`);
+      }
+      
+      // Validate recipient address
+      if (!ethers.isAddress(toAddress)) {
+        throw new Error('Неверный адрес получателя');
+      }
+      
+      // Prevent self-transfer
+      if (fromUser.walletAddress.toLowerCase() === toAddress.toLowerCase()) {
+        throw new Error('Нельзя переводить самому себе');
+      }
+      
+      // Get recipient user (if exists in our system)
+      const toUser = await User.findOne({ walletAddress: toAddress });
+      
+      // Setup blockchain transaction
+      const provider = new ethers.JsonRpcProvider(config.wallet.polygonRpcUrl, {
+        name: 'polygon',
+        chainId: 137
+      });
+      
+      // Get sender's private key
+      const privateKey = await this.getUserPrivateKey(fromChatId);
+      const wallet = new ethers.Wallet(privateKey, provider);
+      
+      // ERC-20 ABI for transfer
+      const erc20Abi = [
+        "function transfer(address to, uint256 amount) returns (bool)",
+        "function decimals() view returns (uint8)",
+        "function balanceOf(address owner) view returns (uint256)"
+      ];
+      
+      // Create contract instance
+      const contract = new ethers.Contract(
+        config.wallet.cesContractAddress,
+        erc20Abi,
+        wallet
+      );
+      
+      // Get token decimals
+      const decimals = await contract.decimals();
+      const transferAmount = ethers.parseUnits(amount.toString(), decimals);
+      
+      // Create transaction record
+      const transaction = new Transaction({
+        fromUserId: fromUser._id,
+        toUserId: toUser ? toUser._id : null,
+        fromAddress: fromUser.walletAddress,
+        toAddress: toAddress,
+        amount: amount,
+        type: 'p2p',
+        status: 'pending'
+      });
+      
+      await transaction.save();
+      
+      console.log(`📝 Transaction record created: ${transaction._id}`);
+      
+      // Execute blockchain transaction
+      try {
+        const tx = await contract.transfer(toAddress, transferAmount);
+        
+        console.log(`⏳ Transaction sent to blockchain: ${tx.hash}`);
+        
+        // Update transaction with hash
+        transaction.txHash = tx.hash;
+        await transaction.save();
+        
+        // Wait for confirmation
+        const receipt = await tx.wait();
+        
+        if (receipt.status === 1) {
+          // Transaction successful
+          transaction.status = 'completed';
+          transaction.completedAt = new Date();
+          await transaction.save();
+          
+          console.log(`✅ CES transfer completed: ${tx.hash}`);
+          
+          return {
+            success: true,
+            txHash: tx.hash,
+            amount: amount,
+            toAddress: toAddress,
+            transaction: transaction
+          };
+        } else {
+          throw new Error('Transaction failed on blockchain');
+        }
+        
+      } catch (blockchainError) {
+        // Mark transaction as failed
+        transaction.status = 'failed';
+        await transaction.save();
+        
+        console.error('Blockchain transaction error:', blockchainError);
+        throw new Error(`Ошибка выполнения транзакции: ${blockchainError.message}`);
+      }
+      
+    } catch (error) {
+      console.error('Error sending CES tokens:', error);
+      throw error;
+    }
+  }
+
+  // Get user's transaction history
+  async getUserTransactions(chatId, limit = 10) {
+    try {
+      const user = await User.findOne({ chatId });
+      if (!user) {
+        throw new Error('User not found');
+      }
+      
+      const transactions = await Transaction.find({
+        $or: [
+          { fromUserId: user._id },
+          { toUserId: user._id }
+        ]
+      })
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .populate('fromUserId', 'username firstName')
+      .populate('toUserId', 'username firstName');
+      
+      return transactions;
+      
+    } catch (error) {
+      console.error('Error getting user transactions:', error);
+      throw error;
+    }
+  }
+
+  // Find user by wallet address
+  async findUserByAddress(address) {
+    try {
+      const user = await User.findOne({ walletAddress: address });
+      return user;
+    } catch (error) {
+      console.error('Error finding user by address:', error);
+      return null;
     }
   }
 }

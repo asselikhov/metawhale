@@ -55,6 +55,15 @@ class Bot {
     this.bot.action('show_private_key', messageHandler.handleShowPrivateKey.bind(messageHandler));
     this.bot.action('refresh_balance', messageHandler.handleRefreshBalance.bind(messageHandler));
     this.bot.action('back_to_menu', messageHandler.handleBackToMenu.bind(messageHandler));
+    
+    // New P2P functionality handlers
+    this.bot.action('send_ces_tokens', messageHandler.handleSendCESTokens.bind(messageHandler));
+    this.bot.action('transaction_history', messageHandler.handleTransactionHistory.bind(messageHandler));
+    
+    // Handle transfer confirmations (dynamic callbacks)
+    this.bot.action(/^confirm_transfer_/, (ctx) => {
+      return messageHandler.handleTransferConfirmation.call(messageHandler, ctx, ctx.callbackQuery.data);
+    });
   }
 
   // Set webhook

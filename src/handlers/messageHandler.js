@@ -83,12 +83,24 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
     try {
       const text = ctx.message.text;
       
+      // Check if user is in transfer mode
+      if (ctx.session && ctx.session.awaitingTransfer) {
+        ctx.session.awaitingTransfer = false;
+        return await this.processTransferCommand(ctx, text);
+      }
+      
       if (text.includes('Личный кабинет')) {
         return await this.handlePersonalCabinetText(ctx);
       }
       
       if (text.includes('P2P')) {
         return await this.handleP2PMenuText(ctx);
+      }
+      
+      // Check if message looks like a transfer command (address amount)
+      const transferPattern = /^0x[a-fA-F0-9]{40}\s+\d+\.?\d*$/;
+      if (transferPattern.test(text.trim())) {
+        return await this.processTransferCommand(ctx, text);
       }
       
       // Default response for unknown text
@@ -121,7 +133,8 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
         const keyboard = Markup.inlineKeyboard([
           [Markup.button.callback('✏️ Редактировать', 'edit_wallet')],
           [Markup.button.callback('🔄 Обновить баланс', 'refresh_balance')],
-          [Markup.button.callback('💰 Цена CES', 'get_price')]
+          [Markup.button.callback('💸 Перевести CES', 'send_ces_tokens')],
+          [Markup.button.callback('📊 История', 'transaction_history')]
         ]);
         
         await ctx.reply(message, { parse_mode: 'Markdown', ...keyboard });
@@ -147,15 +160,20 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
   // Handle P2P from text message
   async handleP2PMenuText(ctx) {
     try {
+      const chatId = ctx.chat.id.toString();
+      const walletInfo = await walletService.getUserWallet(chatId);
+      
+      if (!walletInfo || !walletInfo.hasWallet) {
+        return await ctx.reply('❌ У вас нет кошелька. Создайте его в Личном кабинете.');
+      }
+      
       const message = '🔄 **P2P Обмен**\n\n' +
-                     'Функциональность P2P обмена находится в разработке.\n\n' +
-                     'Скоро здесь вы сможете:\n' +
-                     '• 💸 Отправлять CES токены\n' +
-                     '• 📥 Получать переводы\n' +
-                     '• 📊 Просматривать историю транзакций\n' +
-                     '• 🔁 Обменивать токены';
+                     `💼 Ваш баланс: **${walletInfo.balance.toFixed(4)} CES**\n\n` +
+                     'Выберите действие:';
       
       const keyboard = Markup.inlineKeyboard([
+        [Markup.button.callback('💸 Перевести CES', 'send_ces_tokens')],
+        [Markup.button.callback('📊 История переводов', 'transaction_history')],
         [Markup.button.callback('💰 Цена CES', 'get_price')]
       ]);
       
@@ -282,15 +300,28 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
   // Handle P2P menu
   async handleP2PMenu(ctx) {
     try {
+      const chatId = ctx.chat.id.toString();
+      const walletInfo = await walletService.getUserWallet(chatId);
+      
+      if (!walletInfo || !walletInfo.hasWallet) {
+        const message = '🔄 **P2P Обмен**\n\n' +
+                       '❌ У вас нет кошелька.\n\n' +
+                       'Создайте кошелек в Личном кабинете для использования P2P функций.';
+        
+        const keyboard = Markup.inlineKeyboard([
+          [Markup.button.callback('🏠 Главное меню', 'back_to_menu')]
+        ]);
+        
+        return await ctx.editMessageText(message, { parse_mode: 'Markdown', ...keyboard });
+      }
+      
       const message = '🔄 **P2P Обмен**\n\n' +
-                     'Функциональность P2P обмена находится в разработке.\n\n' +
-                     'Скоро здесь вы сможете:\n' +
-                     '• 💸 Отправлять CES токены\n' +
-                     '• 📥 Получать переводы\n' +
-                     '• 📊 Просматривать историю транзакций\n' +
-                     '• 🔁 Обменивать токены';
+                     `💼 Ваш баланс: **${walletInfo.balance.toFixed(4)} CES**\n\n` +
+                     'Выберите действие:';
       
       const keyboard = Markup.inlineKeyboard([
+        [Markup.button.callback('💸 Перевести CES', 'send_ces_tokens')],
+        [Markup.button.callback('📊 История переводов', 'transaction_history')],
         [Markup.button.callback('🏠 Главное меню', 'back_to_menu')]
       ]);
       
@@ -329,6 +360,189 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
   // Refresh balance
   async handleRefreshBalance(ctx) {
     await this.handlePersonalCabinet(ctx);
+  }
+
+  // Handle CES token transfer initiation
+  async handleSendCESTokens(ctx) {
+    try {
+      const chatId = ctx.chat.id.toString();
+      const walletInfo = await walletService.getUserWallet(chatId);
+      
+      if (!walletInfo || !walletInfo.hasWallet) {
+        return await ctx.editMessageText('❌ У вас нет кошелька. Создайте его в Личном кабинете.');
+      }
+      
+      if (walletInfo.balance <= 0) {
+        const message = '💸 **Перевод CES токенов**\n\n' +
+                       '❌ Недостаточно средств для перевода.\n' +
+                       `💼 Ваш баланс: **${walletInfo.balance.toFixed(4)} CES**`;
+        
+        const keyboard = Markup.inlineKeyboard([
+          [Markup.button.callback('🔄 Обновить баланс', 'refresh_balance')],
+          [Markup.button.callback('🔙 Назад', 'p2p_menu')]
+        ]);
+        
+        return await ctx.editMessageText(message, { parse_mode: 'Markdown', ...keyboard });
+      }
+      
+      const message = '💸 **Перевод CES токенов**\n\n' +
+                     `💼 Доступно: **${walletInfo.balance.toFixed(4)} CES**\n\n` +
+                     '📝 Отправьте сообщение в формате:\n' +
+                     '`Адрес_кошелька Сумма`\n\n' +
+                     '📝 **Пример:**\n' +
+                     '`0x742d35Cc6734C0532925a3b8D4321F...89 10.5`\n\n' +
+                     'ℹ️ Минимальная сумма: 0.001 CES';
+      
+      // Store state to handle next user message
+      ctx.session = ctx.session || {};
+      ctx.session.awaitingTransfer = true;
+      
+      const keyboard = Markup.inlineKeyboard([
+        [Markup.button.callback('❌ Отмена', 'p2p_menu')]
+      ]);
+      
+      await ctx.editMessageText(message, { parse_mode: 'Markdown', ...keyboard });
+      
+    } catch (error) {
+      console.error('Error initiating CES transfer:', error);
+      await ctx.editMessageText('❌ Ошибка инициализации перевода. Попробуйте позже.');
+    }
+  }
+
+  // Handle transaction history
+  async handleTransactionHistory(ctx) {
+    try {
+      const chatId = ctx.chat.id.toString();
+      const transactions = await walletService.getUserTransactions(chatId, 5);
+      
+      let message = '📊 **История переводов**\n\n';
+      
+      if (transactions.length === 0) {
+        message += '📝 Переводов пока не было\n\n' +
+                  'Начните отправлять CES токены другим пользователям!';
+      } else {
+        const user = await walletService.findUserByAddress(transactions[0].fromAddress) || 
+                    await walletService.findUserByAddress(transactions[0].toAddress);
+        
+        transactions.forEach((tx, index) => {
+          const isOutgoing = tx.fromUserId && tx.fromUserId.toString() === user._id.toString();
+          const direction = isOutgoing ? '🟢 Исходящий' : '🔵 Входящий';
+          const statusEmoji = tx.status === 'completed' ? '✅' : 
+                             tx.status === 'pending' ? '⏳' : '❌';
+          
+          message += `${index + 1}. ${direction}\n`;
+          message += `💰 ${tx.amount} CES ${statusEmoji}\n`;
+          message += `📅 ${tx.createdAt.toLocaleString('ru-RU')}\n`;
+          
+          if (tx.txHash) {
+            const shortHash = tx.txHash.substring(0, 10) + '...';
+            message += `🔗 ${shortHash}\n`;
+          }
+          
+          message += '\n';
+        });
+      }
+      
+      const keyboard = Markup.inlineKeyboard([
+        [Markup.button.callback('🔙 Назад к P2P', 'p2p_menu')]
+      ]);
+      
+      await ctx.editMessageText(message, { parse_mode: 'Markdown', ...keyboard });
+      
+    } catch (error) {
+      console.error('Error showing transaction history:', error);
+      await ctx.editMessageText('❌ Ошибка загрузки истории. Попробуйте позже.');
+    }
+  }
+
+  // Process transfer command from user message
+  async processTransferCommand(ctx, transferData) {
+    try {
+      const chatId = ctx.chat.id.toString();
+      
+      // Parse transfer data (address amount)
+      const parts = transferData.trim().split(/\s+/);
+      
+      if (parts.length !== 2) {
+        return await ctx.reply('❌ Неверный формат. Используйте: `адрес сумма`', {
+          parse_mode: 'Markdown'
+        });
+      }
+      
+      const [toAddress, amountStr] = parts;
+      const amount = parseFloat(amountStr);
+      
+      if (isNaN(amount) || amount <= 0) {
+        return await ctx.reply('❌ Неверная сумма. Укажите число больше 0.');
+      }
+      
+      if (amount < 0.001) {
+        return await ctx.reply('❌ Минимальная сумма перевода: 0.001 CES');
+      }
+      
+      // Show confirmation
+      const recipient = await walletService.findUserByAddress(toAddress);
+      const recipientInfo = recipient ? 
+        `👤 Пользователь: @${recipient.username || recipient.firstName || 'Неизвестный'}` :
+        '👤 Внешний кошелек';
+      
+      const message = '💸 **Подтверждение перевода**\n\n' +
+                     `💰 Сумма: **${amount} CES**\n` +
+                     `📫 Кому: \`${toAddress}\`\n` +
+                     `${recipientInfo}\n\n` +
+                     '❗ Перевод нельзя отменить!';
+      
+      const keyboard = Markup.inlineKeyboard([
+        [Markup.button.callback('✅ Подтвердить', `confirm_transfer_${toAddress}_${amount}`)],
+        [Markup.button.callback('❌ Отмена', 'p2p_menu')]
+      ]);
+      
+      await ctx.reply(message, { parse_mode: 'Markdown', ...keyboard });
+      
+    } catch (error) {
+      console.error('Error processing transfer command:', error);
+      await ctx.reply('❌ Ошибка обработки команды перевода.');
+    }
+  }
+
+  // Handle transfer confirmation
+  async handleTransferConfirmation(ctx, transferParams) {
+    try {
+      const [, , toAddress, amountStr] = transferParams.split('_');
+      const amount = parseFloat(amountStr);
+      const chatId = ctx.chat.id.toString();
+      
+      await ctx.editMessageText('⏳ Обработка перевода... Подождите.');
+      
+      const result = await walletService.sendCESTokens(chatId, toAddress, amount);
+      
+      if (result.success) {
+        const message = '✅ **Перевод успешен!**\n\n' +
+                       `💰 Отправлено: **${amount} CES**\n` +
+                       `📫 Кому: \`${toAddress}\`\n` +
+                       `🔗 Hash: \`${result.txHash}\`\n\n` +
+                       '🔍 Транзакция подтверждена в блокчейне!';
+        
+        const keyboard = Markup.inlineKeyboard([
+          [Markup.button.callback('💸 Перевести еще', 'send_ces_tokens')],
+          [Markup.button.callback('🔙 К P2P меню', 'p2p_menu')]
+        ]);
+        
+        await ctx.editMessageText(message, { parse_mode: 'Markdown', ...keyboard });
+      }
+      
+    } catch (error) {
+      console.error('Transfer confirmation error:', error);
+      
+      const errorMessage = '❌ **Ошибка перевода**\n\n' +
+                          `ℹ️ ${error.message}`;
+      
+      const keyboard = Markup.inlineKeyboard([
+        [Markup.button.callback('🔙 К P2P меню', 'p2p_menu')]
+      ]);
+      
+      await ctx.editMessageText(errorMessage, { parse_mode: 'Markdown', ...keyboard });
+    }
   }
 }
 
