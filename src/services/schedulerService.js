@@ -12,11 +12,57 @@ class SchedulerService {
   constructor(bot = null) {
     this.bot = bot;
     this.tasks = new Map();
+    this.cachedPriceData = null;
+    this.lastCacheUpdate = 0;
+    this.cacheTTL = 30000; // 30 seconds
   }
 
   // Set bot instance
   setBot(bot) {
     this.bot = bot;
+  }
+
+  // Get cached or fresh price data
+  async getPriceData() {
+    const now = Date.now();
+    
+    // Return cached data if still valid
+    if (this.cachedPriceData && (now - this.lastCacheUpdate) < this.cacheTTL) {
+      return this.cachedPriceData;
+    }
+    
+    // Fetch fresh data
+    try {
+      const priceData = await priceService.getCESPrice();
+      
+      // Update cache
+      this.cachedPriceData = priceData;
+      this.lastCacheUpdate = now;
+      
+      // Save to database in background
+      if (!priceData.cached) {
+        // Use setImmediate to avoid blocking
+        setImmediate(async () => {
+          try {
+            await new PriceHistory(priceData).save();
+            console.log(`💾 Price data saved: $${priceData.price.toFixed(2)} | ATH: $${priceData.ath.toFixed(2)}`);
+          } catch (saveError) {
+            console.error('Error saving price data:', saveError);
+          }
+        });
+      }
+      
+      return priceData;
+    } catch (error) {
+      console.error('Error fetching price data:', error);
+      
+      // Return cached data even if stale as fallback
+      if (this.cachedPriceData) {
+        return this.cachedPriceData;
+      }
+      
+      throw error;
+    }
   }
 
   // Send price to group
@@ -26,13 +72,7 @@ class SchedulerService {
     try {
       console.log('📅 Sending scheduled price message to group...');
       
-      const priceData = await priceService.getCESPrice();
-      
-      // Save data to database
-      if (!priceData.cached) {
-        await new PriceHistory(priceData).save();
-        console.log(`💾 Price data saved: $${priceData.price.toFixed(2)} | ATH: $${priceData.ath.toFixed(2)}`);
-      }
+      const priceData = await this.getPriceData();
       
       // Determine emoji for price change
       const changeEmoji = priceData.change24h >= 0 ? '🔺' : '🔻';
@@ -81,7 +121,8 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
     try {
       const task = cron.schedule(config.schedule.dailyTime, () => {
         console.log('🕕 19:00 Moscow time - sending CES price to group');
-        this.sendPriceToGroup();
+        // Use setImmediate to avoid blocking the scheduler
+        setImmediate(() => this.sendPriceToGroup());
       }, {
         scheduled: true,
         timezone: config.schedule.timezone

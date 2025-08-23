@@ -11,12 +11,18 @@ const config = {
     botToken: process.env.TELEGRAM_BOT_TOKEN,
     webhookUrl: process.env.WEBHOOK_URL || 'https://metawhale.onrender.com',
     webhookPath: '/webhook',
-    apiCallInterval: parseInt(process.env.API_CALL_INTERVAL) || 3000
+    apiCallInterval: parseInt(process.env.API_CALL_INTERVAL) || 2000 // Reduced from 3000 to 2000ms
   },
 
   // Database Configuration
   database: {
-    mongoUri: process.env.MONGODB_URI
+    mongoUri: process.env.MONGODB_URI,
+    options: {
+      maxPoolSize: 10, // Maintain up to 10 socket connections
+      serverSelectionTimeoutMS: 5000, // Keep trying to send operations for 5 seconds
+      socketTimeoutMS: 45000, // Close sockets after 45 seconds of inactivity
+      family: 4 // Use IPv4, skip trying IPv6
+    }
   },
 
   // External APIs

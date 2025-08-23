@@ -5,6 +5,39 @@
 const mongoose = require('mongoose');
 const config = require('../config/configuration');
 
+// Configure mongoose connection with optimized settings
+mongoose.set('strictQuery', false);
+
+// Connect to MongoDB with optimized settings
+mongoose.connect(config.database.mongoUri, config.database.options)
+  .then(() => {
+    console.log('✅ Connected to MongoDB successfully');
+  })
+  .catch((error) => {
+    console.error('❌ MongoDB connection error:', error);
+    process.exit(1);
+  });
+
+// Add connection event handlers
+mongoose.connection.on('connected', () => {
+  console.log('💾 Mongoose connected to MongoDB');
+});
+
+mongoose.connection.on('error', (err) => {
+  console.error('💾 Mongoose connection error:', err);
+});
+
+mongoose.connection.on('disconnected', () => {
+  console.log('💾 Mongoose disconnected from MongoDB');
+});
+
+// Handle graceful shutdown
+process.on('SIGINT', async () => {
+  await mongoose.connection.close();
+  console.log('💾 Mongoose connection closed through app termination');
+  process.exit(0);
+});
+
 // User Schema
 const userSchema = new mongoose.Schema({
   chatId: { type: String, unique: true, required: true },
@@ -91,6 +124,10 @@ const userSchema = new mongoose.Schema({
   }
 });
 
+// Add indexes for faster queries (remove duplicates)
+userSchema.index({ trustScore: 1 });
+userSchema.index({ lastOnline: 1 });
+
 // Wallet Schema
 const walletSchema = new mongoose.Schema({
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
@@ -135,6 +172,12 @@ const p2pOrderSchema = new mongoose.Schema({
   updatedAt: { type: Date, default: Date.now },
   expiresAt: { type: Date, default: () => new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) } // 7 days
 });
+
+// Add indexes for faster queries
+p2pOrderSchema.index({ userId: 1, status: 1 });
+p2pOrderSchema.index({ type: 1, status: 1 });
+p2pOrderSchema.index({ pricePerToken: 1 });
+p2pOrderSchema.index({ createdAt: -1 });
 
 // P2P Trade Schema (for completed trades in rubles with escrow)
 const p2pTradeSchema = new mongoose.Schema({
@@ -182,6 +225,12 @@ const p2pTradeSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now },
   completedAt: Date
 });
+
+// Add indexes for faster queries
+p2pTradeSchema.index({ buyerId: 1 });
+p2pTradeSchema.index({ sellerId: 1 });
+p2pTradeSchema.index({ status: 1 });
+p2pTradeSchema.index({ createdAt: -1 });
 
 // Escrow Transaction Schema
 const escrowTransactionSchema = new mongoose.Schema({

@@ -69,8 +69,23 @@ class MessageHandler {
     }
   }
 
-  // Handle price command and button
+  // Handle price command and button with immediate response
   async handlePrice(ctx) {
+    try {
+      // Send immediate acknowledgment
+      const sentMessage = await ctx.reply('⏳ Получаем актуальную цену...');
+      
+      // Process price data in background and update the message
+      this.processPriceData(ctx, sentMessage);
+      
+    } catch (error) {
+      console.error('Error sending price to user:', error);
+      await ctx.reply('❌ Не удается получить цену CES в данный момент. Попробуйте позже.');
+    }
+  }
+
+  // Process price data in background
+  async processPriceData(ctx, sentMessage) {
     try {
       const priceData = await priceService.getCESPrice();
       
@@ -100,12 +115,29 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
         return num.toFixed(1) + 'K';
       })} • 🅐🅣🅗 ${athDisplay}`;
       
-      // Send text message for maximum speed
-      await ctx.reply(message);
+      // Edit the original message instead of sending new one
+      await ctx.telegram.editMessageText(
+        sentMessage.chat.id,
+        sentMessage.message_id,
+        null,
+        message
+      );
       
     } catch (error) {
-      console.error('Error sending price to user:', error);
-      await ctx.reply('❌ Не удается получить цену CES в данный момент. Попробуйте позже.');
+      console.error('Error processing price data:', error);
+      // Update the message with error
+      try {
+        await ctx.telegram.editMessageText(
+          sentMessage.chat.id,
+          sentMessage.message_id,
+          null,
+          '❌ Не удается получить цену CES в данный момент. Попробуйте позже.'
+        );
+      } catch (editError) {
+        console.error('Error editing message:', editError);
+        // If editing fails, send a new message
+        await ctx.reply('❌ Не удается получить цену CES в данный момент. Попробуйте позже.');
+      }
     }
   }
 

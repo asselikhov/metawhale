@@ -10,18 +10,30 @@ const { PriceHistory } = require('../database/models');
 class PriceService {
   constructor() {
     this.lastApiCall = 0;
+    this.cachedPriceData = null;
+    this.cacheExpiry = 5000; // 5 seconds cache
+    this.lastCacheTime = 0;
   }
 
-  // Get USD to RUB exchange rate
+  // Get USD to RUB exchange rate with caching
   async getUSDToRUBRate() {
+    const now = Date.now();
+    // Cache for 1 minute
+    if (this.lastRUBRateTime && (now - this.lastRUBRateTime) < 60000) {
+      return this.cachedRUBRate;
+    }
+    
     try {
       const response = await axios.get(`${config.apis.exchangeRate.baseUrl}/USD`, {
-        timeout: 5000
+        timeout: 3000
       });
       
       if (response.data?.rates?.RUB) {
         const rate = response.data.rates.RUB;
         console.log(`💱 USD/RUB rate: ${rate}`);
+        // Cache the rate
+        this.cachedRUBRate = rate;
+        this.lastRUBRateTime = now;
         return rate;
       }
       
