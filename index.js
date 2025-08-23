@@ -81,44 +81,119 @@ async function getCMCPrice() {
       return null;
     }
 
-    // Поиск по символу CES
-    const response = await axios.get(
-      'https://pro-api.coinmarketcap.com/v2/cryptocurrency/quotes/latest',
-      {
-        headers: {
-          'X-CMC_PRO_API_KEY': process.env.CMC_API_KEY,
-          'Accept': 'application/json'
-        },
-        params: {
-          symbol: 'CES',
-          convert: 'USD,RUB'
-        },
-        timeout: 5000
-      }
-    );
+    console.log('🔍 Получаем данные CES токена с Polygon...');
+    
+    // Метод 1: Прямой запрос по ID 36465 (Whalebit CES на Polygon)
+    try {
+      const response = await axios.get(
+        'https://pro-api.coinmarketcap.com/v2/cryptocurrency/quotes/latest',
+        {
+          headers: {
+            'X-CMC_PRO_API_KEY': process.env.CMC_API_KEY,
+            'Accept': 'application/json'
+          },
+          params: {
+            id: '36465', // ID для Whalebit (CES) на Polygon
+            convert: 'USD' // Бесплатный план поддерживает только 1 валюту
+          },
+          timeout: 10000
+        }
+      );
 
-    if (response.data && response.data.data && response.data.data.CES) {
-      const cesData = response.data.data.CES[0]; // Берем первый результат
-      const quote = cesData.quote;
+      console.log('📊 CMC API Response status:', response.status);
       
-      if (quote.USD) {
-        console.log('✅ Данные получены из CoinMarketCap');
-        return {
-          price: quote.USD.price,
-          priceRub: quote.RUB ? quote.RUB.price : 0,
-          change24h: quote.USD.percent_change_24h,
-          marketCap: quote.USD.market_cap,
-          volume24h: quote.USD.volume_24h,
-          ath: quote.USD.ath || quote.USD.price, // ATH из CMC или текущая цена
-          source: 'coinmarketcap'
-        };
+      if (response.data && response.data.data && response.data.data['36465']) {
+        const cesData = response.data.data['36465'];
+        const quote = cesData.quote;
+        
+        if (quote.USD) {
+          console.log('✅ Данные получены из CoinMarketCap (Whalebit)');
+          console.log(`💰 Цена: $${quote.USD.price?.toFixed(6)}`);
+          console.log(`📈 Изменение 24ч: ${quote.USD.percent_change_24h?.toFixed(2)}%`);
+          
+          return {
+            price: quote.USD.price,
+            priceRub: 0, // Бесплатный план не поддерживает RUB
+            change24h: quote.USD.percent_change_24h,
+            marketCap: quote.USD.market_cap,
+            volume24h: quote.USD.volume_24h,
+            ath: quote.USD.ath || quote.USD.price,
+            source: 'coinmarketcap'
+          };
+      console.log('⚠️ Поиск по ID 36465 неудачен:', idError.message);
+      
+      if (idError.response) {
+        console.log('❌ CMC API Error (ID):', idError.response.status, idError.response.data);
+      }
+    }
+    
+    // Метод 2: Fallback - поиск по символу с фильтрацией
+    console.log('🔄 Fallback: поиск по символу CES...');
+    
+    try {
+      const response = await axios.get(
+        'https://pro-api.coinmarketcap.com/v2/cryptocurrency/quotes/latest',
+        {
+          headers: {
+            'X-CMC_PRO_API_KEY': process.env.CMC_API_KEY,
+            'Accept': 'application/json'
+          },
+          params: {
+            symbol: 'CES',
+            convert: 'USD' // Бесплатный план поддерживает только 1 валюту
+          },
+          timeout: 10000
+        }
+      );
+      
+      if (response.data && response.data.data && response.data.data.CES) {
+        const cesTokens = response.data.data.CES;
+        console.log(`🎯 Найдено ${cesTokens.length} токен(ов) с символом CES`);
+        
+        // Ищем токен на Polygon сети или с нашим контрактом
+        let cesData = cesTokens.find(token => 
+          (token.platform && token.platform.name && token.platform.name.toLowerCase().includes('polygon')) ||
+          (token.platform && token.platform.token_address && 
+           token.platform.token_address.toLowerCase() === '0x1bdf71ede1a4777db1eebe7232bcda20d6fc1610')
+        );
+        
+        // Если не найден на Polygon, берем первый
+        if (!cesData && cesTokens.length > 0) {
+          cesData = cesTokens[0];
+          console.log('⚠️ Токен CES на Polygon не найден, используем первый результат');
+        }
+        
+        if (cesData && cesData.quote && cesData.quote.USD) {
+          const quote = cesData.quote;
+          console.log('✅ Данные получены из CoinMarketCap (fallback)');
+          
+          return {
+            price: quote.USD.price,
+            priceRub: 0, // Бесплатный план не поддерживает RUB
+            change24h: quote.USD.percent_change_24h,
+            marketCap: quote.USD.market_cap,
+            volume24h: quote.USD.volume_24h,
+            ath: quote.USD.ath || quote.USD.price,
+            source: 'coinmarketcap'
+          };
+        }
+      }
+    } catch (symbolError) {
+      console.log('⚠️ Поиск по символу CES неудачен:', symbolError.message);
+      
+      if (symbolError.response) {
+        console.log('❌ CMC API Error (Symbol):', symbolError.response.status, symbolError.response.data);
       }
     }
 
-    console.log('⚠️ CES токен не найден в CoinMarketCap');
+    console.log('⚠️ CES токен не найден в CoinMarketCap всеми методами');
     return null;
   } catch (error) {
-    console.log('⚠️ Ошибка CoinMarketCap API:', error.message);
+    console.log('⚠️ Общая ошибка CoinMarketCap API:', error.message);
+    if (error.response) {
+      console.log('❌ HTTP Status:', error.response.status);
+      console.log('❌ Response data:', error.response.data);
+    }
     return null;
   }
 }

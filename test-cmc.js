@@ -26,7 +26,7 @@ async function testCMCIntegration() {
         },
         params: {
           symbol: 'CES',
-          convert: 'USD,RUB'
+          convert: 'USD' // Бесплатный план поддерживает только 1 валюту
         },
         timeout: 10000
       }
@@ -65,7 +65,7 @@ async function testCMCIntegration() {
         }
         
         if (token.quote && token.quote.RUB) {
-          console.log(`💰 Цена в рублях: ₽${token.quote.RUB.price?.toFixed(2) || 'N/A'}`);
+          console.log(`💰 Цена в рублях: ₽${token.quote.RUB.price?.toFixed(2) || 'N/A'} (недоступно на бесплатном плане)`);
         }
       });
       

@@ -7,7 +7,8 @@
     "start": "node index.js",
     "dev": "nodemon index.js",
     "test-format": "node test-format.js",
-    "test-cmc": "node test-cmc.js"
+    "test-cmc": "node test-cmc.js",
+    "diagnose": "node diagnose.js"
   },
   "keywords": [
     "telegram",
