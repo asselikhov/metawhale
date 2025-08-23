@@ -612,54 +612,27 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
       const profileDetails = await reputationService.getUserProfileDetails(user._id);
       const userLevel = this.getUserLevelDisplayNew(reputation.trustScore);
       
-      // Send the p2plogo image with user statistics as caption
+      // Prepare message text
       const message = `Рейтинг: ${reputation.trustScore}/1000 ${userLevel.emoji}\n` +
                      `Объем сделок: ${(profileDetails.totalTradeVolume || 0).toLocaleString('ru-RU')} ₽\n` +
                      `Завершенные сделки: ${reputation.completionRate}%\n` +
                      `Спорные сделки: ${reputation.disputeRate}%\n` +
                      `Всего сделок: ${reputation.totalTrades}`;
       
+      // Keyboard with buttons
       const keyboard = Markup.inlineKeyboard([
         [Markup.button.callback('📈 Купить CES', 'p2p_buy_ces'), Markup.button.callback('📉 Продать CES', 'p2p_sell_ces')],
         [Markup.button.callback('📊 Рынок ордеров', 'p2p_market_orders'), Markup.button.callback('📋 Мои ордера', 'p2p_my_orders')],
         [Markup.button.callback('🏆 Топ трейдеров', 'p2p_top_traders'), Markup.button.callback('🧮 Аналитика', 'p2p_analytics')]
       ]);
       
-      console.log(`📤 Sending P2P menu to user ${chatId} (callback version)`);
+      console.log(`📤 Sending P2P menu text with buttons to user ${chatId}`);
       console.log(`📝 Message: ${message}`);
       console.log(`⌨ Keyboard: ${JSON.stringify(keyboard)}`);
       
-      // Try to send image with text only (without buttons)
-      try {
-        // First check if file exists
-        const fs = require('fs');
-        const path = require('path');
-        const imagePath = path.join(__dirname, '../../p2plogo.png');
-        
-        console.log(`🔍 Checking if image file exists: ${imagePath}`);
-        if (fs.existsSync(imagePath)) {
-          console.log(`✅ Image file exists: ${imagePath}`);
-          console.log(`🖼 Sending image from path: ${imagePath}`);
-          // Send image with caption but without buttons
-          await ctx.replyWithPhoto({ source: imagePath }, { caption: message });
-          console.log(`✅ Image sent successfully to user ${chatId}`);
-          
-          // Then send buttons separately
-          console.log(`📤 Sending buttons separately to user ${chatId}`);
-          await ctx.reply('Выберите действие:', keyboard);
-          console.log(`✅ Buttons sent successfully to user ${chatId}`);
-        } else {
-          console.log(`❌ Image file does not exist: ${imagePath}`);
-          // Fallback to sending text with buttons
-          console.log(`🔄 Fallback: sending text with buttons to user ${chatId}`);
-          await ctx.reply(message, keyboard);
-        }
-      } catch (photoError) {
-        console.error('Error sending P2P menu photo:', photoError);
-        // Fallback to sending text with buttons
-        console.log(`🔄 Fallback: sending text with buttons to user ${chatId}`);
-        await ctx.reply(message, keyboard);
-      }
+      // Send text with buttons in one message
+      await ctx.reply(message, { reply_markup: keyboard });
+      console.log(`✅ Text with buttons sent successfully to user ${chatId}`);
       
     } catch (error) {
       console.error('P2P menu error:', error);
