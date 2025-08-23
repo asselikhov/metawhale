@@ -20,7 +20,16 @@ const userSchema = new mongoose.Schema({
   walletCreatedAt: { type: Date },
   cesBalance: { type: Number, default: 0 },
   polBalance: { type: Number, default: 0 },
-  lastBalanceUpdate: { type: Date }
+  lastBalanceUpdate: { type: Date },
+  // Escrow balances for P2P trading
+  escrowCESBalance: { type: Number, default: 0 },
+  escrowPOLBalance: { type: Number, default: 0 },
+  // P2P trading statistics
+  p2pTradingEnabled: { type: Boolean, default: true },
+  successfulTrades: { type: Number, default: 0 },
+  totalTradeVolume: { type: Number, default: 0 },
+  p2pRating: { type: Number, default: 5.0, min: 1, max: 5 },
+  disputeCount: { type: Number, default: 0 }
 });
 
 // Wallet Schema
@@ -53,15 +62,22 @@ const p2pOrderSchema = new mongoose.Schema({
   amount: { type: Number, required: true }, // Amount of CES tokens
   pricePerToken: { type: Number, required: true }, // Price per CES token in rubles
   totalValue: { type: Number, required: true }, // Total value in rubles
-  status: { type: String, enum: ['active', 'partial', 'completed', 'cancelled'], default: 'active' },
+  status: { type: String, enum: ['active', 'partial', 'completed', 'cancelled', 'locked'], default: 'active' },
   filledAmount: { type: Number, default: 0 },
   remainingAmount: { type: Number, required: true },
+  escrowLocked: { type: Boolean, default: false }, // Whether tokens are locked in escrow
+  escrowAmount: { type: Number, default: 0 }, // Amount locked in escrow
+  minTradeAmount: { type: Number, default: 1 }, // Minimum trade amount per transaction
+  maxTradeAmount: { type: Number }, // Maximum trade amount per transaction
+  paymentMethods: [{ type: String, enum: ['bank_transfer', 'sbp', 'qiwi', 'yoomoney'], default: ['bank_transfer'] }],
+  tradeTimeLimit: { type: Number, default: 30 }, // Time limit in minutes
+  autoReply: String, // Automatic reply message
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now },
   expiresAt: { type: Date, default: () => new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) } // 7 days
 });
 
-// P2P Trade Schema (for completed trades in rubles)
+// P2P Trade Schema (for completed trades in rubles with escrow)
 const p2pTradeSchema = new mongoose.Schema({
   buyOrderId: { type: mongoose.Schema.Types.ObjectId, ref: 'P2POrder', required: true },
   sellOrderId: { type: mongoose.Schema.Types.ObjectId, ref: 'P2POrder', required: true },
@@ -71,8 +87,53 @@ const p2pTradeSchema = new mongoose.Schema({
   pricePerToken: { type: Number, required: true }, // Price per CES token in rubles
   totalValue: { type: Number, required: true }, // Total value in rubles
   commission: { type: Number, required: true }, // 1% commission in rubles
-  status: { type: String, enum: ['pending', 'completed', 'failed'], default: 'pending' },
+  status: { 
+    type: String, 
+    enum: ['pending', 'escrow_locked', 'payment_pending', 'payment_confirmed', 'completed', 'disputed', 'cancelled', 'failed'], 
+    default: 'pending' 
+  },
+  escrowStatus: {
+    type: String,
+    enum: ['none', 'locked', 'released', 'refunded'],
+    default: 'none'
+  },
+  paymentMethod: { type: String, enum: ['bank_transfer', 'sbp', 'qiwi', 'yoomoney'], required: true },
+  paymentDetails: {
+    sellerInstructions: String, // Seller's payment instructions
+    buyerProof: String, // Buyer's payment proof
+    transactionId: String // Payment transaction ID
+  },
+  timeTracking: {
+    createdAt: { type: Date, default: Date.now },
+    escrowLockedAt: Date,
+    paymentMadeAt: Date,
+    paymentConfirmedAt: Date,
+    completedAt: Date,
+    expiresAt: { type: Date, default: () => new Date(Date.now() + 30 * 60 * 1000) } // 30 minutes default
+  },
   cesTransferTxHash: String, // Hash for CES token transfer
+  disputeReason: String,
+  disputeMessages: [{
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    message: String,
+    timestamp: { type: Date, default: Date.now },
+    attachments: [String] // File URLs for evidence
+  }],
+  moderatorId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  createdAt: { type: Date, default: Date.now },
+  completedAt: Date
+});
+
+// Escrow Transaction Schema
+const escrowTransactionSchema = new mongoose.Schema({
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  tradeId: { type: mongoose.Schema.Types.ObjectId, ref: 'P2PTrade' },
+  type: { type: String, enum: ['lock', 'release', 'refund'], required: true },
+  tokenType: { type: String, enum: ['CES', 'POL'], required: true },
+  amount: { type: Number, required: true },
+  status: { type: String, enum: ['pending', 'completed', 'failed'], default: 'pending' },
+  txHash: String,
+  reason: String, // Reason for the transaction
   createdAt: { type: Date, default: Date.now },
   completedAt: Date
 });
@@ -95,6 +156,7 @@ const Wallet = mongoose.model('Wallet', walletSchema);
 const Transaction = mongoose.model('Transaction', transactionSchema);
 const P2POrder = mongoose.model('P2POrder', p2pOrderSchema);
 const P2PTrade = mongoose.model('P2PTrade', p2pTradeSchema);
+const EscrowTransaction = mongoose.model('EscrowTransaction', escrowTransactionSchema);
 const PriceHistory = mongoose.model('PriceHistory', priceHistorySchema);
 
 // Database connection
@@ -125,6 +187,7 @@ module.exports = {
   Transaction,
   P2POrder,
   P2PTrade,
+  EscrowTransaction,
   PriceHistory,
   connectDatabase,
   disconnectDatabase

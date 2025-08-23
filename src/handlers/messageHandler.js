@@ -949,25 +949,35 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
       const parts = orderData.trim().split(/\s+/);
       
       if (parts.length !== 2) {
-        return await ctx.reply(`❌ Неверный формат. Используйте: \`количество цена_за_токен\``, {
+        return await ctx.reply(`❌ Неверный формат. Используйте: \`количество цена_за_токен\`\n\n**Пример:** \`10 250.50\` или \`10 250,50\``, {
           parse_mode: 'Markdown'
         });
       }
       
       const [amountStr, priceStr] = parts;
-      const amount = parseFloat(amountStr);
-      const pricePerToken = parseFloat(priceStr);
+      
+      // Normalize decimal separators (replace comma with dot)
+      const normalizedAmountStr = amountStr.replace(',', '.');
+      const normalizedPriceStr = priceStr.replace(',', '.');
+      
+      const amount = parseFloat(normalizedAmountStr);
+      const pricePerToken = parseFloat(normalizedPriceStr);
       
       if (isNaN(amount) || amount <= 0 || isNaN(pricePerToken) || pricePerToken <= 0) {
-        return await ctx.reply('❌ Неверные значения. Укажите положительные числа.');
+        return await ctx.reply('❌ Неверные значения. Укажите положительные числа.\n\n**Пример:** `10 250.50` или `10 250,50`', {
+          parse_mode: 'Markdown'
+        });
       }
       
       if (amount < 1) {
+        console.log(`❌ Amount too small: ${amount}`);
         return await ctx.reply('❌ Минимальное количество: 1 CES');
       }
       
       const totalValue = amount * pricePerToken;
       const commission = totalValue * 0.01;
+      
+      console.log(`💰 Processing P2P order: ${amount} CES at ₽${pricePerToken} (total: ₽${totalValue.toFixed(2)}, commission: ₽${commission.toFixed(2)})`);
       
       // Show confirmation
       const typeEmoji = orderType === 'buy' ? '📈' : '📉';
@@ -985,19 +995,23 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
         [Markup.button.callback('❌ Отмена', 'p2p_menu')]
       ]);
       
+      console.log(`✅ Sending P2P order confirmation to user`);
       await ctx.reply(message, { parse_mode: 'Markdown', ...keyboard });
       
     } catch (error) {
       console.error('Error processing P2P order:', error);
-      await ctx.reply('❌ Ошибка обработки ордера.');
+      await ctx.reply('❌ Ошибка обработки ордера. Попробуйте снова.');
     }
   }
 
   // Handle P2P order confirmation
   async handleP2POrderConfirmation(ctx, orderParams) {
     try {
+      console.log(`🔄 Processing P2P order confirmation: ${orderParams}`);
+      
       const parts = orderParams.split('_');
       if (parts.length < 5) {
+        console.log(`❌ Invalid order parameters: ${orderParams}`);
         throw new Error('Invalid order parameters');
       }
       
@@ -1006,14 +1020,20 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
       const pricePerToken = parseFloat(priceStr);
       const chatId = ctx.chat.id.toString();
       
+      console.log(`📊 Order details: type=${orderType}, amount=${amount}, price=${pricePerToken}, chatId=${chatId}`);
+      
       await ctx.editMessageText('⏳ Создание ордера... Подождите.');
       
       let result;
       if (orderType === 'buy') {
+        console.log(`📈 Creating buy order...`);
         result = await p2pService.createBuyOrder(chatId, amount, pricePerToken);
       } else {
+        console.log(`📉 Creating sell order...`);
         result = await p2pService.createSellOrder(chatId, amount, pricePerToken);
       }
+      
+      console.log(`✅ Order created successfully: ${result._id}`);
       
       const typeEmoji = orderType === 'buy' ? '📈' : '📉';
       const typeText = orderType === 'buy' ? 'покупку' : 'продажу';
