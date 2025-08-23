@@ -58,6 +58,7 @@ class Bot {
     
     // New P2P functionality handlers
     this.bot.action('send_ces_tokens', messageHandler.handleSendCESTokens.bind(messageHandler));
+    this.bot.action('send_pol_tokens', messageHandler.handleSendPOLTokens.bind(messageHandler));
     this.bot.action('transaction_history', messageHandler.handleTransactionHistory.bind(messageHandler));
     
     // Handle transfer confirmations (dynamic callbacks)

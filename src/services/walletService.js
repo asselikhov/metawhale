@@ -147,6 +147,46 @@ class WalletService {
     }
   }
 
+  // Get POL (native token) balance from Polygon blockchain
+  async getPOLBalance(address) {
+    try {
+      console.log(`🔍 Checking POL balance for address: ${address}`);
+      
+      // Setup Polygon provider with timeout
+      const provider = new ethers.JsonRpcProvider(config.wallet.polygonRpcUrl, {
+        name: 'polygon',
+        chainId: 137
+      });
+      
+      // Set timeout for requests (10 seconds)
+      provider.pollingInterval = 10000;
+      
+      // Get native POL balance with timeout
+      const balancePromise = Promise.race([
+        provider.getBalance(address),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('RPC timeout')), 15000)
+        )
+      ]);
+      
+      const balance = await balancePromise;
+      
+      // Convert from wei to human readable format (POL has 18 decimals)
+      const formattedBalance = ethers.formatEther(balance);
+      
+      console.log(`💎 POL balance for ${address}: ${formattedBalance} POL`);
+      
+      return parseFloat(formattedBalance);
+      
+    } catch (error) {
+      console.error('Error getting POL balance from blockchain:', error.message);
+      
+      // Return 0 for new wallets or on error
+      console.log(`ℹ️ Returning 0 POL balance for new/empty wallet: ${address}`);
+      return 0;
+    }
+  }
+
   // Get user's wallet info
   async getUserWallet(chatId) {
     try {
@@ -159,18 +199,23 @@ class WalletService {
         return { hasWallet: false, user };
       }
 
-      // Get current balance
-      const cesBalance = await this.getCESBalance(user.walletAddress);
+      // Get current balances for both CES and POL
+      const [cesBalance, polBalance] = await Promise.all([
+        this.getCESBalance(user.walletAddress),
+        this.getPOLBalance(user.walletAddress)
+      ]);
       
-      // Update balance in database
+      // Update balances in database
       user.cesBalance = cesBalance;
+      user.polBalance = polBalance; // We need to add this field to schema
       user.lastBalanceUpdate = new Date();
       await user.save();
 
       return {
         hasWallet: true,
         address: user.walletAddress,
-        balance: cesBalance,
+        cesBalance: cesBalance,
+        polBalance: polBalance,
         lastUpdate: user.lastBalanceUpdate,
         user
       };
@@ -230,7 +275,125 @@ class WalletService {
     }
   }
 
-  // Send CES tokens to another user
+  // Send POL tokens (native currency) to another user
+  async sendPOLTokens(fromChatId, toAddress, amount) {
+    try {
+      console.log(`💸 Initiating POL transfer: ${amount} POL from ${fromChatId} to ${toAddress}`);
+      
+      // Get sender info
+      const fromUser = await User.findOne({ chatId: fromChatId });
+      if (!fromUser || !fromUser.walletAddress) {
+        throw new Error('Отправитель не найден или у него нет кошелька');
+      }
+      
+      // Validate amount
+      if (amount <= 0) {
+        throw new Error('Сумма должна быть больше 0');
+      }
+      
+      // Check balance
+      const currentBalance = await this.getPOLBalance(fromUser.walletAddress);
+      if (currentBalance < amount) {
+        throw new Error(`Недостаточно POL. Доступно: ${currentBalance.toFixed(4)} POL`);
+      }
+      
+      // Reserve some POL for gas (0.001 POL minimum)
+      const gasReserve = 0.001;
+      if (currentBalance - amount < gasReserve) {
+        throw new Error(`Оставьте минимум ${gasReserve} POL для комиссии`);
+      }
+      
+      // Validate recipient address
+      if (!ethers.isAddress(toAddress)) {
+        throw new Error('Неверный адрес получателя');
+      }
+      
+      // Prevent self-transfer
+      if (fromUser.walletAddress.toLowerCase() === toAddress.toLowerCase()) {
+        throw new Error('Нельзя переводить самому себе');
+      }
+      
+      // Get recipient user (if exists in our system)
+      const toUser = await User.findOne({ walletAddress: toAddress });
+      
+      // Setup blockchain transaction
+      const provider = new ethers.JsonRpcProvider(config.wallet.polygonRpcUrl, {
+        name: 'polygon',
+        chainId: 137
+      });
+      
+      // Get sender's private key
+      const privateKey = await this.getUserPrivateKey(fromChatId);
+      const wallet = new ethers.Wallet(privateKey, provider);
+      
+      // Convert amount to wei
+      const transferAmount = ethers.parseEther(amount.toString());
+      
+      // Create transaction record
+      const transaction = new Transaction({
+        fromUserId: fromUser._id,
+        toUserId: toUser ? toUser._id : null,
+        fromAddress: fromUser.walletAddress,
+        toAddress: toAddress,
+        amount: amount,
+        tokenType: 'POL',
+        type: 'p2p',
+        status: 'pending'
+      });
+      
+      await transaction.save();
+      
+      console.log(`📝 POL Transaction record created: ${transaction._id}`);
+      
+      // Execute blockchain transaction (native transfer)
+      try {
+        const tx = await wallet.sendTransaction({
+          to: toAddress,
+          value: transferAmount
+        });
+        
+        console.log(`⏳ POL Transaction sent to blockchain: ${tx.hash}`);
+        
+        // Update transaction with hash
+        transaction.txHash = tx.hash;
+        await transaction.save();
+        
+        // Wait for confirmation
+        const receipt = await tx.wait();
+        
+        if (receipt.status === 1) {
+          // Transaction successful
+          transaction.status = 'completed';
+          transaction.completedAt = new Date();
+          await transaction.save();
+          
+          console.log(`✅ POL transfer completed: ${tx.hash}`);
+          
+          return {
+            success: true,
+            txHash: tx.hash,
+            amount: amount,
+            toAddress: toAddress,
+            transaction: transaction
+          };
+        } else {
+          throw new Error('Transaction failed on blockchain');
+        }
+        
+      } catch (blockchainError) {
+        // Mark transaction as failed
+        transaction.status = 'failed';
+        await transaction.save();
+        
+        console.error('POL Blockchain transaction error:', blockchainError);
+        throw new Error(`Ошибка выполнения транзакции: ${blockchainError.message}`);
+      }
+      
+    } catch (error) {
+      console.error('Error sending POL tokens:', error);
+      throw error;
+    }
+  }
   async sendCESTokens(fromChatId, toAddress, amount) {
     try {
       console.log(`💸 Initiating CES transfer: ${amount} CES from ${fromChatId} to ${toAddress}`);
