@@ -37,7 +37,8 @@ const priceHistorySchema = new mongoose.Schema({
   marketCap: Number,
   volume24h: Number,
   priceRub: Number,
-  changeRub24h: Number
+  changeRub24h: Number,
+  ath: Number // ATH (All Time High) в USD
 });
 
 const PriceHistory = mongoose.model('PriceHistory', priceHistorySchema);
@@ -87,11 +88,11 @@ async function getCESPrice() {
     
     lastApiCall = Date.now();
     
-    // Попытка получить данные по адресу контракта (сеть Polygon)
+    // Попытка получить данные по адресу контракта (сеть Polygon) с дополнительными параметрами
     const contractResponse = await axios.get(
-      `${process.env.COINGECKO_API_URL}/simple/token_price/polygon-pos?contract_addresses=${process.env.CES_CONTRACT_ADDRESS}&vs_currencies=usd,rub&include_24hr_change=true&include_market_cap=true&include_24hr_vol=true`,
+      `${process.env.COINGECKO_API_URL}/simple/token_price/polygon-pos?contract_addresses=${process.env.CES_CONTRACT_ADDRESS}&vs_currencies=usd,rub&include_24hr_change=true&include_market_cap=true&include_24hr_vol=true&include_ath=true`,
       {
-        timeout: 10000,
+        timeout: 8000, // Уменьшено с 10 до 8 секунд для ускорения
         headers: {
           'User-Agent': 'CES-Price-Bot/1.0'
         }
@@ -108,13 +109,14 @@ async function getCESPrice() {
         change24h: data.usd_24h_change || 0,
         changeRub24h: data.rub_24h_change || 0,
         marketCap: data.usd_market_cap || 0,
-        volume24h: data.usd_24h_vol || 0
+        volume24h: data.usd_24h_vol || 0,
+        ath: data.usd_ath || data.usd // fallback to current price if ATH not available
       };
     }
 
-    // Резервный вариант: поиск CES по имени
+    // Резервный вариант: поиск CES по имени с получением ATH
     const searchResponse = await axios.get(
-      `${process.env.COINGECKO_API_URL}/simple/price?ids=ces&vs_currencies=usd,rub&include_24hr_change=true&include_market_cap=true&include_24hr_vol=true`
+      `${process.env.COINGECKO_API_URL}/simple/price?ids=ces&vs_currencies=usd,rub&include_24hr_change=true&include_market_cap=true&include_24hr_vol=true&include_ath=true`
     );
 
     if (searchResponse.data.ces) {
@@ -125,7 +127,8 @@ async function getCESPrice() {
         change24h: data.usd_24h_change || 0,
         changeRub24h: data.rub_24h_change || 0,
         marketCap: data.usd_market_cap || 0,
-        volume24h: data.usd_24h_vol || 0
+        volume24h: data.usd_24h_vol || 0,
+        ath: data.usd_ath || data.usd // fallback to current price if ATH not available
       };
     }
 
@@ -149,6 +152,7 @@ async function getCESPrice() {
           changeRub24h: lastPrice.changeRub24h || 0,
           marketCap: lastPrice.marketCap || 0,
           volume24h: lastPrice.volume24h || 0,
+          ath: lastPrice.ath || lastPrice.price,
           cached: true
         };
       }
@@ -168,26 +172,16 @@ async function sendPriceToUser(ctx) {
       await new PriceHistory(priceData).save();
     }
     
-    // Получаем историю цен для графика
-    const now = new Date();
-    const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-    
-    const priceHistory = await PriceHistory.find({
-      timestamp: { $gte: oneDayAgo }
-    }).sort({ timestamp: 1 }).limit(24);
-    
-    const changeEmoji = priceData.change24h >= 0 ? '📈' : '📉';
+    // Определяем эмодзи для изменения цены
+    const changeEmoji = priceData.change24h >= 0 ? '🔺' : '🔻'; // 🔺 для роста, 🔻 для падения
     const changeSign = priceData.change24h >= 0 ? '+' : '';
     
-    const message = `
-➖➖➖➖➖➖➖➖➖➖➖➖➖
-💰 Цена токена CES: $${priceData.price.toFixed(2)}${priceData.priceRub > 0 ? ` | ₽${priceData.priceRub.toFixed(2)}` : ''}
-➖➖➖➖➖➖➖➖➖➖➖➖➖
-Изменение за 24ч: ${changeSign}${priceData.change24h.toFixed(2)}%
-Объем за 24ч: $${formatNumber(priceData.volume24h)}
-    `;
+    // Новый формат сообщения
+    const message = `💰 Цена токена CES: $ ${priceData.price.toFixed(2)}${priceData.priceRub > 0 ? ` | ₽ ${priceData.priceRub.toFixed(2)}` : ''}
+➖➖➖➖➖➖➖➖➖➖➖➖➖➖➖
+${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${formatNumber(priceData.volume24h)} • 🅐🅣🅗 $ ${priceData.ath.toFixed(2)}`;
     
-    // Отправляем текстовое сообщение с ценой
+    // Отправляем только текстовое сообщение для максимальной скорости
     await ctx.reply(message);
     
   } catch (error) {
@@ -281,6 +275,28 @@ function setupSelfPing() {
 
 // Запуск самопинга через 1 минуту после старта
 setTimeout(setupSelfPing, 60000);
+
+// Функция автоматического обновления цен в реальном времени
+function setupPriceUpdater() {
+  const PRICE_UPDATE_INTERVAL = 30 * 1000; // 30 секунд для обновления цен
+  
+  setInterval(async () => {
+    try {
+      const priceData = await getCESPrice();
+      if (!priceData.cached) {
+        await new PriceHistory(priceData).save();
+        console.log(`📊 Цена обновлена: $${priceData.price.toFixed(2)} (${priceData.change24h >= 0 ? '+' : ''}${priceData.change24h.toFixed(2)}%)`);
+      }
+    } catch (error) {
+      console.log('⚠️ Ошибка автообновления цены:', error.message);
+    }
+  }, PRICE_UPDATE_INTERVAL);
+  
+  console.log(`📊 Автообновление цен настроено: каждые ${PRICE_UPDATE_INTERVAL / 1000} секунд`);
+}
+
+// Запуск автообновления цен через 2 минуты после старта
+setTimeout(setupPriceUpdater, 120000);
 
 console.log('🚀 CES Price Telegram Bot успешно запущен!');
 console.log('📊 Команды: /start и /price');

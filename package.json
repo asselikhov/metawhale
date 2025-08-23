@@ -1,11 +1,12 @@
 {
   "name": "ces-price-telegram-bot",
   "version": "1.0.0",
-  "description": "Telegram bot that sends CES token price twice daily",
+  "description": "Telegram bot for CES token price monitoring with real-time updates and improved message formatting",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
-    "dev": "nodemon index.js"
+    "dev": "nodemon index.js",
+    "test-format": "node test-format.js"
   },
   "keywords": [
     "telegram",
