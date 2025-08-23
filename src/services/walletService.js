@@ -91,19 +91,58 @@ class WalletService {
     }
   }
 
-  // Get CES token balance (placeholder - needs Web3 integration)
+  // Get CES token balance from Polygon blockchain
   async getCESBalance(address) {
     try {
-      // TODO: Implement real balance checking via Web3/ethers.js
-      // const provider = new ethers.JsonRpcProvider(config.wallet.polygonRpcUrl);
-      // const contract = new ethers.Contract(config.wallet.cesContractAddress, erc20Abi, provider);
-      // const balance = await contract.balanceOf(address);
+      console.log(`🔍 Checking real CES balance for address: ${address}`);
       
-      // Placeholder - return random balance for demonstration
-      return Math.random() * 1000;
+      // Setup Polygon provider with timeout
+      const provider = new ethers.JsonRpcProvider(config.wallet.polygonRpcUrl, {
+        name: 'polygon',
+        chainId: 137
+      });
+      
+      // Set timeout for requests (10 seconds)
+      provider.pollingInterval = 10000;
+      
+      // ERC-20 ABI for balanceOf function
+      const erc20Abi = [
+        "function balanceOf(address owner) view returns (uint256)",
+        "function decimals() view returns (uint8)"
+      ];
+      
+      // Create contract instance
+      const contract = new ethers.Contract(
+        config.wallet.cesContractAddress, 
+        erc20Abi, 
+        provider
+      );
+      
+      // Get balance and decimals with timeout
+      const balancePromise = Promise.race([
+        Promise.all([
+          contract.balanceOf(address),
+          contract.decimals()
+        ]),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('RPC timeout')), 15000)
+        )
+      ]);
+      
+      const [balance, decimals] = await balancePromise;
+      
+      // Convert from wei to human readable format
+      const formattedBalance = ethers.formatUnits(balance, decimals);
+      
+      console.log(`💰 Real CES balance for ${address}: ${formattedBalance} CES`);
+      
+      return parseFloat(formattedBalance);
       
     } catch (error) {
-      console.error('Error getting CES balance:', error);
+      console.error('Error getting CES balance from blockchain:', error.message);
+      
+      // Return 0 for new wallets or on error
+      console.log(`ℹ️ Returning 0 balance for new/empty wallet: ${address}`);
       return 0;
     }
   }
