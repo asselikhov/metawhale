@@ -438,13 +438,13 @@ async function sendPriceToUser(ctx) {
     
     // Индикатор источника данных (только для базы данных)
     const sourceEmoji = priceData.source === 'database' ? '🗄️' : '';
-    const athSourceEmoji = priceData.athSource === 'web+database' ? '🌐' : (priceData.athSource === 'database' ? '🗄️' : '📊');
+    const athSourceEmoji = priceData.athSource === 'database' ? '🗄️' : '';
     
     // Новый формат сообщения согласно требованиям
     const message = `➖➖➖➖➖➖➖➖➖➖➖➖➖➖➖
 💰 Цена токена CES: $ ${priceData.price.toFixed(2)}${priceData.priceRub > 0 ? ` | ₽ ${priceData.priceRub.toFixed(2)}` : ' | ₽ 0.00'}${sourceEmoji ? ` ${sourceEmoji}` : ''}
 ➖➖➖➖➖➖➖➖➖➖➖➖➖➖➖
-${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${formatNumber(priceData.volume24h)} • 🅐🅣🅗 ${athDisplay} ${athSourceEmoji}`;
+${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${formatNumber(priceData.volume24h)} • 🅐🅣🅗 ${athDisplay}`;
     
     // Отправляем только текстовое сообщение для максимальной скорости
     await ctx.reply(message);
