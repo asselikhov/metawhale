@@ -270,7 +270,13 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
         [Markup.button.callback('🏆 Топ трейдеров', 'p2p_top_traders'), Markup.button.callback('🧮 Аналитика', 'p2p_analytics')]
       ]);
       
-      await ctx.replyWithPhoto({ source: 'p2plogo.png' }, { caption: message, reply_markup: keyboard });
+      try {
+        await ctx.replyWithPhoto({ source: 'p2plogo.png' }, { caption: message, reply_markup: keyboard });
+      } catch (photoError) {
+        console.error('Error sending P2P menu photo (text version):', photoError);
+        // Fallback to sending text only if photo fails
+        await ctx.reply(message, keyboard);
+      }
       
     } catch (error) {
       console.error('P2P menu text error:', error);
@@ -574,7 +580,13 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
         [Markup.button.callback('🏆 Топ трейдеров', 'p2p_top_traders'), Markup.button.callback('🧮 Аналитика', 'p2p_analytics')]
       ]);
       
-      await ctx.replyWithPhoto({ source: 'p2plogo.png' }, { caption: message, reply_markup: keyboard });
+      try {
+        await ctx.replyWithPhoto({ source: 'p2plogo.png' }, { caption: message, reply_markup: keyboard });
+      } catch (photoError) {
+        console.error('Error sending P2P menu photo:', photoError);
+        // Fallback to sending text only if photo fails
+        await ctx.reply(message, keyboard);
+      }
       
     } catch (error) {
       console.error('P2P menu error:', error);
