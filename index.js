@@ -104,13 +104,20 @@ async function getCESPrice() {
     if (contractResponse.data[contractAddress]) {
       const data = contractResponse.data[contractAddress];
       
-      // Получаем ATH из базы данных если API не предоставляет
+      // Получаем ATH из базы данных и сравниваем с API данными
       let athValue = data.usd_ath;
+      
+      // Если API не предоставляет ATH, ищем максимальную цену в истории
       if (!athValue) {
-        // Ищем максимальную цену в истории
-        const maxPrice = await PriceHistory.findOne().sort({ price: -1 }).limit(1);
-        athValue = maxPrice ? Math.max(maxPrice.price, data.usd) : data.usd;
+        const maxPriceFromDB = await PriceHistory.findOne().sort({ price: -1 }).limit(1);
+        athValue = maxPriceFromDB ? maxPriceFromDB.price : data.usd;
         console.log(`📈 ATH взят из базы данных: $${athValue.toFixed(2)}`);
+      }
+      
+      // Проверяем, не является ли текущая цена новым ATH
+      const finalATH = Math.max(athValue, data.usd);
+      if (data.usd > athValue) {
+        console.log(`🏆 Обнаружен новый ATH! Старый: $${athValue.toFixed(2)}, Новый: $${data.usd.toFixed(2)}`);
       }
       
       return {
@@ -120,7 +127,7 @@ async function getCESPrice() {
         changeRub24h: data.rub_24h_change || 0,
         marketCap: data.usd_market_cap || 0,
         volume24h: data.usd_24h_vol || 0,
-        ath: athValue
+        ath: finalATH
       };
     }
 
@@ -140,8 +147,14 @@ async function getCESPrice() {
           
           let athValue = data.usd_ath;
           if (!athValue) {
-            const maxPrice = await PriceHistory.findOne().sort({ price: -1 }).limit(1);
-            athValue = maxPrice ? Math.max(maxPrice.price, data.usd) : data.usd;
+            const maxPriceFromDB = await PriceHistory.findOne().sort({ price: -1 }).limit(1);
+            athValue = maxPriceFromDB ? maxPriceFromDB.price : data.usd;
+          }
+          
+          // Проверяем новый ATH
+          const finalATH = Math.max(athValue, data.usd);
+          if (data.usd > athValue) {
+            console.log(`🏆 Новый ATH через ${tokenId}! $${data.usd.toFixed(2)}`);
           }
           
           return {
@@ -151,7 +164,7 @@ async function getCESPrice() {
             changeRub24h: data.rub_24h_change || 0,
             marketCap: data.usd_market_cap || 0,
             volume24h: data.usd_24h_vol || 0,
-            ath: athValue
+            ath: finalATH
           };
         }
       } catch (err) {
@@ -195,18 +208,8 @@ async function sendPriceToUser(ctx) {
   try {
     const priceData = await getCESPrice();
     
-    // Проверяем и обновляем ATH если нужно
+    // Сохраняем данные в базу (только для новых данных)
     if (!priceData.cached) {
-      const maxPrice = await PriceHistory.findOne().sort({ price: -1 }).limit(1);
-      const currentATH = maxPrice ? Math.max(maxPrice.price, priceData.price) : priceData.price;
-      
-      // Обновляем ATH если текущая цена выше
-      if (priceData.price > (priceData.ath || 0)) {
-        priceData.ath = priceData.price;
-      } else {
-        priceData.ath = currentATH;
-      }
-      
       await new PriceHistory(priceData).save();
     }
     
@@ -326,20 +329,11 @@ function setupPriceUpdater() {
     try {
       const priceData = await getCESPrice();
       if (!priceData.cached) {
-        // Проверяем, не является ли текущая цена новым ATH
-        const maxPrice = await PriceHistory.findOne().sort({ price: -1 }).limit(1);
-        const currentATH = maxPrice ? Math.max(maxPrice.price, priceData.price) : priceData.price;
-        
-        // Обновляем ATH если текущая цена выше
-        if (priceData.price > (priceData.ath || 0)) {
-          priceData.ath = priceData.price;
-          console.log(`🏆 Новый ATH! $${priceData.price.toFixed(2)}`);
-        } else {
-          priceData.ath = currentATH;
-        }
-        
         await new PriceHistory(priceData).save();
-        console.log(`📊 Цена обновлена: $${priceData.price.toFixed(2)} (${priceData.change24h >= 0 ? '+' : ''}${priceData.change24h.toFixed(2)}%) | ATH: $${priceData.ath.toFixed(2)}`);
+        
+        // Логируем обновление с информацией о ATH
+        const isNewATH = priceData.price >= priceData.ath;
+        console.log(`📊 Цена обновлена: $${priceData.price.toFixed(2)} (${priceData.change24h >= 0 ? '+' : ''}${priceData.change24h.toFixed(2)}%) | ATH: $${priceData.ath.toFixed(2)}${isNewATH ? ' 🏆' : ''}`);
       }
     } catch (error) {
       console.log('⚠️ Ошибка автообновления цены:', error.message);
