@@ -725,8 +725,8 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
       }
       
       if (walletInfo.cesBalance <= 0) {
-        const message = 'ПЕРЕВОД CES ТОКЕНОВ\n\n' +
-                       '❌ Недостаточно средств для перевода.\n' +
+        const message = 'ПЕРЕВОД CES\n\n' +
+                       '⚠️ Недостаточно средств для перевода.\n' +
                        `Ваш баланс: **${walletInfo.cesBalance.toFixed(4)} CES**`;
         
         const keyboard = Markup.inlineKeyboard([
@@ -736,7 +736,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
         return await ctx.reply(message, { parse_mode: 'Markdown', ...keyboard });
       }
       
-      const message = 'ПЕРЕВОД CES ТОКЕНОВ\n\n' +
+      const message = 'ПЕРЕВОД CES\n\n' +
                      `Доступно: **${walletInfo.cesBalance.toFixed(4)} CES**\n\n` +
                      '📝 Отправьте сообщение в формате:\n' +
                      '`Адрес_кошелька Сумма`\n\n' +
@@ -771,8 +771,8 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
       }
       
       if (walletInfo.polBalance <= 0.001) {
-        const message = 'ПЕРЕВОД POL ТОКЕНОВ\n\n' +
-                       '❌ Недостаточно средств для перевода.\n' +
+        const message = 'ПЕРЕВОД POL\n\n' +
+                       '⚠️ Недостаточно средств для перевода.\n' +
                        `Ваш баланс: **${walletInfo.polBalance.toFixed(4)} POL**\n\n` +
                        '💡 Минимум 0.001 POL нужно оставить для комиссии';
         
@@ -784,7 +784,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
       }
       
       const maxTransfer = (walletInfo.polBalance - 0.001).toFixed(4);
-      const message = 'ПЕРЕВОД POL ТОКЕНОВ\n\n' +
+      const message = 'ПЕРЕВОД POL\n\n' +
                      `Доступно: **${maxTransfer} POL**\n` +
                      `Всего: **${walletInfo.polBalance.toFixed(4)} POL**\n\n` +
                      '📝 Отправьте сообщениеение в формате:\n' +
@@ -816,11 +816,11 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
       const chatId = ctx.chat.id.toString();
       const transactions = await walletService.getUserTransactions(chatId, 5);
       
-      let message = '📊 **История переводов**\n\n';
+      let message = '📊 **ИСТОРИЯ**\n\n';
       
       if (transactions.length === 0) {
-        message += '📝 Переводов пока не было\n\n' +
-                  'Начните отправлять CES токены другим пользователям!';
+        message += '⚠️ Переводов пока не было\n\n' +
+                  '💡 Начните отправлять CES токены другим пользователям !';
       } else {
         const user = await walletService.findUserByAddress(transactions[0].fromAddress) || 
                     await walletService.findUserByAddress(transactions[0].toAddress);
