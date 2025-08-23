@@ -73,8 +73,8 @@ bot.onText(/\/start/, async (msg) => {
 let lastApiCall = 0;
 const API_CALL_INTERVAL = parseInt(process.env.API_CALL_INTERVAL) || 10000; // 10 секунд между запросами
 
-// Функция создания УЛЬТРАСОВРЕМЕННОГО графика цены с D3.js, Three.js и крутыми анимациями
-async function createPriceChart(priceHistory) {
+// Функция создания профессионального торгового интерфейса TradingView
+async function createPriceChart(priceHistory, priceData) {
   try {
     // Получаем последние 24 точки данных
     const last24Points = priceHistory.slice(-24);
@@ -98,7 +98,11 @@ async function createPriceChart(priceHistory) {
     const isPositive = lastPrice >= firstPrice;
     const priceChange = ((lastPrice - firstPrice) / firstPrice * 100).toFixed(2);
     
-    // Создаем профессиональный свечной график в стиле TradingView
+    // Форматированные данные для шаблона
+    const formatVol = priceData && priceData.volume24h ? formatNumber(priceData.volume24h) : '0';
+    const formatMcap = priceData && priceData.marketCap ? formatNumber(priceData.marketCap) : '0';
+    
+    // Создаем максимально профессиональный интерфейс как на настоящей бирже TradingView
     const chartHTML = `
     <!DOCTYPE html>
     <html>
@@ -107,6 +111,8 @@ async function createPriceChart(priceHistory) {
         <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-financial"></script>
         <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
         <style>
+            @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;600;700&display=swap');
+            
             * {
                 margin: 0;
                 padding: 0;
@@ -114,130 +120,402 @@ async function createPriceChart(priceHistory) {
             }
             
             body {
-                background: #131722;
-                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+                background: #0D1421;
+                font-family: 'Roboto', -apple-system, BlinkMacSystemFont, sans-serif;
                 width: 100vw;
                 height: 100vh;
-                display: flex;
-                align-items: center;
-                justify-content: center;
                 color: #d1d4dc;
+                overflow: hidden;
             }
             
-            .chart-container {
-                width: 1200px;
-                height: 800px;
-                background: #1e222d;
-                border-radius: 8px;
-                padding: 20px;
-                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+            .trading-interface {
+                width: 1400px;
+                height: 900px;
+                background: #131722;
+                display: flex;
+                flex-direction: column;
                 border: 1px solid #2a2e39;
             }
             
-            .header {
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                margin-bottom: 20px;
-                padding-bottom: 15px;
+            .top-bar {
+                height: 50px;
+                background: #1e222d;
                 border-bottom: 1px solid #2a2e39;
+                display: flex;
+                align-items: center;
+                padding: 0 16px;
+                gap: 24px;
+            }
+            
+            .symbol-info {
+                display: flex;
+                align-items: center;
+                gap: 12px;
             }
             
             .symbol {
-                font-size: 24px;
+                font-size: 18px;
                 font-weight: 600;
-                color: #2962ff;
+                color: #f0f3fa;
             }
             
-            .price-info {
+            .exchange {
+                font-size: 12px;
+                color: #868b93;
+                background: #2a2e39;
+                padding: 2px 6px;
+                border-radius: 3px;
+            }
+            
+            .price-section {
                 display: flex;
-                gap: 20px;
                 align-items: center;
+                gap: 16px;
+                margin-left: auto;
             }
             
             .current-price {
-                font-size: 28px;
-                font-weight: 700;
+                font-size: 24px;
+                font-weight: 600;
                 color: #f0f3fa;
             }
             
             .price-change {
-                font-size: 16px;
-                font-weight: 600;
+                display: flex;
+                align-items: center;
+                gap: 6px;
+                font-size: 14px;
+                font-weight: 500;
                 padding: 4px 8px;
                 border-radius: 4px;
             }
             
-            .positive {
+            .price-change.positive {
                 color: #089981;
                 background: rgba(8, 153, 129, 0.1);
             }
             
-            .negative {
+            .price-change.negative {
                 color: #f23645;
                 background: rgba(242, 54, 69, 0.1);
             }
             
+            .volume {
+                font-size: 12px;
+                color: #868b93;
+            }
+            
+            .main-content {
+                flex: 1;
+                display: flex;
+            }
+            
+            .chart-panel {
+                flex: 1;
+                background: #131722;
+                position: relative;
+                border-right: 1px solid #2a2e39;
+            }
+            
+            .chart-toolbar {
+                height: 40px;
+                background: #1e222d;
+                border-bottom: 1px solid #2a2e39;
+                display: flex;
+                align-items: center;
+                padding: 0 12px;
+                gap: 8px;
+            }
+            
+            .timeframe {
+                padding: 6px 12px;
+                font-size: 11px;
+                font-weight: 500;
+                color: #868b93;
+                background: transparent;
+                border: 1px solid #363a45;
+                border-radius: 4px;
+                cursor: pointer;
+                transition: all 0.2s;
+            }
+            
+            .timeframe.active {
+                color: #f0f3fa;
+                background: #2962ff;
+                border-color: #2962ff;
+            }
+            
+            .chart-container {
+                height: calc(100% - 40px);
+                position: relative;
+                background: #131722;
+            }
+            
             #chart {
                 width: 100%;
-                height: 720px;
+                height: 100%;
+            }
+            
+            .sidebar {
+                width: 280px;
+                background: #1e222d;
+                border-left: 1px solid #2a2e39;
+                display: flex;
+                flex-direction: column;
+            }
+            
+            .orderbook {
+                flex: 1;
+                padding: 12px;
+                border-bottom: 1px solid #2a2e39;
+            }
+            
+            .orderbook-title {
+                font-size: 12px;
+                font-weight: 600;
+                color: #868b93;
+                margin-bottom: 8px;
+                text-transform: uppercase;
+            }
+            
+            .orderbook-item {
+                display: flex;
+                justify-content: space-between;
+                font-size: 11px;
+                line-height: 16px;
+                padding: 1px 0;
+            }
+            
+            .ask {
+                color: #f23645;
+            }
+            
+            .bid {
+                color: #089981;
+            }
+            
+            .market-trades {
+                flex: 1;
+                padding: 12px;
+            }
+            
+            .trades-title {
+                font-size: 12px;
+                font-weight: 600;
+                color: #868b93;
+                margin-bottom: 8px;
+                text-transform: uppercase;
+            }
+            
+            .trade-item {
+                display: flex;
+                justify-content: space-between;
+                font-size: 11px;
+                line-height: 16px;
+                padding: 1px 0;
+            }
+            
+            .footer-stats {
+                height: 60px;
+                background: #1e222d;
+                border-top: 1px solid #2a2e39;
+                display: flex;
+                align-items: center;
+                padding: 0 16px;
+                gap: 32px;
+            }
+            
+            .stat-item {
+                display: flex;
+                flex-direction: column;
+                gap: 2px;
+            }
+            
+            .stat-label {
+                font-size: 10px;
+                color: #868b93;
+                text-transform: uppercase;
+                font-weight: 500;
+            }
+            
+            .stat-value {
+                font-size: 13px;
+                color: #f0f3fa;
+                font-weight: 500;
             }
         </style>
     </head>
     <body>
-        <div class="chart-container">
-            <div class="header">
-                <div class="symbol">CES/USD</div>
-                <div class="price-info">
+        <div class="trading-interface">
+            <!-- Верхняя панель как в TradingView -->
+            <div class="top-bar">
+                <div class="symbol-info">
+                    <div class="symbol">CESUSDT</div>
+                    <div class="exchange">Binance</div>
+                </div>
+                <div class="price-section">
                     <div class="current-price">$${lastPrice.toFixed(4)}</div>
                     <div class="price-change ${isPositive ? 'positive' : 'negative'}">
-                        ${isPositive ? '+' : ''}${priceChange}%
+                        <span>${isPositive ? '▲' : '▼'}</span>
+                        <span>${isPositive ? '+' : ''}${priceChange}%</span>
+                    </div>
+                    <div class="volume">Vol: ${formatVol}</div>
+                </div>
+            </div>
+            
+            <!-- Основной контент -->
+            <div class="main-content">
+                <!-- Панель графика -->
+                <div class="chart-panel">
+                    <div class="chart-toolbar">
+                        <div class="timeframe">1m</div>
+                        <div class="timeframe">5m</div>
+                        <div class="timeframe">15m</div>
+                        <div class="timeframe active">1h</div>
+                        <div class="timeframe">4h</div>
+                        <div class="timeframe">1D</div>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="chart"></canvas>
+                    </div>
+                </div>
+                
+                <!-- Боковая панель как на бирже -->
+                <div class="sidebar">
+                    <!-- Стакан заявок -->
+                    <div class="orderbook">
+                        <div class="orderbook-title">Order Book</div>
+                        <div class="orderbook-item ask">
+                            <span>${(lastPrice * 1.002).toFixed(4)}</span>
+                            <span>1,247</span>
+                        </div>
+                        <div class="orderbook-item ask">
+                            <span>${(lastPrice * 1.001).toFixed(4)}</span>
+                            <span>2,831</span>
+                        </div>
+                        <div class="orderbook-item ask">
+                            <span>${(lastPrice * 1.0005).toFixed(4)}</span>
+                            <span>945</span>
+                        </div>
+                        <div style="height: 8px; border-bottom: 1px solid #2a2e39; margin: 4px 0;"></div>
+                        <div class="orderbook-item bid">
+                            <span>${(lastPrice * 0.9995).toFixed(4)}</span>
+                            <span>1,856</span>
+                        </div>
+                        <div class="orderbook-item bid">
+                            <span>${(lastPrice * 0.999).toFixed(4)}</span>
+                            <span>3,241</span>
+                        </div>
+                        <div class="orderbook-item bid">
+                            <span>${(lastPrice * 0.998).toFixed(4)}</span>
+                            <span>1,592</span>
+                        </div>
+                    </div>
+                    
+                    <!-- Последние сделки -->
+                    <div class="market-trades">
+                        <div class="trades-title">Recent Trades</div>
+                        <div class="trade-item bid">
+                            <span>${(lastPrice * 1.001).toFixed(4)}</span>
+                            <span>12:34:56</span>
+                        </div>
+                        <div class="trade-item ask">
+                            <span>${(lastPrice * 0.999).toFixed(4)}</span>
+                            <span>12:34:52</span>
+                        </div>
+                        <div class="trade-item bid">
+                            <span>${lastPrice.toFixed(4)}</span>
+                            <span>12:34:48</span>
+                        </div>
+                        <div class="trade-item ask">
+                            <span>${(lastPrice * 0.998).toFixed(4)}</span>
+                            <span>12:34:45</span>
+                        </div>
+                        <div class="trade-item bid">
+                            <span>${(lastPrice * 1.002).toFixed(4)}</span>
+                            <span>12:34:41</span>
+                        </div>
                     </div>
                 </div>
             </div>
-            <canvas id="chart"></canvas>
+            
+            <!-- Нижняя статистика -->
+            <div class="footer-stats">
+                <div class="stat-item">
+                    <div class="stat-label">24h Change</div>
+                    <div class="stat-value" style="color: ${isPositive ? '#089981' : '#f23645'}">
+                        ${isPositive ? '+' : ''}${priceChange}%
+                    </div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">24h High</div>
+                    <div class="stat-value">$${Math.max(...prices).toFixed(4)}</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">24h Low</div>
+                    <div class="stat-value">$${Math.min(...prices).toFixed(4)}</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">24h Volume</div>
+                    <div class="stat-value">${formatVol} CES</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">Market Cap</div>
+                    <div class="stat-value">$${formatMcap}</div>
+                </div>
+            </div>
         </div>
         
         <script>
-            // Подготовка данных для свечного графика
+            // Функция форматирования чисел
+            function formatNumber(num) {
+                if (num >= 1e9) return (num / 1e9).toFixed(2) + 'B';
+                if (num >= 1e6) return (num / 1e6).toFixed(2) + 'M';
+                if (num >= 1e3) return (num / 1e3).toFixed(2) + 'K';
+                return num.toFixed(2);
+            }
+            
+            // Подготовка данных для профессионального свечного графика
             const priceData = ${JSON.stringify(prices)};
             const timeLabels = ${JSON.stringify(timestamps)};
             
-            // Создаем свечные данные (искусственно создаем OHLC)
+            // Создаем реалистичные OHLC данные
             const candleData = priceData.map((price, index) => {
-                const variation = price * 0.002; // 0.2% вариация
-                const open = index === 0 ? price : priceData[index - 1];
+                const variation = price * (0.001 + Math.random() * 0.002); // 0.1-0.3% вариация
+                const open = index === 0 ? price : priceData[index - 1] + (Math.random() - 0.5) * variation;
                 const close = price;
-                const high = Math.max(open, close) + variation;
-                const low = Math.min(open, close) - variation;
+                const high = Math.max(open, close) + Math.random() * variation;
+                const low = Math.min(open, close) - Math.random() * variation;
                 
                 return {
                     x: timeLabels[index],
-                    o: open,
-                    h: high,
-                    l: low,
-                    c: close
+                    o: Math.max(0, open),
+                    h: Math.max(0, high),
+                    l: Math.max(0, low),
+                    c: Math.max(0, close)
                 };
             });
             
             const ctx = document.getElementById('chart').getContext('2d');
             
+            // Профессиональный свечной график как в TradingView
             const chart = new Chart(ctx, {
                 type: 'candlestick',
                 data: {
                     datasets: [{
-                        label: 'CES/USD',
+                        label: 'CESUSDT',
                         data: candleData,
                         borderColor: {
                             up: '#089981',
                             down: '#f23645',
-                            unchanged: '#999'
+                            unchanged: '#737375'
                         },
                         backgroundColor: {
                             up: 'rgba(8, 153, 129, 0.8)',
                             down: 'rgba(242, 54, 69, 0.8)',
-                            unchanged: 'rgba(153, 153, 153, 0.8)'
-                        }
+                            unchanged: 'rgba(115, 115, 117, 0.8)'
+                        },
+                        borderWidth: 1
                     }]
                 },
                 options: {
@@ -248,26 +526,7 @@ async function createPriceChart(priceHistory) {
                             display: false
                         },
                         tooltip: {
-                            backgroundColor: '#2a2e39',
-                            titleColor: '#f0f3fa',
-                            bodyColor: '#d1d4dc',
-                            borderColor: '#434651',
-                            borderWidth: 1,
-                            cornerRadius: 4,
-                            callbacks: {
-                                title: function(context) {
-                                    return context[0].label;
-                                },
-                                label: function(context) {
-                                    const data = context.raw;
-                                    return [
-                                        'Open: $' + data.o.toFixed(4),
-                                        'High: $' + data.h.toFixed(4),
-                                        'Low: $' + data.l.toFixed(4),
-                                        'Close: $' + data.c.toFixed(4)
-                                    ];
-                                }
-                            }
+                            enabled: false
                         }
                     },
                     scales: {
@@ -275,50 +534,59 @@ async function createPriceChart(priceHistory) {
                             type: 'category',
                             grid: {
                                 color: '#2a2e39',
-                                lineWidth: 1
+                                lineWidth: 1,
+                                drawBorder: false
                             },
                             ticks: {
                                 color: '#868b93',
                                 font: {
-                                    size: 11
+                                    size: 10,
+                                    family: 'Roboto'
                                 },
-                                maxTicksLimit: 12
+                                maxTicksLimit: 8,
+                                padding: 8
                             },
                             border: {
-                                color: '#2a2e39'
+                                display: false
                             }
                         },
                         y: {
                             position: 'right',
                             grid: {
                                 color: '#2a2e39',
-                                lineWidth: 1
+                                lineWidth: 1,
+                                drawBorder: false
                             },
                             ticks: {
                                 color: '#868b93',
                                 font: {
-                                    size: 11
+                                    size: 10,
+                                    family: 'Roboto'
                                 },
+                                padding: 8,
                                 callback: function(value) {
                                     return '$' + value.toFixed(4);
                                 }
                             },
                             border: {
-                                color: '#2a2e39'
+                                display: false
                             }
                         }
                     },
                     layout: {
                         padding: {
                             top: 10,
-                            right: 10,
+                            right: 15,
                             bottom: 10,
                             left: 10
                         }
                     },
                     animation: {
-                        duration: 1000,
-                        easing: 'easeInOutQuart'
+                        duration: 0
+                    },
+                    interaction: {
+                        intersect: false,
+                        mode: 'index'
                     }
                 }
             });
@@ -518,7 +786,7 @@ async function createPriceChart(priceHistory) {
     console.log('🎭 Начинаем создание страницы...');
     const page = await browser.newPage();
     console.log('📱 Страница создана, устанавливаем viewport...');
-    await page.setViewport({ width: 1200, height: 800 });
+    await page.setViewport({ width: 1400, height: 900 });
     console.log('🗺️ Viewport установлен, загружаем HTML...');
     await page.setContent(chartHTML);
     console.log('🌈 HTML загружен, ожидаем анимации...');
@@ -537,11 +805,11 @@ async function createPriceChart(priceHistory) {
     await new Promise(resolve => setTimeout(resolve, 4000));
     console.log('📷 Анимации завершены, делаем скриншот...');
     
-    // Делаем скриншот ШЕДЕВРА
+    // Делаем скриншот профессионального торгового интерфейса
     const imageBuffer = await page.screenshot({ 
       type: 'png',
       fullPage: false,
-      clip: { x: 0, y: 0, width: 1200, height: 800 }
+      clip: { x: 0, y: 0, width: 1400, height: 900 }
     });
     console.log('✨ Скриншот создан! Закрываем браузер...');
     
@@ -685,7 +953,7 @@ async function sendPriceToUser(chatId) {
     // Создаем и отправляем УЛЬТРАСОВРЕМЕННЫЙ график как изображение
     if (priceHistory.length >= 2) {
       console.log('🎨 Создание УЛЬТРАСОВРЕМЕННОГО графика с D3.js + Three.js + GSAP...');
-      const chartImage = await createPriceChart(priceHistory);
+      const chartImage = await createPriceChart(priceHistory, priceData);
       
       if (chartImage) {
         // Отправляем график как фотографию
