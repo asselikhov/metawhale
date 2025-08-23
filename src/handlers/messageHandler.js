@@ -253,9 +253,14 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
       const user = await User.findOne({ chatId });
       const reputation = await reputationService.getUserReputation(user._id);
       
+      // Get user profile details for trading volume
+      const profileDetails = await reputationService.getUserProfileDetails(user._id);
+      const userLevel = this.getUserLevelDisplayNew(reputation.trustScore);
+      
       // Show P2P Exchange menu with required format
-      const message = 'P2P биржа\n\n' +
-                     `Рейтинг: ${reputation.trustScore}/1000\n` +
+      const message = 'P2P БИРЖА\n\n' +
+                     `Рейтинг: ${reputation.trustScore}/1000 ${userLevel.emoji}\n` +
+                     `Объем сделок: покупоки + продажи ${(profileDetails.totalTradeVolume || 0).toLocaleString('ru-RU')} ₽\n` +
                      `Завершенные сделки: ${reputation.completionRate}%\n` +
                      `Спорные сделки: ${reputation.disputeRate}%\n` +
                      `Всего сделок: ${reputation.totalTrades}\n\n` +
@@ -554,9 +559,14 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
       const user = await User.findOne({ chatId });
       const reputation = await reputationService.getUserReputation(user._id);
       
+      // Get user profile details for trading volume
+      const profileDetails = await reputationService.getUserProfileDetails(user._id);
+      const userLevel = this.getUserLevelDisplayNew(reputation.trustScore);
+      
       // Show P2P Exchange menu with required format
-      const message = 'P2P биржа\n\n' +
-                     `Рейтинг: ${reputation.trustScore}/1000\n` +
+      const message = 'P2P БИРЖА\n\n' +
+                     `Рейтинг: ${reputation.trustScore}/1000 ${userLevel.emoji}\n` +
+                     `Объем сделок: покупоки + продажи ${(profileDetails.totalTradeVolume || 0).toLocaleString('ru-RU')} ₽\n` +
                      `Завершенные сделки: ${reputation.completionRate}%\n` +
                      `Спорные сделки: ${reputation.disputeRate}%\n` +
                      `Всего сделок: ${reputation.totalTrades}\n\n` +
@@ -1042,7 +1052,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
       
       const priceData = await p2pService.getMarketPriceSuggestion();
       
-      const message = `📉 ПРОДАЖА CES ТОКЕНОВ\n\n` +
+      const message = `.DataGridViewColumnColumn\n\n` +
                      `Ваш баланс: ${walletInfo.cesBalance.toFixed(4)} CES\n\n` +
                      `Текущая рыночная цена:\n` +
                      `💰 ${priceData.currentPrice.toFixed(2)} ₽ за 1 CES\n\n` +
@@ -1197,7 +1207,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
           message += `${index + 1}. ${typeEmoji} ${typeText}\n`;
           message += `Кол-во: ${order.remainingAmount.toFixed(3)} CES\n`;
           message += `Цена: ${order.pricePerToken.toFixed(2)} ₽ за 1 CES\n`;
-          message += `Сумма: ${order.remainingAmount.toFixed(3)} * ${order.pricePerToken.toFixed(2)} = ${(order.remainingAmount * order.pricePerToken).toFixed(2)} ₽\n`;
+          message += `Сумма: ${(order.remainingAmount * order.pricePerToken).toFixed(2)} ₽\n`;
           message += `Статус: ${statusText} ${order.createdAt.toLocaleDateString('ru-RU')}\n\n`;
         });
       }
@@ -1358,12 +1368,12 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
       
       const message = `🧮 АНАЛИТИКА P2P БИРЖИ\n\n` +
                      `1. Статистика за 24 часа:\n` +
-                     `Объем торгов: ₽ ${marketStats24h.volume.totalRubles.toLocaleString('ru-RU')}\n` +
+                     `Объем торгов: ₽ ${(marketStats24h.volume.totalRubles || marketStats24h.volume.rubles || 0).toLocaleString('ru-RU')}\n` +
                      `Завершенные сделки: ${marketStats24h.trades.completed || 0}\n` +
                      `Уровень завершения: ${marketStats24h.trades.completionRate || 0}%\n` +
                      `Активные трейдеры: ${marketStats24h.users.uniqueTraders || 0}\n\n` +
                      `2. Статистика за 30 дней:\n` +
-                     `Объем торгов: ₽ ${marketStats30d.volume.totalRubles.toLocaleString('ru-RU')}\n` +
+                     `Объем торгов: ₽ ${(marketStats30d.volume.totalRubles || marketStats30d.volume.rubles || 0).toLocaleString('ru-RU')}\n` +
                      `Завершенные сделки: ${marketStats30d.trades.completed || 0}\n` +
                      `Уровень завершения: ${marketStats30d.trades.completionRate || 0}%\n` +
                      `Активные трейдеры: ${marketStats30d.users.uniqueTraders || 0}`;
