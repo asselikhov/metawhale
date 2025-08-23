@@ -1128,7 +1128,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
       }
       
       const keyboard = Markup.inlineKeyboard([
-        [Markup.button.callback('🔙 Назад', 'p2p_top_traders')]
+        [Markup.button.callback('🔙 Назад', 'p2p_menu')]
       ]);
       
       await ctx.reply(message, keyboard);
