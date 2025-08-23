@@ -47,7 +47,7 @@ class Bot {
     this.bot.on('text', messageHandler.handleTextMessage.bind(messageHandler));
 
     // Callback handlers
-    this.bot.action('personal_cabinet', messageHandler.handlePersonalCabinet.bind(messageHandler));
+    this.bot.action('personal_cabinet', messageHandler.handlePersonalCabinetText.bind(messageHandler));
     this.bot.action('p2p_menu', messageHandler.handleP2PMenu.bind(messageHandler));
     this.bot.action('get_price', messageHandler.handlePrice.bind(messageHandler));
     this.bot.action('create_wallet', messageHandler.handleCreateWallet.bind(messageHandler));
