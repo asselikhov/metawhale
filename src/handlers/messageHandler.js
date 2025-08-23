@@ -144,7 +144,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
       }
       
       if (text.includes('P2P')) {
-        return await this.handleP2PMenuText(ctx);
+        return await this.handleP2PMenu(ctx);
       }
       
       // Check if message looks like a transfer command (address amount)
