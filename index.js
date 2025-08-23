@@ -1,5 +1,4 @@
 const { Telegraf } = require('telegraf');
-const { Telegraf } = require('telegraf');
 const mongoose = require('mongoose');
 const cron = require('node-cron');
 const axios = require('axios');
@@ -441,9 +440,9 @@ async function sendPriceToUser(ctx) {
     const sourceEmoji = priceData.source === 'database' ? '🗄️' : '';
     const athSourceEmoji = priceData.athSource === 'database' ? '🗄️' : '';
     
-    // Новый формат сообщения согласно требованиям
+    // Формат сообщения точно как в примере
     const message = `➖➖➖➖➖➖➖➖➖➖➖➖➖➖➖
-💰 Цена токена CES: $ ${priceData.price.toFixed(2)}${priceData.priceRub > 0 ? ` | ₽ ${priceData.priceRub.toFixed(2)}` : ' | ₽ 0.00'}${sourceEmoji ? ` ${sourceEmoji}` : ''}
+💰 Цена токена CES: $ ${priceData.price.toFixed(2)} | ₽ ${priceData.priceRub.toFixed(2)}
 ➖➖➖➖➖➖➖➖➖➖➖➖➖➖➖
 ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${formatNumber(priceData.volume24h)} • 🅐🅣🅗 ${athDisplay}`;
     
@@ -568,9 +567,9 @@ async function sendPriceToGroup() {
     // Индикатор источника данных (только для базы данных)
     const sourceEmoji = priceData.source === 'database' ? '🗄️' : '';
     
-    // Формат сообщения как в /price
+    // Формат сообщения точно как в примере пользователя
     const message = `➖➖➖➖➖➖➖➖➖➖➖➖➖➖➖
-💰 Цена токена CES: $ ${priceData.price.toFixed(2)}${priceData.priceRub > 0 ? ` | ₽ ${priceData.priceRub.toFixed(2)}` : ' | ₽ 0.00'}${sourceEmoji ? ` ${sourceEmoji}` : ''}
+💰 Цена токена CES: $ ${priceData.price.toFixed(2)} | ₽ ${priceData.priceRub.toFixed(2)}
 ➖➖➖➖➖➖➖➖➖➖➖➖➖➖➖
 ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${formatNumber(priceData.volume24h)} • 🅐🅣🅗 ${athDisplay}`;
     
