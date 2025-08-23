@@ -90,7 +90,7 @@ async function getCESPrice() {
     
     // Попытка получить данные по адресу контракта (сеть Polygon) с дополнительными параметрами
     const contractResponse = await axios.get(
-      `${process.env.COINGECKO_API_URL}/simple/token_price/polygon-pos?contract_addresses=${process.env.CES_CONTRACT_ADDRESS}&vs_currencies=usd,rub&include_24hr_change=true&include_market_cap=true&include_24hr_vol=true&include_ath=true`,
+      `${process.env.COINGECKO_API_URL}/simple/token_price/polygon-pos?contract_addresses=${process.env.CES_CONTRACT_ADDRESS}&vs_currencies=usd,rub&include_24hr_change=true&include_market_cap=true&include_24hr_vol=true&include_ath=true&include_ath_date=true`,
       {
         timeout: 8000, // Уменьшено с 10 до 8 секунд для ускорения
         headers: {
@@ -103,6 +103,16 @@ async function getCESPrice() {
     
     if (contractResponse.data[contractAddress]) {
       const data = contractResponse.data[contractAddress];
+      
+      // Получаем ATH из базы данных если API не предоставляет
+      let athValue = data.usd_ath;
+      if (!athValue) {
+        // Ищем максимальную цену в истории
+        const maxPrice = await PriceHistory.findOne().sort({ price: -1 }).limit(1);
+        athValue = maxPrice ? Math.max(maxPrice.price, data.usd) : data.usd;
+        console.log(`📈 ATH взят из базы данных: $${athValue.toFixed(2)}`);
+      }
+      
       return {
         price: data.usd,
         priceRub: data.rub || 0,
@@ -110,29 +120,47 @@ async function getCESPrice() {
         changeRub24h: data.rub_24h_change || 0,
         marketCap: data.usd_market_cap || 0,
         volume24h: data.usd_24h_vol || 0,
-        ath: data.usd_ath || data.usd // fallback to current price if ATH not available
+        ath: athValue
       };
     }
 
-    // Резервный вариант: поиск CES по имени с получением ATH
-    const searchResponse = await axios.get(
-      `${process.env.COINGECKO_API_URL}/simple/price?ids=ces&vs_currencies=usd,rub&include_24hr_change=true&include_market_cap=true&include_24hr_vol=true&include_ath=true`
-    );
+    // Резервный вариант: поиск по различным возможным ID токена
+    const possibleIds = ['ces', 'cerestoken', 'ceres-protocol'];
+    
+    for (const tokenId of possibleIds) {
+      try {
+        const searchResponse = await axios.get(
+          `${process.env.COINGECKO_API_URL}/simple/price?ids=${tokenId}&vs_currencies=usd,rub&include_24hr_change=true&include_market_cap=true&include_24hr_vol=true&include_ath=true&include_ath_date=true`,
+          { timeout: 5000 }
+        );
 
-    if (searchResponse.data.ces) {
-      const data = searchResponse.data.ces;
-      return {
-        price: data.usd,
-        priceRub: data.rub || 0,
-        change24h: data.usd_24h_change || 0,
-        changeRub24h: data.rub_24h_change || 0,
-        marketCap: data.usd_market_cap || 0,
-        volume24h: data.usd_24h_vol || 0,
-        ath: data.usd_ath || data.usd // fallback to current price if ATH not available
-      };
+        if (searchResponse.data[tokenId]) {
+          const data = searchResponse.data[tokenId];
+          console.log(`✅ Найден токен по ID: ${tokenId}`);
+          
+          let athValue = data.usd_ath;
+          if (!athValue) {
+            const maxPrice = await PriceHistory.findOne().sort({ price: -1 }).limit(1);
+            athValue = maxPrice ? Math.max(maxPrice.price, data.usd) : data.usd;
+          }
+          
+          return {
+            price: data.usd,
+            priceRub: data.rub || 0,
+            change24h: data.usd_24h_change || 0,
+            changeRub24h: data.rub_24h_change || 0,
+            marketCap: data.usd_market_cap || 0,
+            volume24h: data.usd_24h_vol || 0,
+            ath: athValue
+          };
+        }
+      } catch (err) {
+        console.log(`⚠️ Токен ${tokenId} не найден`);
+        continue;
+      }
     }
 
-    throw new Error('Токен CES не найден');
+    throw new Error('Токен CES не найден во всех источниках');
   } catch (error) {
     console.error('Ошибка получения цены CES:', error.message);
     
@@ -167,8 +195,18 @@ async function sendPriceToUser(ctx) {
   try {
     const priceData = await getCESPrice();
     
-    // Сохранение цены в базу данных (только для новых данных)
+    // Проверяем и обновляем ATH если нужно
     if (!priceData.cached) {
+      const maxPrice = await PriceHistory.findOne().sort({ price: -1 }).limit(1);
+      const currentATH = maxPrice ? Math.max(maxPrice.price, priceData.price) : priceData.price;
+      
+      // Обновляем ATH если текущая цена выше
+      if (priceData.price > (priceData.ath || 0)) {
+        priceData.ath = priceData.price;
+      } else {
+        priceData.ath = currentATH;
+      }
+      
       await new PriceHistory(priceData).save();
     }
     
@@ -176,10 +214,14 @@ async function sendPriceToUser(ctx) {
     const changeEmoji = priceData.change24h >= 0 ? '🔺' : '🔻'; // 🔺 для роста, 🔻 для падения
     const changeSign = priceData.change24h >= 0 ? '+' : '';
     
+    // Проверяем, не является ли текущая цена ATH
+    const isNewATH = priceData.price >= priceData.ath;
+    const athDisplay = isNewATH ? `🏆 $ ${priceData.ath.toFixed(2)}` : `$ ${priceData.ath.toFixed(2)}`;
+    
     // Новый формат сообщения
     const message = `💰 Цена токена CES: $ ${priceData.price.toFixed(2)}${priceData.priceRub > 0 ? ` | ₽ ${priceData.priceRub.toFixed(2)}` : ''}
 ➖➖➖➖➖➖➖➖➖➖➖➖➖➖➖
-${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${formatNumber(priceData.volume24h)} • 🅐🅣🅗 $ ${priceData.ath.toFixed(2)}`;
+${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${formatNumber(priceData.volume24h)} • 🅐🅣🅗 ${athDisplay}`;
     
     // Отправляем только текстовое сообщение для максимальной скорости
     await ctx.reply(message);
@@ -284,8 +326,20 @@ function setupPriceUpdater() {
     try {
       const priceData = await getCESPrice();
       if (!priceData.cached) {
+        // Проверяем, не является ли текущая цена новым ATH
+        const maxPrice = await PriceHistory.findOne().sort({ price: -1 }).limit(1);
+        const currentATH = maxPrice ? Math.max(maxPrice.price, priceData.price) : priceData.price;
+        
+        // Обновляем ATH если текущая цена выше
+        if (priceData.price > (priceData.ath || 0)) {
+          priceData.ath = priceData.price;
+          console.log(`🏆 Новый ATH! $${priceData.price.toFixed(2)}`);
+        } else {
+          priceData.ath = currentATH;
+        }
+        
         await new PriceHistory(priceData).save();
-        console.log(`📊 Цена обновлена: $${priceData.price.toFixed(2)} (${priceData.change24h >= 0 ? '+' : ''}${priceData.change24h.toFixed(2)}%)`);
+        console.log(`📊 Цена обновлена: $${priceData.price.toFixed(2)} (${priceData.change24h >= 0 ? '+' : ''}${priceData.change24h.toFixed(2)}%) | ATH: $${priceData.ath.toFixed(2)}`);
       }
     } catch (error) {
       console.log('⚠️ Ошибка автообновления цены:', error.message);
