@@ -219,13 +219,10 @@ async function getCESPrice() {
     // Получаем данные из CoinMarketCap
     const cmcData = await getCMCPrice();
     if (cmcData) {
-      // Проверяем ATH из базы данных и сравниваем
-      const maxPriceFromDB = await PriceHistory.findOne().sort({ price: -1 }).limit(1);
-      const dbATH = maxPriceFromDB ? maxPriceFromDB.price : cmcData.price;
-      
-      const finalATH = Math.max(cmcData.ath, dbATH, cmcData.price);
-      if (cmcData.price > (cmcData.ath || 0) || cmcData.price > dbATH) {
-        console.log(`🏆 Обнаружен новый ATH через CoinMarketCap! $${cmcData.price.toFixed(2)}`);
+      // Используем ATH напрямую из CoinMarketCap, не сравниваем с базой данных
+      const finalATH = cmcData.ath || cmcData.price; // Используем ATH от CMC или текущую цену
+      if (cmcData.price >= finalATH) {
+        console.log(`🏆 Новый ATH через CoinMarketCap! $${cmcData.price.toFixed(2)}`);
       }
       
       return {
@@ -235,7 +232,7 @@ async function getCESPrice() {
         changeRub24h: 0, // CMC не предоставляет данных в рублях
         marketCap: cmcData.marketCap,
         volume24h: cmcData.volume24h,
-        ath: finalATH,
+        ath: finalATH, // ATH напрямую из CoinMarketCap
         source: 'coinmarketcap'
       };
     }
@@ -270,9 +267,10 @@ async function sendPriceToUser(ctx) {
   try {
     const priceData = await getCESPrice();
     
-    // Сохраняем данные в базу (только для новых данных)
+    // Сохраняем данные в базу (только при вызове /price)
     if (!priceData.cached) {
       await new PriceHistory(priceData).save();
+      console.log(`💾 Данные о цене сохранены: $${priceData.price.toFixed(2)} | ATH: $${priceData.ath.toFixed(2)}`);
     }
     
     // Определяем эмодзи для изменения цены
@@ -387,34 +385,15 @@ function setupSelfPing() {
 // Запуск самопинга через 1 минуту после старта
 setTimeout(setupSelfPing, 60000);
 
-// Функция автоматического обновления цен в реальном времени
-function setupPriceUpdater() {
-  const PRICE_UPDATE_INTERVAL = 30 * 1000; // 30 секунд для обновления цен
-  
-  setInterval(async () => {
-    try {
-      const priceData = await getCESPrice();
-      if (!priceData.cached) {
-        await new PriceHistory(priceData).save();
-        
-        // Логируем обновление с информацией о ATH
-        const isNewATH = priceData.price >= priceData.ath;
-        console.log(`📊 Цена обновлена: $${priceData.price.toFixed(2)} (${priceData.change24h >= 0 ? '+' : ''}${priceData.change24h.toFixed(2)}%) | ATH: $${priceData.ath.toFixed(2)}${isNewATH ? ' 🏆' : ''}`);
-      }
-    } catch (error) {
-      console.log('⚠️ Ошибка автообновления цены:', error.message);
-    }
-  }, PRICE_UPDATE_INTERVAL);
-  
-  console.log(`📊 Автообновление цен настроено: каждые ${PRICE_UPDATE_INTERVAL / 1000} секунд`);
-}
-
-// Запуск автообновления цен через 2 минуты после старта
-setTimeout(setupPriceUpdater, 120000);
+// Автообновление цен отключено для экономии API лимитов
+// Обновление цен происходит только по команде /price
+console.log('📊 Автообновление цен отключено - экономим API лимиты');
 
 console.log('🚀 CES Price Telegram Bot успешно запущен!');
 console.log('📊 Команды: /start и /price');
 console.log('🔗 Режим: Webhook (не засыпает на Render)');
+console.log('⚙️ ATH: Напрямую из CoinMarketCap (CMC)');
+console.log('🔄 Обновление: Только по команде /price (экономия API)');
 
 // Обработка завершения процесса
 process.on('SIGINT', () => {
