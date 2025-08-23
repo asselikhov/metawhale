@@ -1,27 +1,19 @@
-const TelegramBot = require('node-telegram-bot-api');
-const TelegramBot = require('node-telegram-bot-api');
+const { Telegraf } = require('telegraf');
 const mongoose = require('mongoose');
 const cron = require('node-cron');
 const axios = require('axios');
 const express = require('express');
 require('dotenv').config();
 
-// Инициализация бота с webhook (не polling)
-const bot = new TelegramBot(process.env.TELEGRAM_BOT_TOKEN);
+// Инициализация бота
+const bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN);
 
 // Настройка webhook URL
 const WEBHOOK_URL = process.env.WEBHOOK_URL || 'https://metawhale.onrender.com';
-const WEBHOOK_PATH = '/webhook/' + process.env.TELEGRAM_BOT_TOKEN;
+const WEBHOOK_PATH = '/webhook';
 const WEBHOOK_FULL_URL = WEBHOOK_URL + WEBHOOK_PATH;
 
 console.log(`🔗 Webhook URL: ${WEBHOOK_FULL_URL}`);
-
-// Настройка webhook
-bot.setWebHook(WEBHOOK_FULL_URL).then(() => {
-  console.log('✅ Webhook установлен успешно');
-}).catch((error) => {
-  console.error('❌ Ошибка установки webhook:', error);
-});
 
 // Схема пользователя MongoDB
 const userSchema = new mongoose.Schema({
@@ -52,21 +44,24 @@ const PriceHistory = mongoose.model('PriceHistory', priceHistorySchema);
 
 // Подключение к MongoDB
 mongoose.connect(process.env.MONGODB_URI)
-  .then(() => console.log('✅ Подключен к MongoDB'))
+  .then(() => {
+    console.log('✅ Подключен к MongoDB');
+    // Устанавливаем webhook после подключения к базе
+    bot.telegram.setWebhook(WEBHOOK_FULL_URL)
+      .then(() => console.log('✅ Webhook установлен:', WEBHOOK_FULL_URL))
+      .catch(err => console.error('❌ Ошибка установки webhook:', err));
+  })
   .catch(err => console.error('❌ Ошибка подключения к MongoDB:', err));
 
-// Обработка команды /price
-bot.onText(/\/price/, async (msg) => {
-  const chatId = msg.chat.id;
-  await sendPriceToUser(chatId);
+// Команда /start
+bot.start(async (ctx) => {
+  const welcomeMessage = 'Добро пожаловать в Rustling Grass 🌾 assistant !';
+  await ctx.reply(welcomeMessage);
 });
 
-// Обработка команды /start
-bot.onText(/\/start/, async (msg) => {
-  const chatId = msg.chat.id;
-  const welcomeMessage = `Добро пожаловать в Rustling Grass 🌾 assistant !`;
-  
-  await bot.sendMessage(chatId, welcomeMessage);
+// Команда /price
+bot.command('price', async (ctx) => {
+  await sendPriceToUser(ctx);
 });
 
 // Глобальная переменная для отслеживания последнего запроса к API
@@ -164,7 +159,7 @@ async function getCESPrice() {
 }
 
 // Функция отправки цены конкретному пользователю
-async function sendPriceToUser(chatId) {
+async function sendPriceToUser(ctx) {
   try {
     const priceData = await getCESPrice();
     
@@ -193,11 +188,11 @@ async function sendPriceToUser(chatId) {
     `;
     
     // Отправляем текстовое сообщение с ценой
-    await bot.sendMessage(chatId, message);
+    await ctx.reply(message);
     
   } catch (error) {
     console.error('Ошибка отправки цены пользователю:', error);
-    bot.sendMessage(chatId, '❌ Не удается получить цену CES в данный момент. Попробуйте позже.');
+    await ctx.reply('❌ Не удается получить цену CES в данный момент. Попробуйте позже.');
   }
 }
 
@@ -222,16 +217,7 @@ const app = express();
 app.use(express.json());
 
 // Webhook endpoint для Telegram
-app.post(WEBHOOK_PATH, (req, res) => {
-  try {
-    console.log('📨 Получено сообщение от Telegram');
-    bot.processUpdate(req.body);
-    res.sendStatus(200);
-  } catch (error) {
-    console.error('❌ Ошибка обработки webhook:', error);
-    res.sendStatus(500);
-  }
-});
+app.use(bot.webhookCallback(WEBHOOK_PATH));
 
 // Keep-alive endpoint для предотвращения засыпания на Render
 app.get('/ping', (req, res) => {
