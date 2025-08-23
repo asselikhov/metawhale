@@ -272,7 +272,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
         await ctx.reply(message, { parse_mode: 'Markdown', ...keyboard });
         
       } else {
-        message += '❌ Кошелек не создан\n\n';
+        message += '⚠️ Кошелек не создан\n\n';
         message += '💡 Создайте кошелек для хранения токенов CES и POL';
         
         // Remove the Главное меню button
