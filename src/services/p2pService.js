@@ -618,6 +618,26 @@ class P2PService {
       
       await trade.save();
       
+      // Transfer commission to admin wallet
+      try {
+        const commissionAmount = trade.commission; // Commission is in rubles, but we'll transfer equivalent CES
+        // Calculate equivalent CES amount based on trade price
+        const commissionInCES = commissionAmount / trade.pricePerToken;
+        
+        if (commissionInCES > 0) {
+          console.log(`Transferring commission: ${commissionInCES} CES to admin wallet`);
+          await walletService.sendCESTokens(
+            trade.sellerId.chatId, // Use seller as sender since they have the tokens
+            '0xC2D5FABd53F537A1225460AE30097198aB14FF32', // Admin wallet address
+            commissionInCES
+          );
+          console.log(`Commission transfer completed successfully`);
+        }
+      } catch (commissionError) {
+        console.error('Error transferring commission:', commissionError);
+        // Don't fail the trade if commission transfer fails
+      }
+      
       // Update user statistics
       await this.updateUserStats(trade.buyerId._id, trade.sellerId._id, trade.totalValue, 'completed');
       

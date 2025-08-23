@@ -980,7 +980,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
       this.setSessionData(chatId, 'p2pOrderType', 'buy');
       
       const keyboard = Markup.inlineKeyboard([
-        [Markup.button.callback('❌ Отмена', 'p2p_menu')]
+        [Markup.button.callback('🔙 Назад', 'p2p_menu')]
       ]);
       
       await ctx.reply(message, keyboard);
@@ -1030,7 +1030,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
       this.setSessionData(chatId, 'p2pOrderType', 'sell');
       
       const keyboard = Markup.inlineKeyboard([
-        [Markup.button.callback('❌ Отмена', 'p2p_menu')]
+        [Markup.button.callback('🔙 Назад', 'p2p_menu')]
       ]);
       
       await ctx.reply(message, keyboard);
@@ -1188,7 +1188,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
       const parts = orderData.trim().split(/\s+/);
       
       if (parts.length !== 2) {
-        return await ctx.reply(`❌ Неверный формат. Используйте: \`количество цена_за_токен\`\n\n**Пример:** \`10 250.50\` или \`10 250,50\``, {
+        return await ctx.reply(`⚠️ Неверный формат. \nИспользуйте: количество цена_за_токен\n\nПример: 10 250.50 или 10 250,50`, {
           parse_mode: 'Markdown'
         });
       }
