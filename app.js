@@ -9,6 +9,7 @@ const bot = require('./src/bot/telegramBot');
 const server = require('./src/server/expressServer');
 const schedulerService = require('./src/services/schedulerService');
 const Utils = require('./src/utils/helpers');
+const smartNotificationService = require('./src/services/smartNotificationService');
 
 class Application {
   constructor() {
@@ -31,6 +32,18 @@ class Application {
     process.on('SIGTERM', () => this.shutdown(0, 'SIGTERM'));
   }
 
+  // Setup notification callback for smart notifications
+  setupNotificationCallback() {
+    // Set up the callback for smart notifications to send messages through the bot
+    smartNotificationService.setNotificationCallback(async (chatId, message) => {
+      try {
+        await bot.getInstance().telegram.sendMessage(chatId, message);
+      } catch (error) {
+        console.error(`Failed to send notification to ${chatId}:`, error);
+      }
+    });
+  }
+
   // Initialize application
   async initialize() {
     try {
@@ -40,21 +53,24 @@ class Application {
       Utils.log('info', 'Connecting to MongoDB...');
       await connectDatabase();
       
-      // 2. Setup bot webhook
+      // 2. Setup notification callback
+      this.setupNotificationCallback();
+      
+      // 3. Setup bot webhook
       Utils.log('info', 'Setting up bot webhook...');
       await bot.setWebhook();
       
-      // 3. Setup server with webhook
+      // 4. Setup server with webhook
       Utils.log('info', 'Starting Express server...');
       server.setupWebhook(bot.getInstance());
       await server.start();
       
-      // 4. Setup scheduler
+      // 5. Setup scheduler
       Utils.log('info', 'Starting scheduler service...');
       schedulerService.setBot(bot.getInstance());
       schedulerService.startScheduler();
       
-      // 5. Setup self-ping (after 1 minute)
+      // 6. Setup self-ping (after 1 minute)
       setTimeout(() => {
         Utils.log('info', 'Starting self-ping service...');
         server.setupSelfPing();
@@ -119,6 +135,9 @@ class Application {
       
       // Connect to database
       await connectDatabase();
+      
+      // Setup notification callback
+      this.setupNotificationCallback();
       
       // Start bot in polling mode
       await bot.startPolling();

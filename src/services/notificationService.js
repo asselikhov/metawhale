@@ -4,7 +4,7 @@
  */
 
 const { User, P2POrder, P2PTrade } = require('../database/models');
-const bot = require('../bot/telegramBot').getInstance();
+const bot = require('../bot/telegramBot');
 
 class NotificationService {
   constructor() {
@@ -212,22 +212,8 @@ class NotificationService {
       return {
         orderMatches: true,
         tradeUpdates: true,
-        marketInsights: true,
-        dailySummary: true
+        marketInsights: true
       };
-    }
-  }
-
-  // Update user notification preferences
-  async updateUserNotificationPreferences(userId, preferences) {
-    try {
-      await User.findByIdAndUpdate(userId, {
-        notificationPrefs: preferences
-      });
-      
-      console.log(`Updated notification preferences for user ${userId}`);
-    } catch (error) {
-      console.error('Error updating user notification preferences:', error);
     }
   }
 }

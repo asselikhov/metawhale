@@ -4,7 +4,8 @@
  */
 
 const { User, P2POrder, P2PTrade } = require('../database/models');
-const bot = require('../bot/telegramBot').getInstance();
+// Remove direct bot import to avoid circular dependencies
+// const bot = require('../bot/telegramBot').getInstance();
 
 class SmartNotificationService {
   constructor() {
@@ -370,8 +371,11 @@ class SmartNotificationService {
       // In a real implementation, you would send the actual Telegram message
       console.log(`[SMART NOTIFICATION] To ${notification.chatId}: ${notification.message}`);
       
-      // Simulate sending message via bot
-      // await bot.telegram.sendMessage(notification.chatId, notification.message);
+      // To avoid circular dependencies, we'll use a callback approach
+      // The actual sending will be handled by the message handler
+      if (this.notificationCallback) {
+        await this.notificationCallback(notification.chatId, notification.message);
+      }
       
     } catch (error) {
       console.error('Error sending notification:', error);
@@ -382,6 +386,11 @@ class SmartNotificationService {
         this.notificationQueue.push(notification);
       }
     }
+  }
+
+  // Set notification callback (to avoid circular dependencies)
+  setNotificationCallback(callback) {
+    this.notificationCallback = callback;
   }
 
   // Get user notification preferences
