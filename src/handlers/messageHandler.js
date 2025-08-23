@@ -127,17 +127,25 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
       let message = '👤 **Личный кабинет**\n\n';
       
       if (walletInfo.hasWallet) {
-        // Get current price data for display
-        const priceData = await priceService.getCESPrice();
-        const cesUsdPrice = priceData ? priceData.price.toFixed(2) : '0.00';
-        const cesRubPrice = priceData ? priceData.priceRub.toFixed(2) : '0.00';
+        // Get current price data for both tokens
+        const [cesData, polData] = await Promise.all([
+          priceService.getCESPrice(),
+          priceService.getPOLPrice()
+        ]);
         
-        // For POL, we'll use a placeholder price for now (could be enhanced later)
-        const polUsdPrice = '0.45'; // Placeholder POL price
-        const polRubPrice = '45.00'; // Placeholder POL price in RUB
+        const cesTokenPrice = cesData ? cesData.price : 0;
+        const cesTokenPriceRub = cesData ? cesData.priceRub : 0;
+        const polTokenPrice = polData ? polData.price : 0.45;
+        const polTokenPriceRub = polData ? polData.priceRub : 45.0;
         
-        message += `Баланс CES: ${walletInfo.cesBalance.toFixed(4)} • $ ${cesUsdPrice} • ₽ ${cesRubPrice}\n`;
-        message += `Баланс POL: ${walletInfo.polBalance.toFixed(4)} • $ ${polUsdPrice} • ₽ ${polRubPrice}`;
+        // Calculate total value of tokens on wallet
+        const cesTotalUsd = (walletInfo.cesBalance * cesTokenPrice).toFixed(2);
+        const cesTotalRub = (walletInfo.cesBalance * cesTokenPriceRub).toFixed(2);
+        const polTotalUsd = (walletInfo.polBalance * polTokenPrice).toFixed(2);
+        const polTotalRub = (walletInfo.polBalance * polTokenPriceRub).toFixed(2);
+        
+        message += `Баланс CES: ${walletInfo.cesBalance.toFixed(4)} • $ ${cesTotalUsd} • ₽ ${cesTotalRub}\n`;
+        message += `Баланс POL: ${walletInfo.polBalance.toFixed(4)} • $ ${polTotalUsd} • ₽ ${polTotalRub}`;
         
         const keyboard = Markup.inlineKeyboard([
           [Markup.button.callback('💳 Кошелек', 'wallet_details')],
@@ -149,11 +157,10 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
         
       } else {
         message += '❌ Кошелек не создан\n\n';
-        message += 'Создайте кошелек для хранения токенов CES и POL';
+        message += '💡 Создайте кошелек для хранения токенов CES и POL';
         
         const keyboard = Markup.inlineKeyboard([
-          [Markup.button.callback('➕ Создать кошелек', 'create_wallet')],
-          [Markup.button.callback('💰 Цена CES', 'get_price')]
+          [Markup.button.callback('➕ Создать кошелек', 'create_wallet')]
         ]);
         
         await ctx.reply(message, keyboard);
@@ -204,17 +211,25 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
       let message = '👤 Личный кабинет\n\n';
       
       if (walletInfo.hasWallet) {
-        // Get current price data for display
-        const priceData = await priceService.getCESPrice();
-        const cesUsdPrice = priceData ? priceData.price.toFixed(2) : '0.00';
-        const cesRubPrice = priceData ? priceData.priceRub.toFixed(2) : '0.00';
+        // Get current price data for both tokens
+        const [cesData, polData] = await Promise.all([
+          priceService.getCESPrice(),
+          priceService.getPOLPrice()
+        ]);
         
-        // For POL, we'll use a placeholder price for now
-        const polUsdPrice = '0.45';
-        const polRubPrice = '45.00';
+        const cesTokenPrice = cesData ? cesData.price : 0;
+        const cesTokenPriceRub = cesData ? cesData.priceRub : 0;
+        const polTokenPrice = polData ? polData.price : 0.45;
+        const polTokenPriceRub = polData ? polData.priceRub : 45.0;
         
-        message += `Баланс CES: ${walletInfo.cesBalance.toFixed(4)} • $ ${cesUsdPrice} • ₽ ${cesRubPrice}\n`;
-        message += `Баланс POL: ${walletInfo.polBalance.toFixed(4)} • $ ${polUsdPrice} • ₽ ${polRubPrice}`;
+        // Calculate total value of tokens on wallet
+        const cesTotalUsd = (walletInfo.cesBalance * cesTokenPrice).toFixed(2);
+        const cesTotalRub = (walletInfo.cesBalance * cesTokenPriceRub).toFixed(2);
+        const polTotalUsd = (walletInfo.polBalance * polTokenPrice).toFixed(2);
+        const polTotalRub = (walletInfo.polBalance * polTokenPriceRub).toFixed(2);
+        
+        message += `Баланс CES: ${walletInfo.cesBalance.toFixed(4)} • $ ${cesTotalUsd} • ₽ ${cesTotalRub}\n`;
+        message += `Баланс POL: ${walletInfo.polBalance.toFixed(4)} • $ ${polTotalUsd} • ₽ ${polTotalRub}`;
         
         const keyboard = Markup.inlineKeyboard([
           [Markup.button.callback('💳 Кошелек', 'wallet_details')],
@@ -226,7 +241,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
         
       } else {
         message += '❌ Кошелек не создан\n\n';
-        message += 'Создайте кошелек для хранения токенов CES и POL';
+        message += '💡 Создайте кошелек для хранения токенов CES и POL';
         
         const keyboard = Markup.inlineKeyboard([
           [Markup.button.callback('➕ Создать кошелек', 'create_wallet')],

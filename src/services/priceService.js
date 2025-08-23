@@ -33,6 +33,183 @@ class PriceService {
     }
   }
 
+  // Format number for display (add commas)
+  formatNumber(num) {
+    if (num >= 1000000) {
+      return (num / 1000000).toFixed(1) + 'M';
+    } else if (num >= 1000) {
+      return (num / 1000).toFixed(1) + 'K';
+    }
+    return num.toFixed(2);
+  }
+
+  // Get POL price data from CoinMarketCap API
+  async getPOLPriceFromCMC() {
+    try {
+      if (!config.apis.coinMarketCap.apiKey) {
+        console.log('⚠️ CMC API key not found, skipping CoinMarketCap for POL');
+        return null;
+      }
+
+      console.log('🔍 Getting POL token data from CoinMarketCap...');
+      
+      // Method 1: Direct request by POL ID 3890 (Polygon native token)
+      try {
+        const response = await axios.get(
+          `${config.apis.coinMarketCap.baseUrl}/v2/cryptocurrency/quotes/latest`,
+          {
+            headers: {
+              'X-CMC_PRO_API_KEY': config.apis.coinMarketCap.apiKey,
+              'Accept': 'application/json'
+            },
+            params: {
+              id: '3890', // Polygon (POL) ID on CoinMarketCap
+              convert: 'USD'
+            },
+            timeout: 10000
+          }
+        );
+        
+        if (response.data?.data?.['3890']?.quote?.USD) {
+          const quote = response.data.data['3890'].quote.USD;
+          
+          // Get USD/RUB conversion rate
+          const usdToRubRate = await this.getUSDToRUBRate();
+          const priceRub = quote.price * usdToRubRate;
+          
+          console.log(`💎 POL price from CMC: $${quote.price.toFixed(4)}`);
+          
+          return {
+            price: quote.price,
+            priceRub: priceRub,
+            change24h: quote.percent_change_24h,
+            marketCap: quote.market_cap,
+            volume24h: quote.volume_24h,
+            source: 'coinmarketcap'
+          };
+        }
+      } catch (idError) {
+        console.log('⚠️ POL search by ID 3890 failed:', idError.message);
+      }
+      
+      // Method 2: Fallback - search by symbol POL
+      console.log('🔄 Fallback: searching POL by symbol...');
+      
+      try {
+        const response = await axios.get(
+          `${config.apis.coinMarketCap.baseUrl}/v2/cryptocurrency/quotes/latest`,
+          {
+            headers: {
+              'X-CMC_PRO_API_KEY': config.apis.coinMarketCap.apiKey,
+              'Accept': 'application/json'
+            },
+            params: {
+              symbol: 'POL',
+              convert: 'USD'
+            },
+            timeout: 10000
+          }
+        );
+        
+        if (response.data?.data?.POL) {
+          const polTokens = response.data.data.POL;
+          
+          // Find the main Polygon token (should be the first one)
+          const mainPOL = Array.isArray(polTokens) ? polTokens[0] : polTokens;
+          
+          if (mainPOL?.quote?.USD) {
+            const quote = mainPOL.quote.USD;
+            
+            // Get USD/RUB conversion rate
+            const usdToRubRate = await this.getUSDToRUBRate();
+            const priceRub = quote.price * usdToRubRate;
+            
+            console.log(`💎 POL price from CMC (symbol): $${quote.price.toFixed(4)}`);
+            
+            return {
+              price: quote.price,
+              priceRub: priceRub,
+              change24h: quote.percent_change_24h,
+              marketCap: quote.market_cap,
+              volume24h: quote.volume_24h,
+              source: 'coinmarketcap'
+            };
+          }
+        }
+      } catch (symbolError) {
+        console.log('⚠️ POL search by symbol failed:', symbolError.message);
+      }
+
+      console.log('⚠️ POL token not found in CoinMarketCap with all methods');
+      return null;
+    } catch (error) {
+      console.log('⚠️ General CoinMarketCap API error for POL:', error.message);
+      return null;
+    }
+  }
+
+  // Get POL (Polygon) token price from CoinGecko
+  // Main function to get POL price with multiple sources
+  async getPOLPrice() {
+    try {
+      console.log('🔍 Getting POL price from multiple sources...');
+      
+      // Method 1: Get data from CoinMarketCap (primary source)
+      const cmcData = await this.getPOLPriceFromCMC();
+      if (cmcData) {
+        console.log(`✅ POL price from CoinMarketCap: $${cmcData.price.toFixed(4)}`);
+        return cmcData;
+      }
+      
+      // Method 2: Fallback to CoinGecko
+      console.log('🔄 Fallback to CoinGecko for POL price...');
+      
+      const response = await axios.get(
+        'https://api.coingecko.com/api/v3/simple/price',
+        {
+          params: {
+            ids: 'polygon-ecosystem-token',
+            vs_currencies: 'usd',
+            include_24hr_change: 'true'
+          },
+          timeout: 8000
+        }
+      );
+      
+      if (response.data?.['polygon-ecosystem-token']?.usd) {
+        const polPrice = response.data['polygon-ecosystem-token'].usd;
+        const change24h = response.data['polygon-ecosystem-token'].usd_24h_change || 0;
+        
+        // Get USD/RUB conversion rate
+        const usdToRubRate = await this.getUSDToRUBRate();
+        const priceRub = polPrice * usdToRubRate;
+        
+        console.log(`✅ POL price from CoinGecko: $${polPrice.toFixed(4)} | ₽${priceRub.toFixed(2)}`);
+        
+        return {
+          price: polPrice,
+          priceRub: priceRub,
+          change24h: change24h,
+          source: 'coingecko'
+        };
+      }
+      
+      throw new Error('POL price not found in both CoinMarketCap and CoinGecko');
+      
+    } catch (error) {
+      console.error('Error getting POL price from all sources:', error.message);
+      
+      // Return fallback price as last resort
+      console.log('⚠️ Using fallback POL price values');
+      return {
+        price: 0.45,
+        priceRub: 45.0,
+        change24h: 0,
+        source: 'fallback'
+      };
+    }
+  }
+
   // Scrape ATH from CoinMarketCap web page
   async scrapeATHFromWeb() {
     try {
