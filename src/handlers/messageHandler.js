@@ -631,7 +631,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
       console.log(`⌨ Keyboard: ${JSON.stringify(keyboard)}`);
       
       // Send text with buttons in one message
-      await ctx.reply(message, { reply_markup: keyboard });
+      await ctx.reply(message, keyboard);
       console.log(`✅ Text with buttons sent successfully to user ${chatId}`);
       
     } catch (error) {
