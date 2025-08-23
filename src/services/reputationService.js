@@ -20,13 +20,18 @@ class ReputationService {
   async calculateTrustScore(userId) {
     try {
       const user = await User.findById(userId);
-      if (!user) return 100; // Default score
+      if (!user) return 0; // Return 0 for non-existent users
 
       // Get user trading history
       const trades = await P2PTrade.find({
         $or: [{ buyerId: userId }, { sellerId: userId }],
         createdAt: { $gte: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000) } // Last 90 days
       });
+
+      // For new users with no trades, return 0
+      if (trades.length === 0) {
+        return 0;
+      }
 
       // Calculate completion rate
       const totalTrades = trades.length;
@@ -67,7 +72,7 @@ class ReputationService {
       return Math.max(0, Math.min(1000, score));
     } catch (error) {
       console.error('Error calculating trust score:', error);
-      return 100; // Default score on error
+      return 0; // Return 0 on error for new users
     }
   }
 
@@ -126,6 +131,29 @@ class ReputationService {
         createdAt: { $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) } // Last 30 days
       }).sort({ createdAt: -1 }).limit(10);
 
+      // For new users with no trades, return default values with 0 trust score
+      if (recentTrades.length === 0) {
+        return {
+          trustScore: 0,
+          verificationLevel: user.verificationLevel || 'unverified',
+          completionRate: '100.0',
+          disputeRate: '0.0',
+          failureRate: '0.0',
+          totalTrades: 0,
+          recentTrades: 0,
+          favoritePaymentMethods: [],
+          isPremiumTrader: user.isPremiumTrader || false,
+          lastActive: user.lastOnline || user.updatedAt,
+          avgResponseTime: 0,
+          userLevel: this.getUserLevel(0),
+          // Additional metrics for visual display
+          tradesLast30Days: 0,
+          successRate: '100.0',
+          trustScoreProgress: 0, // For progress bar (0-100)
+          achievements: this.getUserAchievements(user, 0, 100)
+        };
+      }
+
       // Calculate statistics
       const totalTrades = recentTrades.length;
       const completedTrades = recentTrades.filter(t => t.status === 'completed').length;
@@ -158,10 +186,11 @@ class ReputationService {
         }, 0) / totalTrades) : 0;
 
       // Get user level based on trust score
-      const userLevel = this.getUserLevel(user.trustScore || 100);
+      const trustScore = user.trustScore || 0;
+      const userLevel = this.getUserLevel(trustScore);
 
       return {
-        trustScore: user.trustScore || 100,
+        trustScore: trustScore,
         verificationLevel: user.verificationLevel || 'unverified',
         completionRate: completionRate.toFixed(1),
         disputeRate: disputeRate.toFixed(1),
@@ -176,7 +205,7 @@ class ReputationService {
         // Additional metrics for visual display
         tradesLast30Days: totalTrades,
         successRate: completionRate.toFixed(1),
-        trustScoreProgress: Math.round((user.trustScore || 100) / 10), // For progress bar (0-100)
+        trustScoreProgress: Math.round((trustScore) / 10), // For progress bar (0-100)
         achievements: this.getUserAchievements(user, totalTrades, completionRate)
       };
     } catch (error) {
@@ -254,7 +283,8 @@ class ReputationService {
       };
 
       // Get trading limits based on trust score
-      const tradingLimits = this.getUserVerificationRequirements(user.trustScore || 100);
+      const trustScore = user.trustScore || 0;
+      const tradingLimits = this.getUserVerificationRequirements(trustScore);
 
       return {
         ...reputation,
@@ -323,7 +353,7 @@ class ReputationService {
         case 'high': scoreAdjustment = -200; break;
       }
 
-      const newScore = Math.max(0, (user.trustScore || 100) + scoreAdjustment);
+      const newScore = Math.max(0, (user.trustScore || 0) + scoreAdjustment);
       
       await User.findByIdAndUpdate(userId, {
         trustScore: newScore

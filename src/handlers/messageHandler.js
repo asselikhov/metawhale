@@ -260,7 +260,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
       // Show P2P Exchange menu with required format
       const message = 'P2P БИРЖА\n\n' +
                      `Рейтинг: ${reputation.trustScore}/1000 ${userLevel.emoji}\n` +
-                     `Объем сделок: покупоки + продажи ${(profileDetails.totalTradeVolume || 0).toLocaleString('ru-RU')} ₽\n` +
+                     `Объем сделок: ${(profileDetails.totalTradeVolume || 0).toLocaleString('ru-RU')} ₽\n` +
                      `Завершенные сделки: ${reputation.completionRate}%\n` +
                      `Спорные сделки: ${reputation.disputeRate}%\n` +
                      `Всего сделок: ${reputation.totalTrades}\n\n` +
@@ -566,7 +566,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
       // Show P2P Exchange menu with required format
       const message = 'P2P БИРЖА\n\n' +
                      `Рейтинг: ${reputation.trustScore}/1000 ${userLevel.emoji}\n` +
-                     `Объем сделок: покупоки + продажи ${(profileDetails.totalTradeVolume || 0).toLocaleString('ru-RU')} ₽\n` +
+                     `Объем сделок: ${(profileDetails.totalTradeVolume || 0).toLocaleString('ru-RU')} ₽\n` +
                      `Завершенные сделки: ${reputation.completionRate}%\n` +
                      `Спорные сделки: ${reputation.disputeRate}%\n` +
                      `Всего сделок: ${reputation.totalTrades}\n\n` +
@@ -1037,7 +1037,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
       const walletInfo = await walletService.getUserWallet(chatId);
       
       if (walletInfo.cesBalance <= 0) {
-        const message = `📉 ПРОДАЖА CES ТОКЕНОВ\n\n` +
+        const message = `.DataGridViewColumnColumn\n\n` +
                        `Ваш баланс: ${walletInfo.cesBalance.toFixed(4)} CES\n` +
                        `❌ Недостаточно CES для продажи\n\n` +
                        `💡Пополните баланс CES`;
@@ -1091,7 +1091,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
         message += `📈 Заявки на покупку:\n`;
         orders.buyOrders.slice(0, 5).forEach((order, index) => {
           const username = order.userId.username || order.userId.firstName || 'Пользователь';
-          const trustScore = order.userId.trustScore || 100;
+          const trustScore = order.userId.trustScore || 0;
           const userLevel = this.getUserLevelDisplayNew(trustScore);
           
           message += `${index + 1}. ${order.remainingAmount.toFixed(2)} CES по ₽${order.pricePerToken.toFixed(2)} (@${username}) ${userLevel.emoji}\n`;
@@ -1103,7 +1103,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
         message += `📉 Заявки на продажу:\n`;
         orders.sellOrders.slice(0, 5).forEach((order, index) => {
           const username = order.userId.username || order.userId.firstName || 'Пользователь';
-          const trustScore = order.userId.trustScore || 100;
+          const trustScore = order.userId.trustScore || 0;
           const userLevel = this.getUserLevelDisplayNew(trustScore);
           
           message += `${index + 1}. ${order.remainingAmount.toFixed(2)} CES по ₽${order.pricePerToken.toFixed(2)} (@${username}) ${userLevel.emoji}\n`;
@@ -1113,13 +1113,6 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
       if (orders.buyOrders.length === 0 && orders.sellOrders.length === 0) {
         message += `📝 Активных ордеров пока нет\n\n💡 Создайте первый ордер на покупку или продажу!`;
       }
-      
-      message += `📜 Легенда рейтинга:\n`;
-      message += `🐋 Кит рынка (1000+)\n`;
-      message += `🐺 Волк сделки (500–999)\n`;
-      message += `🦅 Ястреб графика (200–499)\n`;
-      message += `🐿️ Белка накопитель (50–199)\n`;
-      message += `🐹 Хомяк (0–49)`;
       
       const keyboard = Markup.inlineKeyboard([
         [Markup.button.callback('🔄 Обновить', 'p2p_market_orders')],
@@ -1146,10 +1139,10 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
   // Get user level display for market orders (new format)
   getUserLevelDisplayNew(trustScore) {
     if (trustScore >= 1000) return { emoji: '🐋' };
-    if (trustScore >= 500) return { emoji: '🐺' };
+    if (trustScore >= 500) return { emoji: 'ewolf' };
     if (trustScore >= 200) return { emoji: '🦅' };
     if (trustScore >= 50) return { emoji: '🐿️' };
-    return { emoji: '🐹' };
+    return { emoji: '🐹' }; // For 0-49 trust score
   }
 
   // Handle top traders display

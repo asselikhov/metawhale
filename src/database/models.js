@@ -41,7 +41,7 @@ const userSchema = new mongoose.Schema({
   documentsVerified: { type: Boolean, default: false },
   isPremiumTrader: { type: Boolean, default: false },
   // Trust and reputation system
-  trustScore: { type: Number, default: 100, min: 0, max: 1000 },
+  trustScore: { type: Number, default: 0, min: 0, max: 1000 },
   completionRate: { type: Number, default: 100 }, // Percentage of completed trades
   avgReleaseTime: { type: Number, default: 0 }, // Average time to release in minutes
   tradingVolumeLast30Days: { type: Number, default: 0 },

@@ -49,6 +49,15 @@ const config = {
     dailyTime: '0 19 * * *' // 19:00 Moscow time
   },
 
+  // P2P Rating Legend Configuration
+  p2pRatingLegend: [
+    { min: 1000, emoji: '🐋', name: 'Кит рынка', range: '1000+' },
+    { min: 500, max: 999, emoji: '🐺', name: 'Волк сделки', range: '500–999' },
+    { min: 200, max: 499, emoji: '🦅', name: 'Ястреб графика', range: '200–499' },
+    { min: 50, max: 199, emoji: '🐿️', name: 'Белка накопитель', range: '50–199' },
+    { min: 0, max: 49, emoji: '🐹', name: 'Хомяк', range: '0–49' }
+  ],
+
   // Constants
   constants: {
     ivLength: 16,
