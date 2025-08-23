@@ -52,6 +52,8 @@ class Bot {
     this.bot.action('get_price', messageHandler.handlePrice.bind(messageHandler));
     this.bot.action('create_wallet', messageHandler.handleCreateWallet.bind(messageHandler));
     this.bot.action('edit_wallet', messageHandler.handleWalletEdit.bind(messageHandler));
+    this.bot.action('wallet_details', messageHandler.handleWalletDetails.bind(messageHandler));
+    this.bot.action('transfer_menu', messageHandler.handleTransferMenu.bind(messageHandler));
     this.bot.action('show_private_key', messageHandler.handleShowPrivateKey.bind(messageHandler));
     this.bot.action('refresh_balance', messageHandler.handleRefreshBalance.bind(messageHandler));
     this.bot.action('back_to_menu', messageHandler.handleBackToMenu.bind(messageHandler));

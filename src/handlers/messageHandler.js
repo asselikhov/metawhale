@@ -127,16 +127,22 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
       let message = '👤 **Личный кабинет**\n\n';
       
       if (walletInfo.hasWallet) {
-        message += `\`${walletInfo.address}\`\n`;
-        message += `Баланс CES: ${walletInfo.cesBalance.toFixed(4)}\n`;
-        message += `Баланс POL: ${walletInfo.polBalance.toFixed(4)}`;
+        // Get current price data for display
+        const priceData = await priceService.getCESPrice();
+        const cesUsdPrice = priceData ? priceData.price.toFixed(2) : '0.00';
+        const cesRubPrice = priceData ? priceData.priceRub.toFixed(2) : '0.00';
+        
+        // For POL, we'll use a placeholder price for now (could be enhanced later)
+        const polUsdPrice = '0.45'; // Placeholder POL price
+        const polRubPrice = '45.00'; // Placeholder POL price in RUB
+        
+        message += `Баланс CES: ${walletInfo.cesBalance.toFixed(4)} • $ ${cesUsdPrice} • ₽ ${cesRubPrice}\n`;
+        message += `Баланс POL: ${walletInfo.polBalance.toFixed(4)} • $ ${polUsdPrice} • ₽ ${polRubPrice}`;
         
         const keyboard = Markup.inlineKeyboard([
-          [Markup.button.callback('✏️ Редактировать', 'edit_wallet')],
-          [Markup.button.callback('🔄 Обновить баланс', 'refresh_balance')],
-          [Markup.button.callback('💸 Перевести CES', 'send_ces_tokens')],
-          [Markup.button.callback('💎 Перевести POL', 'send_pol_tokens')],
-          [Markup.button.callback('📊 История', 'transaction_history')]
+          [Markup.button.callback('💳 Кошелек', 'wallet_details')],
+          [Markup.button.callback('💸 Перевод', 'transfer_menu')],
+          [Markup.button.callback('🔄 Обновить', 'refresh_balance')]
         ]);
         
         await ctx.reply(message, { parse_mode: 'Markdown', ...keyboard });
@@ -169,19 +175,17 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
         return await ctx.reply('❌ У вас нет кошелька. Создайте его в Личном кабинете.');
       }
       
-      const message = '🔄 **P2P Обмен**\n\n' +
-                     `💼 Ваш баланс: **${walletInfo.cesBalance.toFixed(4)} CES**\n` +
-                     `💎 Баланс POL: **${walletInfo.polBalance.toFixed(4)}**\n\n` +
-                     'Выберите действие:';
+      // Redirect to transfer menu
+      const message = '💸 Перевод';
       
       const keyboard = Markup.inlineKeyboard([
         [Markup.button.callback('💸 Перевести CES', 'send_ces_tokens')],
         [Markup.button.callback('💎 Перевести POL', 'send_pol_tokens')],
         [Markup.button.callback('📊 История переводов', 'transaction_history')],
-        [Markup.button.callback('💰 Цена CES', 'get_price')]
+        [Markup.button.callback('🔙 Назад к кабинету', 'personal_cabinet')]
       ]);
       
-      await ctx.reply(message, { parse_mode: 'Markdown', ...keyboard });
+      await ctx.reply(message, keyboard);
       
     } catch (error) {
       console.error('P2P menu error:', error);
@@ -200,16 +204,22 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
       let message = '👤 Личный кабинет\n\n';
       
       if (walletInfo.hasWallet) {
-        message += `\`${walletInfo.address}\`\n`;
-        message += `Баланс CES: ${walletInfo.cesBalance.toFixed(4)}\n`;
-        message += `Баланс POL: ${walletInfo.polBalance.toFixed(4)}`;
+        // Get current price data for display
+        const priceData = await priceService.getCESPrice();
+        const cesUsdPrice = priceData ? priceData.price.toFixed(2) : '0.00';
+        const cesRubPrice = priceData ? priceData.priceRub.toFixed(2) : '0.00';
+        
+        // For POL, we'll use a placeholder price for now
+        const polUsdPrice = '0.45';
+        const polRubPrice = '45.00';
+        
+        message += `Баланс CES: ${walletInfo.cesBalance.toFixed(4)} • $ ${cesUsdPrice} • ₽ ${cesRubPrice}\n`;
+        message += `Баланс POL: ${walletInfo.polBalance.toFixed(4)} • $ ${polUsdPrice} • ₽ ${polRubPrice}`;
         
         const keyboard = Markup.inlineKeyboard([
-          [Markup.button.callback('✏️ Редактировать', 'edit_wallet')],
-          [Markup.button.callback('🔄 Обновить баланс', 'refresh_balance')],
-          [Markup.button.callback('💸 Перевести CES', 'send_ces_tokens')],
-          [Markup.button.callback('💎 Перевести POL', 'send_pol_tokens')],
-          [Markup.button.callback('📊 История', 'transaction_history')]
+          [Markup.button.callback('💳 Кошелек', 'wallet_details')],
+          [Markup.button.callback('💸 Перевод', 'transfer_menu')],
+          [Markup.button.callback('🔄 Обновить', 'refresh_balance')]
         ]);
         
         await ctx.editMessageText(message, { parse_mode: 'Markdown', ...keyboard });
@@ -280,6 +290,54 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
     }
   }
 
+  // Handle wallet details view
+  async handleWalletDetails(ctx) {
+    try {
+      const chatId = ctx.chat.id.toString();
+      const walletInfo = await walletService.getUserWallet(chatId);
+      
+      if (!walletInfo || !walletInfo.hasWallet) {
+        return await ctx.editMessageText('❌ Кошелек не найден.');
+      }
+      
+      const message = '💳 Кошелек\n\n' +
+                     `\`${walletInfo.address}\``;
+      
+      const keyboard = Markup.inlineKeyboard([
+        [Markup.button.callback('🔑 Показать приватный ключ', 'show_private_key')],
+        [Markup.button.callback('📤 Экспорт кошелька', 'export_wallet')],
+        [Markup.button.callback('🗑 Удалить кошелек', 'delete_wallet')],
+        [Markup.button.callback('🔙 Назад к кабинету', 'personal_cabinet')]
+      ]);
+      
+      await ctx.editMessageText(message, { parse_mode: 'Markdown', ...keyboard });
+      
+    } catch (error) {
+      console.error('Wallet details error:', error);
+      await ctx.editMessageText('❌ Ошибка загрузки данных кошелька.');
+    }
+  }
+
+  // Handle transfer menu
+  async handleTransferMenu(ctx) {
+    try {
+      const message = '💸 Перевод';
+      
+      const keyboard = Markup.inlineKeyboard([
+        [Markup.button.callback('💸 Перевести CES', 'send_ces_tokens')],
+        [Markup.button.callback('💎 Перевести POL', 'send_pol_tokens')],
+        [Markup.button.callback('📊 История переводов', 'transaction_history')],
+        [Markup.button.callback('🔙 Назад к кабинету', 'personal_cabinet')]
+      ]);
+      
+      await ctx.editMessageText(message, keyboard);
+      
+    } catch (error) {
+      console.error('Transfer menu error:', error);
+      await ctx.editMessageText('❌ Ошибка загрузки меню переводов.');
+    }
+  }
+
   // Show private key
   async handleShowPrivateKey(ctx) {
     try {
@@ -309,7 +367,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
       const walletInfo = await walletService.getUserWallet(chatId);
       
       if (!walletInfo || !walletInfo.hasWallet) {
-        const message = '🔄 **P2P Обмен**\n\n' +
+        const message = '💸 Перевод\n\n' +
                        '❌ У вас нет кошелька.\n\n' +
                        'Создайте кошелек в Личном кабинете для использования P2P функций.';
         
@@ -320,19 +378,17 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
         return await ctx.editMessageText(message, { parse_mode: 'Markdown', ...keyboard });
       }
       
-      const message = '🔄 **P2P Обмен**\n\n' +
-                     `💼 Ваш баланс: **${walletInfo.cesBalance.toFixed(4)} CES**\n` +
-                     `💎 Баланс POL: **${walletInfo.polBalance.toFixed(4)}**\n\n` +
-                     'Выберите действие:';
+      // Redirect to transfer menu
+      const message = '💸 Перевод';
       
       const keyboard = Markup.inlineKeyboard([
         [Markup.button.callback('💸 Перевести CES', 'send_ces_tokens')],
         [Markup.button.callback('💎 Перевести POL', 'send_pol_tokens')],
         [Markup.button.callback('📊 История переводов', 'transaction_history')],
-        [Markup.button.callback('🏠 Главное меню', 'back_to_menu')]
+        [Markup.button.callback('🔙 Назад к кабинету', 'personal_cabinet')]
       ]);
       
-      await ctx.editMessageText(message, { parse_mode: 'Markdown', ...keyboard });
+      await ctx.editMessageText(message, keyboard);
       
     } catch (error) {
       console.error('P2P menu error:', error);
