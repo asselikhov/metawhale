@@ -1000,8 +1000,8 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
       if (walletInfo.cesBalance <= 0) {
         const message = `📉 ПРОДАЖА CES ТОКЕНОВ\n\n` +
                        `Ваш баланс: ${walletInfo.cesBalance.toFixed(4)} CES\n` +
-                       `❌ Недостаточно CES для продажи\n\n` +
-                       `💡Пополните баланс CES`;
+                       `⚠️ Недостаточно CES для продажи\n\n` +
+                       `💡 Пополните баланс CES`;
         
         const keyboard = Markup.inlineKeyboard([
           [Markup.button.callback('🔄 Обновить баланс', 'refresh_balance')],
@@ -1013,7 +1013,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
       
       const priceData = await p2pService.getMarketPriceSuggestion();
       
-      const message = `.DataGridViewColumn ПРОДАЖА CES ТОКЕНОВ\n\n` +
+      const message = `📉 ПРОДАЖА CES ТОКЕНОВ\n\n` +
                      `Ваш баланс: ${walletInfo.cesBalance.toFixed(4)} CES\n\n` +
                      `Текущая рыночная цена:\n` +
                      `💰 ${priceData.currentPrice.toFixed(2)} ₽ за 1 CES\n\n` +
@@ -1072,12 +1072,12 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
       }
       
       if (orders.buyOrders.length === 0 && orders.sellOrders.length === 0) {
-        message += `📝 Активных ордеров пока нет\n\n💡 Создайте первый ордер на покупку или продажу!`;
+        message += `⚠️ Активных ордеров пока нет\n\n💡 Создайте первый ордер на покупку или продажу!`;
       }
       
       const keyboard = Markup.inlineKeyboard([
         [Markup.button.callback('🔄 Обновить', 'p2p_market_orders')],
-        [Markup.button.callback('🔙 Назад к P2P', 'p2p_menu')]
+        [Markup.button.callback('🔙 Назад', 'p2p_menu')]
       ]);
       
       await ctx.reply(message, keyboard);
@@ -1123,7 +1123,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
           message += `   Успешных сделок: ${trader.completionRate}%\n\n`;
         });
       } else {
-        message += `📝 Пока нет трейдеров с высоким рейтингом\n\n`;
+        message += `⚠️ Пока нет трейдеров с высоким рейтингом\n\n`;
         message += `💡 Активно торгуйте, чтобы попасть в топ !`;
       }
       
@@ -1149,7 +1149,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
       let message = `📋 МОИ ОРДЕРА\n\n`;
       
       if (orders.length === 0) {
-        message += `📝 У вас пока нет активных ордеров\n\n💡 Создайте ордер на покупку или продажу CES!`;
+        message += `⚠️ У вас пока нет активных ордеров\n\n💡 Создайте ордер на покупку или продажу CES !`;
       } else {
         orders.forEach((order, index) => {
           const typeEmoji = order.type === 'buy' ? '📈' : '📉';
@@ -1168,7 +1168,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
       
       const keyboard = Markup.inlineKeyboard([
         [Markup.button.callback('🔄 Обновить', 'p2p_my_orders')],
-        [Markup.button.callback('🔙 Назад к P2P', 'p2p_menu')]
+        [Markup.button.callback('🔙 Назад', 'p2p_menu')]
       ]);
       
       await ctx.reply(message, keyboard);
@@ -1334,7 +1334,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
       
       const keyboard = Markup.inlineKeyboard([
         [Markup.button.callback('🔄 Обновить', 'p2p_analytics')],
-        [Markup.button.callback('🔙 Назад к P2P', 'p2p_menu')]
+        [Markup.button.callback('🔙 Назад', 'p2p_menu')]
       ]);
       
       await ctx.reply(message, keyboard);
