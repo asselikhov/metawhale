@@ -237,8 +237,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
       const walletInfo = await walletService.getUserWallet(chatId);
       
       if (!walletInfo || !walletInfo.hasWallet) {
-        const message = 'P2P биржа\n\n' +
-                       'У вас нет кошелька.\n\n' +
+        const message = 'У вас нет кошелька.\n\n' +
                        'Создайте кошелек в Личном кабинете для использования P2P функций.';
         
         const keyboard = Markup.inlineKeyboard([
@@ -257,22 +256,21 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
       const profileDetails = await reputationService.getUserProfileDetails(user._id);
       const userLevel = this.getUserLevelDisplayNew(reputation.trustScore);
       
-      // Show P2P Exchange menu with required format
-      const message = 'P2P БИРЖА\n\n' +
-                     `Рейтинг: ${reputation.trustScore}/1000 ${userLevel.emoji}\n` +
+      // Show P2P Exchange menu with required format (without header and action text)
+      const message = `Рейтинг: ${reputation.trustScore}/1000 ${userLevel.emoji}\n` +
                      `Объем сделок: ${(profileDetails.totalTradeVolume || 0).toLocaleString('ru-RU')} ₽\n` +
                      `Завершенные сделки: ${reputation.completionRate}%\n` +
                      `Спорные сделки: ${reputation.disputeRate}%\n` +
-                     `Всего сделок: ${reputation.totalTrades}\n\n` +
-                     'Выберите действие:';
+                     `Всего сделок: ${reputation.totalTrades}`;
       
       const keyboard = Markup.inlineKeyboard([
         [Markup.button.callback('📈 Купить CES', 'p2p_buy_ces'), Markup.button.callback('📉 Продать CES', 'p2p_sell_ces')],
         [Markup.button.callback('📊 Рынок ордеров', 'p2p_market_orders'), Markup.button.callback('📋 Мои ордера', 'p2p_my_orders')],
-        [Markup.button.callback('🏆 Топ трейдеров', 'p2p_top_traders'), Markup.button.callback('📈 Аналитика', 'p2p_analytics')]
+        [Markup.button.callback('🏆 Топ трейдеров', 'p2p_top_traders'), Markup.button.callback('🧮 Аналитика', 'p2p_analytics')]
       ]);
       
-      await ctx.reply(message, keyboard);
+      // Send the p2plogo image with the text
+      await ctx.replyWithPhoto({ source: 'p2plogo.png' }, { caption: message, reply_markup: keyboard.reply_markup });
       
     } catch (error) {
       console.error('P2P menu text error:', error);
@@ -543,8 +541,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
       const walletInfo = await walletService.getUserWallet(chatId);
       
       if (!walletInfo || !walletInfo.hasWallet) {
-        const message = 'P2P биржа\n\n' +
-                       'У вас нет кошелька.\n\n' +
+        const message = 'У вас нет кошелька.\n\n' +
                        'Создайте кошелек в Личном кабинете для использования P2P функций.';
         
         const keyboard = Markup.inlineKeyboard([
@@ -563,22 +560,21 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
       const profileDetails = await reputationService.getUserProfileDetails(user._id);
       const userLevel = this.getUserLevelDisplayNew(reputation.trustScore);
       
-      // Show P2P Exchange menu with required format
-      const message = 'P2P БИРЖА\n\n' +
-                     `Рейтинг: ${reputation.trustScore}/1000 ${userLevel.emoji}\n` +
+      // Show P2P Exchange menu with required format (without header and action text)
+      const message = `Рейтинг: ${reputation.trustScore}/1000 ${userLevel.emoji}\n` +
                      `Объем сделок: ${(profileDetails.totalTradeVolume || 0).toLocaleString('ru-RU')} ₽\n` +
                      `Завершенные сделки: ${reputation.completionRate}%\n` +
                      `Спорные сделки: ${reputation.disputeRate}%\n` +
-                     `Всего сделок: ${reputation.totalTrades}\n\n` +
-                     'Выберите действие:';
+                     `Всего сделок: ${reputation.totalTrades}`;
       
       const keyboard = Markup.inlineKeyboard([
         [Markup.button.callback('📈 Купить CES', 'p2p_buy_ces'), Markup.button.callback('📉 Продать CES', 'p2p_sell_ces')],
         [Markup.button.callback('📊 Рынок ордеров', 'p2p_market_orders'), Markup.button.callback('📋 Мои ордера', 'p2p_my_orders')],
-        [Markup.button.callback('🏆 Топ трейдеров', 'p2p_top_traders'), Markup.button.callback('📈 Аналитика', 'p2p_analytics')]
+        [Markup.button.callback('🏆 Топ трейдеров', 'p2p_top_traders'), Markup.button.callback('🧮 Аналитика', 'p2p_analytics')]
       ]);
       
-      await ctx.editMessageText(message, keyboard);
+      // Send the p2plogo image with the text
+      await ctx.replyWithPhoto({ source: 'p2plogo.png' }, { caption: message, reply_markup: keyboard.reply_markup });
       
     } catch (error) {
       console.error('P2P menu error:', error);
@@ -1139,7 +1135,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
   // Get user level display for market orders (new format)
   getUserLevelDisplayNew(trustScore) {
     if (trustScore >= 1000) return { emoji: '🐋' };
-    if (trustScore >= 500) return { emoji: 'ewolf' };
+    if (trustScore >= 500) return { emoji: '🐺' };
     if (trustScore >= 200) return { emoji: '🦅' };
     if (trustScore >= 50) return { emoji: '🐿️' };
     return { emoji: '🐹' }; // For 0-49 trust score
