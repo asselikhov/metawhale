@@ -21,7 +21,7 @@ class AnalyticsService {
         return cached.data;
       }
 
-      console.log(`📊 Generating trading statistics for ${timeRange}`);
+      console.log(`Generating trading statistics for ${timeRange}`);
 
       const timeRanges = {
         '1h': 1 * 60 * 60 * 1000,
@@ -277,7 +277,7 @@ class AnalyticsService {
   // Get order book analytics
   async getOrderBookAnalytics() {
     try {
-      console.log('📈 Generating order book analytics...');
+      console.log('Generating order book analytics...');
 
       const [buyOrders, sellOrders] = await Promise.all([
         P2POrder.find({
@@ -363,7 +363,7 @@ class AnalyticsService {
   // Get user performance analytics
   async getUserPerformanceAnalytics(userId, timeRange = '30d') {
     try {
-      console.log(`👤 Generating user performance analytics for ${userId}`);
+      console.log(`Generating user performance analytics for ${userId}`);
 
       const timeRanges = {
         '7d': 7 * 24 * 60 * 60 * 1000,
@@ -515,7 +515,7 @@ class AnalyticsService {
   // Generate comprehensive market report
   async generateMarketReport(timeRange = '24h') {
     try {
-      console.log(`📊 Generating comprehensive market report for ${timeRange}`);
+      console.log(`Generating comprehensive market report for ${timeRange}`);
 
       const [
         tradingStats,
@@ -657,23 +657,23 @@ class AnalyticsService {
 
     // Trading volume insights
     if (tradingStats.volume.totalRubles > 1000000) {
-      insights.push('High trading volume detected - strong market activity');
+      insights.push('Высокий торговый объем - сильная активность на рынке');
     } else if (tradingStats.volume.totalRubles < 100000) {
-      insights.push('Low trading volume - limited market activity');
+      insights.push('Низкий торговый объем - ограниченная активность на рынке');
     }
 
     // Completion rate insights
     if (tradingStats.trades.completionRate > 95) {
-      insights.push('Excellent trade completion rate - high user satisfaction');
+      insights.push('Отличный уровень завершения сделок - высокая удовлетворенность пользователей');
     } else if (tradingStats.trades.completionRate < 80) {
-      insights.push('Low completion rate - potential user experience issues');
+      insights.push('Низкий уровень завершения сделок - потенциальные проблемы с пользовательским опытом');
     }
 
     // Spread insights
     if (orderBookAnalytics.spread.percentage < 1) {
-      insights.push('Tight spread indicates healthy market liquidity');
+      insights.push('Узкий спред указывает на здоровую ликвидность рынка');
     } else if (orderBookAnalytics.spread.percentage > 5) {
-      insights.push('Wide spread suggests low liquidity or high volatility');
+      insights.push('Широкий спред указывает на низкую ликвидность или высокую волатильность');
     }
 
     return {
@@ -716,7 +716,90 @@ class AnalyticsService {
   // Clear cache
   clearCache() {
     this.analyticsCache.clear();
-    console.log('📊 Analytics cache cleared');
+    console.log('Analytics cache cleared');
+  }
+  
+  // AI-Powered Market Insights
+  async getAIInsights() {
+    try {
+      console.log('Generating AI-powered market insights...');
+      
+      // Get recent market data
+      const [marketStats, orderBook, trends] = await Promise.all([
+        this.getTradingStatistics('24h'),
+        this.getOrderBookAnalytics(),
+        this.getMarketTrends('7d')
+      ]);
+      
+      // Generate AI insights based on data
+      const insights = this.generateAIInsights(marketStats, orderBook, trends);
+      
+      return insights;
+    } catch (error) {
+      console.error('Error generating AI insights:', error);
+      return {
+        trend: 'Недостаточно данных для анализа',
+        confidence: 0,
+        recommendation: 'Следите за обновлениями рынка'
+      };
+    }
+  }
+  
+  // Generate AI insights (simplified version)
+  generateAIInsights(marketStats, orderBook, trends) {
+    try {
+      let trend = '';
+      let confidence = 0.5;
+      let recommendation = '';
+      
+      // Analyze price trend
+      if (trends.priceChange.percentage > 2) {
+        trend = 'Бычий тренд: цена растет';
+        confidence = 0.8;
+        recommendation = 'Рассмотрите покупку по текущим ценам';
+      } else if (trends.priceChange.percentage < -2) {
+        trend = 'Медвежий тренд: цена падает';
+        confidence = 0.8;
+        recommendation = 'Рассмотрите продажу или подождите восстановления';
+      } else {
+        trend = 'Боковой тренд: цена стабильна';
+        confidence = 0.6;
+        recommendation = 'Следите за объемами и новостями';
+      }
+      
+      // Analyze volume trend
+      if (trends.volumeChange.percentage > 50) {
+        trend += ', высокий объем торгов';
+        confidence = Math.min(1, confidence + 0.1);
+      } else if (trends.volumeChange.percentage < -30) {
+        trend += ', низкий объем торгов';
+        confidence = Math.max(0, confidence - 0.1);
+      }
+      
+      // Analyze market health
+      const healthScore = this.calculateMarketHealthScore(marketStats, orderBook);
+      if (healthScore > 80) {
+        recommendation += '. Рынок находится в хорошем состоянии';
+      } else if (healthScore < 50) {
+        recommendation += '. Будьте осторожны, рынок нестабилен';
+      }
+      
+      return {
+        trend,
+        confidence,
+        recommendation,
+        healthScore,
+        volume: marketStats.volume.totalRubles,
+        completionRate: marketStats.trades.completionRate
+      };
+    } catch (error) {
+      console.error('Error in AI insights generation:', error);
+      return {
+        trend: 'Ошибка анализа данных',
+        confidence: 0,
+        recommendation: 'Попробуйте позже'
+      };
+    }
   }
 }
 

@@ -71,6 +71,8 @@ class Bot {
     this.bot.action('p2p_sell_ces', messageHandler.handleP2PSellCES.bind(messageHandler));
     this.bot.action('p2p_market_orders', messageHandler.handleP2PMarketOrders.bind(messageHandler));
     this.bot.action('p2p_my_orders', messageHandler.handleP2PMyOrders.bind(messageHandler));
+    this.bot.action('p2p_analytics', messageHandler.handleP2PAnalytics.bind(messageHandler));
+    this.bot.action('p2p_my_profile', messageHandler.handleP2PMyProfile.bind(messageHandler));
     
     // Handle transfer confirmations (dynamic callbacks)
     this.bot.action(/^confirm_transfer_/, (ctx) => {

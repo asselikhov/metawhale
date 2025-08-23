@@ -62,7 +62,33 @@ const userSchema = new mongoose.Schema({
   },
   // Blocked/restricted users
   blockedUsers: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
-  restrictedUntil: Date
+  restrictedUntil: Date,
+  // Advanced analytics
+  tradeAnalytics: {
+    totalTrades: { type: Number, default: 0 },
+    successfulTrades: { type: Number, default: 0 },
+    failedTrades: { type: Number, default: 0 },
+    disputedTrades: { type: Number, default: 0 },
+    avgTradeSize: { type: Number, default: 0 },
+    favoritePaymentMethods: [{ 
+      method: String, 
+      count: { type: Number, default: 0 } 
+    }]
+  },
+  // AI Fraud Detection Profile
+  behaviorProfile: {
+    typicalTradeHours: [Number], // 0-23
+    typicalTradeAmounts: [{
+      min: Number,
+      max: Number,
+      frequency: Number
+    }],
+    riskFlags: [{
+      type: String,
+      timestamp: { type: Date, default: Date.now },
+      resolved: { type: Boolean, default: false }
+    }]
+  }
 });
 
 // Wallet Schema

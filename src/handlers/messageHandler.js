@@ -231,9 +231,9 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
       }
       
       // Show P2P Exchange menu instead of transfer menu
-      const message = '💰 **P2P Биржа**\n\n' +
-                     '🔄 Покупка и продажа CES токенов за рубли\n' +
-                     '💵 Комиссия: 1% с каждой сделки';
+      const message = 'P2P Биржа\n\n' +
+                     'Покупка и продажа CES токенов за рубли\n' +
+                     'Комиссия: 1% с каждой сделки';
       
       const keyboard = Markup.inlineKeyboard([
         [Markup.button.callback('📈 Купить CES', 'p2p_buy_ces')],
@@ -259,7 +259,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
         return await ctx.editMessageText('❌ Пользователь не найден. Выполните /start');
       }
       
-      let message = '👤 Личный кабинет\n\n';
+      let message = 'Личный кабинет\n\n';
       
       if (walletInfo.hasWallet) {
         // Get current price data for both tokens
@@ -320,12 +320,12 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
       ]);
       
       await ctx.editMessageText(
-        `✅ Кошелек успешно создан!\n\n` +
-        `📍 Адрес: \`${walletResult.address}\`\n` +
-        `🌐 Сеть: Polygon\n\n` +
-        `⚠️ Сохраните приватный ключ в безопасном месте:\n` +
-        `🔐 \`${walletResult.privateKey}\`\n\n` +
-        `🚨 Никому не сообщайте ваш приватный ключ!`,
+        `Кошелек успешно создан!\n\n` +
+        `Адрес: \`${walletResult.address}\`\n` +
+        `Сеть: Polygon\n\n` +
+        `Важно: Сохраните приватный ключ в безопасном месте:\n` +
+        `\`${walletResult.privateKey}\`\n\n` +
+        `Предупреждение: Никому не сообщайте ваш приватный ключ!`,
         keyboard
       );
       
@@ -366,7 +366,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
         return await ctx.editMessageText('❌ Кошелек не найден.');
       }
       
-      const message = '💳 Кошелек\n\n' +
+      const message = 'Кошелек\n\n' +
                      `\`${walletInfo.address}\``;
       
       const keyboard = Markup.inlineKeyboard([
@@ -513,8 +513,8 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
       const walletInfo = await walletService.getUserWallet(chatId);
       
       if (!walletInfo || !walletInfo.hasWallet) {
-        const message = '💰 **P2P Биржа**\n\n' +
-                       '❌ У вас нет кошелька.\n\n' +
+        const message = 'P2P Биржа\n\n' +
+                       'У вас нет кошелька.\n\n' +
                        'Создайте кошелек в Личном кабинете для использования P2P функций.';
         
         const keyboard = Markup.inlineKeyboard([
@@ -525,15 +525,17 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
       }
       
       // Show P2P Exchange menu
-      const message = '💰 **P2P Биржа**\n\n' +
-                     '🔄 Покупка и продажа CES токенов за рубли\n' +
-                     '💵 Комиссия: 1% с каждой сделки';
+      const message = 'P2P Биржа\n\n' +
+                     'Покупка и продажа CES токенов за рубли\n' +
+                     'Комиссия: 1% с каждой сделки';
       
       const keyboard = Markup.inlineKeyboard([
         [Markup.button.callback('📈 Купить CES', 'p2p_buy_ces')],
         [Markup.button.callback('📉 Продать CES', 'p2p_sell_ces')],
         [Markup.button.callback('📊 Активные ордера', 'p2p_market_orders')],
         [Markup.button.callback('📋 Мои ордера', 'p2p_my_orders')],
+        [Markup.button.callback('📈 Аналитика', 'p2p_analytics')],
+        [Markup.button.callback('👤 Мой профиль', 'p2p_my_profile')],
         [Markup.button.callback('🔙 Назад к кабинету', 'personal_cabinet')]
       ]);
       
@@ -541,7 +543,57 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
       
     } catch (error) {
       console.error('P2P menu error:', error);
-      await ctx.editMessageText('❌ Ошибка загрузки P2P меню. Попробуйте позже.');
+      await ctx.editMessageText('Ошибка загрузки P2P меню. Попробуйте позже.');
+    }
+  }
+
+  // Handle user profile
+  async handleP2PMyProfile(ctx) {
+    try {
+      const chatId = ctx.chat.id.toString();
+      const user = await User.findOne({ chatId });
+      
+      if (!user) {
+        return await ctx.editMessageText('Пользователь не найден.');
+      }
+      
+      // Get reputation data
+      const reputationService = require('../services/reputationService');
+      const reputation = await reputationService.getUserReputation(user._id);
+      
+      // Get user's recent trades
+      const recentTrades = await p2pService.getUserTrades(chatId, 5);
+      
+      const verificationText = {
+        'unverified': 'Не верифицирован',
+        'phone_verified': 'Верификация по телефону',
+        'document_verified': 'Верификация по документам',
+        'premium': 'Премиум пользователь'
+      };
+      
+      const message = '👤 Мой профиль P2P\n\n' +
+                     `Рейтинг: ${reputation.trustScore}/1000\n` +
+                     `Верификация: ${verificationText[reputation.verificationLevel]}\n` +
+                     `Уровень завершения сделок: ${reputation.completionRate}%\n` +
+                     `Спорные сделки: ${reputation.disputeRate}%\n` +
+                     `Всего сделок: ${reputation.totalTrades}\n\n` +
+                     '📊 Последние сделки:\n' +
+                     (recentTrades.length > 0 
+                       ? recentTrades.map((trade, index) => 
+                           `${index + 1}. ${trade.amount.toFixed(2)} CES за ₽${trade.totalValue.toFixed(2)} (${trade.status === 'completed' ? '✅' : '❌'})`
+                         ).join('\n')
+                       : 'Нет завершенных сделок');
+      
+      const keyboard = Markup.inlineKeyboard([
+        [Markup.button.callback('🔄 Обновить', 'p2p_my_profile')],
+        [Markup.button.callback('🔙 Назад к P2P', 'p2p_menu')]
+      ]);
+      
+      await ctx.editMessageText(message, { parse_mode: 'Markdown', ...keyboard });
+      
+    } catch (error) {
+      console.error('Profile error:', error);
+      await ctx.editMessageText('Ошибка загрузки профиля. Попробуйте позже.');
     }
   }
 
@@ -826,15 +878,13 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
       const chatId = ctx.chat.id.toString();
       const priceData = await p2pService.getMarketPriceSuggestion();
       
-      const message = `📈 **Купить CES токены**\n\n` +
-                     `💰 Текущая цена: ₽${priceData.currentPrice.toFixed(2)} за CES\n` +
-                     `💡 Рекомендуемая цена: ₽${priceData.suggestedPrice.toFixed(2)} за CES\n\n` +
-                     `📝 Отправьте сообщение в формате:\n` +
-                     `\`Количество Цена_за_токен\`\n\n` +
-                     `📝 **Пример:**\n` +
-                     `\`10 ${priceData.suggestedPrice.toFixed(2)}\`\n\n` +
-                     `ℹ️ Минимальная сумма: 1 CES\n` +
-                     `💵 Комиссия: 1% с суммы сделки`;
+      const message = `Покупка CES токенов\n\n` +
+                     `Текущая цена: ₽${priceData.currentPrice.toFixed(2)} за CES\n` +
+                     `Рекомендуемая цена: ₽${priceData.suggestedPrice.toFixed(2)} за CES\n\n` +
+                     `Введите количество и цену за токен:\n` +
+                     `Например: 10 ${priceData.suggestedPrice.toFixed(2)}\n\n` +
+                     `Минимальная сумма: 1 CES\n` +
+                     `Комиссия: 1% с суммы сделки`;
       
       // Store state to handle next user message
       console.log(`🔄 Setting P2P buy order session for ${chatId}`);
@@ -860,7 +910,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
       const walletInfo = await walletService.getUserWallet(chatId);
       
       if (walletInfo.cesBalance <= 0) {
-        const message = `📉 **Продать CES токены**\n\n` +
+        const message = `.DataGridViewColumn **Продать CES токены**\n\n` +
                        `❌ Недостаточно CES токенов для продажи.\n` +
                        `💼 Ваш баланс: **${walletInfo.cesBalance.toFixed(4)} CES**`;
         
@@ -874,16 +924,14 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
       
       const priceData = await p2pService.getMarketPriceSuggestion();
       
-      const message = `📉 **Продать CES токены**\n\n` +
-                     `💼 Доступно: **${walletInfo.cesBalance.toFixed(4)} CES**\n\n` +
-                     `💰 Текущая цена: ₽${priceData.currentPrice.toFixed(2)} за CES\n` +
-                     `💡 Рекомендуемая цена: ₽${priceData.suggestedPrice.toFixed(2)} за CES\n\n` +
-                     `📝 Отправьте сообщение в формате:\n` +
-                     `\`Количество Цена_за_токен\`\n\n` +
-                     `📝 **Пример:**\n` +
-                     `\`5 ${priceData.suggestedPrice.toFixed(2)}\`\n\n` +
-                     `ℹ️ Минимальная сумма: 1 CES\n` +
-                     `💵 Комиссия: 1% с суммы сделки`;
+      const message = `Продажа CES токенов\n\n` +
+                     `Доступно: **${walletInfo.cesBalance.toFixed(4)} CES**\n\n` +
+                     `Текущая цена: ₽${priceData.currentPrice.toFixed(2)} за CES\n` +
+                     `Рекомендуемая цена: ₽${priceData.suggestedPrice.toFixed(2)} за CES\n\n` +
+                     `Введите количество и цену за токен:\n` +
+                     `Например: 5 ${priceData.suggestedPrice.toFixed(2)}\n\n` +
+                     `Минимальная сумма: 1 CES\n` +
+                     `Комиссия: 1% с суммы сделки`;
       
       // Store state to handle next user message
       console.log(`🔄 Setting P2P sell order session for ${chatId}`);
@@ -919,7 +967,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
       }
       
       if (orders.sellOrders.length > 0) {
-        message += `📉 **Заявки на продажу:**\n`;
+        message += `.DataGridViewColumn **Заявки на продажу:**\n`;
         orders.sellOrders.forEach((order, index) => {
           const username = order.userId.username || order.userId.firstName || 'Пользователь';
           message += `${index + 1}. ${order.remainingAmount.toFixed(2)} CES по ₽${order.pricePerToken.toFixed(2)} (@${username})\n`;
@@ -955,7 +1003,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
         message += `📝 У вас пока нет активных ордеров\n\nСоздайте ордер на покупку или продажу CES!`;
       } else {
         orders.forEach((order, index) => {
-          const typeEmoji = order.type === 'buy' ? '📈' : '📉';
+          const typeEmoji = order.type === 'buy' ? '📈' : '.DataGridViewColumn';
           const typeText = order.type === 'buy' ? 'Покупка' : 'Продажа';
           const statusText = order.status === 'active' ? 'Активен' : 
                            order.status === 'partial' ? 'Частично исполнен' : 
@@ -1022,14 +1070,14 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
       console.log(`💰 Processing P2P order: ${amount} CES at ₽${pricePerToken} (total: ₽${totalValue.toFixed(2)}, commission: ₽${commission.toFixed(2)})`);
       
       // Show confirmation
-      const typeEmoji = orderType === 'buy' ? '📈' : '📉';
+      const typeEmoji = orderType === 'buy' ? '📈' : '.DataGridViewColumn';
       const typeText = orderType === 'buy' ? 'покупку' : 'продажу';
       
       const message = `${typeEmoji} **Подтверждение ордера на ${typeText}**\n\n` +
                      `💰 Количество: **${amount} CES**\n` +
                      `💵 Цена за токен: **₽${pricePerToken.toFixed(2)}**\n` +
                      `💸 Общая сумма: **₽${totalValue.toFixed(2)}**\n` +
-                     `🏦 Комиссия: **₽${commission.toFixed(2)} (1%)**\n\n` +
+                     ` Bakan Комиссия: **₽${commission.toFixed(2)} (1%)**\n\n` +
                      `❗ Подтвердить создание ордера?`;
       
       const keyboard = Markup.inlineKeyboard([
@@ -1071,13 +1119,13 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
         console.log(`📈 Creating buy order...`);
         result = await p2pService.createBuyOrder(chatId, amount, pricePerToken);
       } else {
-        console.log(`📉 Creating sell order...`);
+        console.log(`.DataGridViewColumn Creating sell order...`);
         result = await p2pService.createSellOrder(chatId, amount, pricePerToken);
       }
       
       console.log(`✅ Order created successfully: ${result._id}`);
       
-      const typeEmoji = orderType === 'buy' ? '📈' : '📉';
+      const typeEmoji = orderType === 'buy' ? '📈' : '.DataGridViewColumn';
       const typeText = orderType === 'buy' ? 'покупку' : 'продажу';
       const totalValue = amount * pricePerToken;
       
@@ -1105,6 +1153,38 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
       ]);
       
       await ctx.editMessageText(errorMessage, { parse_mode: 'Markdown', ...keyboard });
+    }
+  }
+
+  // Handle market analytics
+  async handleP2PAnalytics(ctx) {
+    try {
+      const analyticsService = require('../services/analyticsService');
+      
+      // Get market analytics
+      const analytics = await analyticsService.getAIInsights();
+      const marketStats = await analyticsService.getTradingStatistics('24h');
+      
+      const message = '📈 Аналитика P2P Биржи\n\n' +
+                     `Тренд: ${analytics.trend}\n` +
+                     `Уверенность ИИ: ${(analytics.confidence * 100).toFixed(0)}%\n` +
+                     `Рекомендация: ${analytics.recommendation}\n\n` +
+                     '📊 Статистика за 24 часа:\n' +
+                     `Объем торгов: ₽${marketStats.volume.totalRubles.toLocaleString('ru-RU')}\n` +
+                     `Завершенные сделки: ${marketStats.trades.completed}\n` +
+                     `Уровень завершения: ${marketStats.trades.completionRate}%\n` +
+                     `Активные трейдеры: ${marketStats.users.uniqueTraders}`;
+      
+      const keyboard = Markup.inlineKeyboard([
+        [Markup.button.callback('🔄 Обновить', 'p2p_analytics')],
+        [Markup.button.callback('🔙 Назад к P2P', 'p2p_menu')]
+      ]);
+      
+      await ctx.editMessageText(message, { parse_mode: 'Markdown', ...keyboard });
+      
+    } catch (error) {
+      console.error('Analytics error:', error);
+      await ctx.editMessageText('Ошибка загрузки аналитики. Попробуйте позже.');
     }
   }
 }

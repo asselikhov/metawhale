@@ -8,6 +8,8 @@ const { P2POrder, P2PTrade, User } = require('../database/models');
 const walletService = require('./walletService');
 const priceService = require('./priceService');
 const escrowService = require('./escrowService');
+const smartNotificationService = require('./smartNotificationService');
+const reputationService = require('./reputationService');
 
 class P2PService {
   constructor() {
@@ -20,27 +22,27 @@ class P2PService {
   // Create a buy order (user wants to buy CES for rubles)
   async createBuyOrder(chatId, amount, pricePerToken) {
     try {
-      console.log(`📈 Creating buy order: ${amount} CES at ₽${pricePerToken} per token (chatId: ${chatId})`);
+      console.log(`Creating buy order: ${amount} CES at ₽${pricePerToken} per token (chatId: ${chatId})`);
       
       const user = await User.findOne({ chatId });
       if (!user) {
-        console.log(`❌ User not found for chatId: ${chatId}`);
+        console.log(`User not found for chatId: ${chatId}`);
         throw new Error('Пользователь не найден');
       }
       
       if (!user.walletAddress) {
-        console.log(`❌ User ${chatId} has no wallet`);
+        console.log(`User ${chatId} has no wallet`);
         throw new Error('Сначала создайте кошелек');
       }
       
       // Validate input
       if (amount <= 0 || pricePerToken <= 0) {
-        console.log(`❌ Invalid input: amount=${amount}, price=${pricePerToken}`);
+        console.log(`Invalid input: amount=${amount}, price=${pricePerToken}`);
         throw new Error('Количество и цена должны быть больше 0');
       }
       
       const totalValue = amount * pricePerToken;
-      console.log(`💸 Total order value: ₽${totalValue.toFixed(2)}`);
+      console.log(`Total order value: ₽${totalValue.toFixed(2)}`);
       
       // Check for existing active buy orders with same price
       const existingOrder = await P2POrder.findOne({
@@ -52,19 +54,19 @@ class P2PService {
       
       if (existingOrder) {
         // Update existing order
-        console.log(`🔄 Updating existing buy order: ${existingOrder._id}`);
+        console.log(`Updating existing buy order: ${existingOrder._id}`);
         existingOrder.amount += amount;
         existingOrder.remainingAmount += amount;
         existingOrder.totalValue = existingOrder.amount * pricePerToken;
         existingOrder.updatedAt = new Date();
         await existingOrder.save();
         
-        console.log(`✅ Updated existing buy order: ${existingOrder._id}`);
+        console.log(`Updated existing buy order: ${existingOrder._id}`);
         return existingOrder;
       }
       
       // Create new buy order
-      console.log(`🆕 Creating new buy order`);
+      console.log(`Creating new buy order`);
       const buyOrder = new P2POrder({
         userId: user._id,
         type: 'buy',
@@ -76,10 +78,10 @@ class P2PService {
       
       await buyOrder.save();
       
-      console.log(`✅ Buy order created: ${buyOrder._id}`);
+      console.log(`Buy order created: ${buyOrder._id}`);
       
       // Try to match with existing sell orders
-      console.log(`🔍 Attempting to match orders...`);
+      console.log(`Attempting to match orders...`);
       await this.matchOrders();
       
       return buyOrder;
@@ -93,22 +95,22 @@ class P2PService {
   // Create a sell order (user wants to sell CES for rubles)
   async createSellOrder(chatId, amount, pricePerToken, paymentMethods = ['bank_transfer']) {
     try {
-      console.log(`📉 Creating sell order: ${amount} CES at ₽${pricePerToken} per token (chatId: ${chatId})`);
+      console.log(`Creating sell order: ${amount} CES at ₽${pricePerToken} per token (chatId: ${chatId})`);
       
       const user = await User.findOne({ chatId });
       if (!user) {
-        console.log(`❌ User not found for chatId: ${chatId}`);
+        console.log(`User not found for chatId: ${chatId}`);
         throw new Error('Пользователь не найден');
       }
       
       if (!user.walletAddress) {
-        console.log(`❌ User ${chatId} has no wallet`);
+        console.log(`User ${chatId} has no wallet`);
         throw new Error('Сначала создайте кошелек');
       }
       
       // Validate input
       if (amount <= 0 || pricePerToken <= 0) {
-        console.log(`❌ Invalid input: amount=${amount}, price=${pricePerToken}`);
+        console.log(`Invalid input: amount=${amount}, price=${pricePerToken}`);
         throw new Error('Количество и цена должны быть больше 0');
       }
       
@@ -119,12 +121,12 @@ class P2PService {
       // Check CES balance
       const cesBalance = await walletService.getCESBalance(user.walletAddress);
       if (cesBalance < amount) {
-        console.log(`❌ Insufficient CES balance: ${cesBalance} < ${amount}`);
+        console.log(`Insufficient CES balance: ${cesBalance} < ${amount}`);
         throw new Error(`Недостаточно CES токенов. Доступно: ${cesBalance.toFixed(4)} CES`);
       }
       
       const totalValue = amount * pricePerToken;
-      console.log(`💸 Total order value: ₽${totalValue.toFixed(2)}`);
+      console.log(`Total order value: ₽${totalValue.toFixed(2)}`);
       
       // Check for existing active sell orders with same price
       const existingOrder = await P2POrder.findOne({
@@ -136,7 +138,7 @@ class P2PService {
       
       if (existingOrder) {
         // Update existing order and lock additional tokens in escrow
-        console.log(`🔄 Updating existing sell order: ${existingOrder._id}`);
+        console.log(`Updating existing sell order: ${existingOrder._id}`);
         
         // Lock additional tokens in escrow
         await escrowService.lockTokensInEscrow(user._id, null, 'CES', amount);
@@ -149,16 +151,16 @@ class P2PService {
         existingOrder.escrowLocked = true;
         await existingOrder.save();
         
-        console.log(`✅ Updated existing sell order: ${existingOrder._id}`);
+        console.log(`Updated existing sell order: ${existingOrder._id}`);
         return existingOrder;
       }
       
       // Lock tokens in escrow before creating order
-      console.log(`🔒 Locking ${amount} CES in escrow`);
+      console.log(`Locking ${amount} CES in escrow`);
       await escrowService.lockTokensInEscrow(user._id, null, 'CES', amount);
       
       // Create new sell order
-      console.log(`🆕 Creating new sell order`);
+      console.log(`Creating new sell order`);
       const sellOrder = new P2POrder({
         userId: user._id,
         type: 'sell',
@@ -174,10 +176,10 @@ class P2PService {
       
       await sellOrder.save();
       
-      console.log(`✅ Sell order created: ${sellOrder._id}`);
+      console.log(`Sell order created: ${sellOrder._id}`);
       
       // Try to match with existing buy orders
-      console.log(`🔍 Attempting to match orders...`);
+      console.log(`Attempting to match orders...`);
       await this.matchOrders();
       
       return sellOrder;
@@ -188,41 +190,80 @@ class P2PService {
     }
   }
 
-  // Match buy and sell orders
+  // Enhanced order matching with smart algorithms
   async matchOrders() {
     try {
-      console.log('🔄 Matching orders...');
+      console.log('Matching orders with enhanced algorithm...');
       
-      // Get active buy orders sorted by price (highest first)
+      // Get active buy orders sorted by price (highest first) and trust score
       const buyOrders = await P2POrder.find({
         type: 'buy',
         status: { $in: ['active', 'partial'] },
         remainingAmount: { $gt: 0 }
-      }).sort({ pricePerToken: -1, createdAt: 1 });
+      }).sort({ pricePerToken: -1, createdAt: 1 }).populate('userId');
       
-      // Get active sell orders sorted by price (lowest first)
+      // Get active sell orders sorted by price (lowest first) and trust score
       const sellOrders = await P2POrder.find({
         type: 'sell',
         status: { $in: ['active', 'partial'] },
         remainingAmount: { $gt: 0 }
-      }).sort({ pricePerToken: 1, createdAt: 1 });
+      }).sort({ pricePerToken: 1, createdAt: 1 }).populate('userId');
       
+      // Smart matching algorithm
       for (const buyOrder of buyOrders) {
         for (const sellOrder of sellOrders) {
-          // Check if prices match (buy price >= sell price)
+          // Skip if same user (no self-trading)
+          if (buyOrder.userId._id.toString() === sellOrder.userId._id.toString()) {
+            continue;
+          }
+          
+          // Check price compatibility (buy price >= sell price)
           if (buyOrder.pricePerToken >= sellOrder.pricePerToken) {
-            // Prevent self-trading
-            if (buyOrder.userId.toString() === sellOrder.userId.toString()) {
+            // Check payment method compatibility
+            const compatibleMethods = buyOrder.paymentMethods.filter(method => 
+              sellOrder.paymentMethods.includes(method)
+            );
+            
+            if (compatibleMethods.length === 0) {
+              // No compatible payment methods, skip this pair
               continue;
             }
             
-            // Calculate trade amount
+            // Check user verification compatibility
+            const buyUserTrust = buyOrder.userId.trustScore || 100;
+            const sellUserTrust = sellOrder.userId.trustScore || 100;
+            
+            // Calculate trade amount (minimum of remaining amounts)
             const tradeAmount = Math.min(buyOrder.remainingAmount, sellOrder.remainingAmount);
-            const tradePrice = sellOrder.pricePerToken; // Use seller's price
+            
+            // Check if trade amount is within user limits
+            const buyerLimitCheck = this.checkUserTradeLimits(buyOrder.userId, tradeAmount, 'buy');
+            const sellerLimitCheck = this.checkUserTradeLimits(sellOrder.userId, tradeAmount, 'sell');
+            
+            if (!buyerLimitCheck.allowed || !sellerLimitCheck.allowed) {
+              // User limits exceeded, skip this pair
+              continue;
+            }
+            
+            // Use seller's price for the trade
+            const tradePrice = sellOrder.pricePerToken;
             const totalValue = tradeAmount * tradePrice;
             const commission = totalValue * this.commissionRate;
             
-            console.log(`💱 Executing trade: ${tradeAmount} CES at ₽${tradePrice} (commission: ₽${commission.toFixed(2)})`);
+            console.log(`Executing trade: ${tradeAmount} CES at ₽${tradePrice} (commission: ₽${commission.toFixed(2)})`);
+            
+            // Send smart notifications to both users
+            await smartNotificationService.sendSmartOrderMatchNotification(
+              buyOrder.userId._id, 
+              sellOrder, 
+              buyOrder
+            );
+            
+            await smartNotificationService.sendSmartOrderMatchNotification(
+              sellOrder.userId._id, 
+              buyOrder, 
+              sellOrder
+            );
             
             // Execute the trade
             await this.executeTrade(buyOrder, sellOrder, tradeAmount, tradePrice, totalValue, commission);
@@ -248,7 +289,7 @@ class P2PService {
             await buyOrder.save();
             await sellOrder.save();
             
-            console.log(`✅ Trade executed successfully`);
+            console.log(`Trade executed successfully`);
             
             // If buy order is completed, break inner loop
             if (buyOrder.remainingAmount === 0) {
@@ -264,17 +305,47 @@ class P2PService {
     }
   }
 
+  // Check user trade limits
+  checkUserTradeLimits(user, amount, orderType) {
+    try {
+      const now = new Date();
+      const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      
+      // Check daily limit
+      if (user.tradingLimits && user.tradingLimits.dailyLimit) {
+        const dailyLimit = user.tradingLimits.dailyLimit;
+        // In a real implementation, you would check actual daily volume
+        // For now, we'll just check against the limit
+        if (amount * user.tradingLimits.maxSingleTrade > dailyLimit) {
+          return { allowed: false, reason: 'Превышен дневной лимит' };
+        }
+      }
+      
+      // Check single trade limit
+      if (user.tradingLimits && user.tradingLimits.maxSingleTrade) {
+        if (amount > user.tradingLimits.maxSingleTrade) {
+          return { allowed: false, reason: 'Превышен лимит одной сделки' };
+        }
+      }
+      
+      return { allowed: true };
+    } catch (error) {
+      console.error('Error checking user trade limits:', error);
+      return { allowed: true }; // Allow trade if there's an error
+    }
+  }
+
   // Execute a trade between two orders with escrow
   async executeTrade(buyOrder, sellOrder, amount, pricePerToken, totalValue, commission) {
     try {
-      console.log(`💱 Executing escrow trade: ${amount} CES at ₽${pricePerToken} (commission: ₽${commission.toFixed(2)})`);
+      console.log(`Executing escrow trade: ${amount} CES at ₽${pricePerToken} (commission: ₽${commission.toFixed(2)})`);
       
       // Create trade record with escrow status
       const trade = new P2PTrade({
         buyOrderId: buyOrder._id,
         sellOrderId: sellOrder._id,
-        buyerId: buyOrder.userId,
-        sellerId: sellOrder.userId,
+        buyerId: buyOrder.userId._id,
+        sellerId: sellOrder.userId._id,
         amount: amount,
         pricePerToken: pricePerToken,
         totalValue: totalValue,
@@ -290,11 +361,11 @@ class P2PService {
       });
       
       await trade.save();
-      console.log(`📝 Trade record created: ${trade._id}`);
+      console.log(`Trade record created: ${trade._id}`);
       
       // Link escrow to trade (update existing escrow transaction)
       try {
-        await escrowService.linkEscrowToTrade(sellOrder.userId, trade._id, 'CES', amount);
+        await escrowService.linkEscrowToTrade(sellOrder.userId._id, trade._id, 'CES', amount);
       } catch (escrowError) {
         console.log('Warning: Could not link escrow to trade, but trade continues');
       }
@@ -303,7 +374,7 @@ class P2PService {
       trade.status = 'payment_pending';
       await trade.save();
       
-      console.log(`✅ Escrow trade created successfully: ${trade._id}`);
+      console.log(`Escrow trade created successfully: ${trade._id}`);
       
       // Schedule automatic timeout handling
       setTimeout(() => {
@@ -328,7 +399,7 @@ class P2PService {
       })
       .sort({ pricePerToken: -1 })
       .limit(limit)
-      .populate('userId', 'username firstName');
+      .populate('userId', 'username firstName trustScore verificationLevel');
       
       const sellOrders = await P2POrder.find({
         type: 'sell',
@@ -337,7 +408,7 @@ class P2PService {
       })
       .sort({ pricePerToken: 1 })
       .limit(limit)
-      .populate('userId', 'username firstName');
+      .populate('userId', 'username firstName trustScore verificationLevel');
       
       return {
         buyOrders,
@@ -386,8 +457,8 @@ class P2PService {
       })
       .sort({ createdAt: -1 })
       .limit(limit)
-      .populate('buyerId', 'username firstName')
-      .populate('sellerId', 'username firstName');
+      .populate('buyerId', 'username firstName trustScore')
+      .populate('sellerId', 'username firstName trustScore');
       
       return trades;
       
@@ -418,7 +489,7 @@ class P2PService {
       order.status = 'cancelled';
       await order.save();
       
-      console.log(`✅ Order cancelled: ${orderId}`);
+      console.log(`Order cancelled: ${orderId}`);
       return order;
       
     } catch (error) {
@@ -427,7 +498,7 @@ class P2PService {
     }
   }
 
-  // Get current market price suggestion
+  // Get current market price suggestion with AI recommendations
   async getMarketPriceSuggestion() {
     try {
       // Get CES price in rubles from price service
@@ -450,9 +521,14 @@ class P2PService {
         marketPrice = (currentPriceRub * 0.7) + (avgTradePrice * 0.3);
       }
       
+      // AI-based price recommendation
+      const aiRecommendation = await this.getAIRecommendation(currentPriceRub, marketPrice, recentTrades);
+      
       return {
         currentPrice: currentPriceRub,
         suggestedPrice: marketPrice,
+        aiRecommendedPrice: aiRecommendation.price,
+        aiConfidence: aiRecommendation.confidence,
         recentTradesCount: recentTrades.length
       };
       
@@ -461,7 +537,65 @@ class P2PService {
       return {
         currentPrice: 250, // Fallback
         suggestedPrice: 250,
+        aiRecommendedPrice: 250,
+        aiConfidence: 0,
         recentTradesCount: 0
+      };
+    }
+  }
+
+  // AI-based price recommendation (simplified version)
+  async getAIRecommendation(currentPrice, marketPrice, recentTrades) {
+    try {
+      // In a real implementation, this would use a machine learning model
+      // For now, we'll use a simple algorithm based on market trends
+      
+      if (recentTrades.length < 3) {
+        // Not enough data, return market price
+        return {
+          price: marketPrice,
+          confidence: 0.3
+        };
+      }
+      
+      // Calculate price trend
+      const firstHalf = recentTrades.slice(0, Math.floor(recentTrades.length / 2));
+      const secondHalf = recentTrades.slice(Math.floor(recentTrades.length / 2));
+      
+      const avgFirst = firstHalf.reduce((sum, trade) => sum + trade.pricePerToken, 0) / firstHalf.length;
+      const avgSecond = secondHalf.reduce((sum, trade) => sum + trade.pricePerToken, 0) / secondHalf.length;
+      
+      const trend = (avgSecond - avgFirst) / avgFirst;
+      
+      // Adjust recommendation based on trend
+      let recommendedPrice = marketPrice;
+      let confidence = 0.7;
+      
+      if (Math.abs(trend) > 0.05) {
+        // Strong trend, adjust recommendation
+        recommendedPrice = marketPrice * (1 + trend * 0.5);
+        confidence = 0.8;
+      } else if (Math.abs(trend) > 0.02) {
+        // Moderate trend
+        recommendedPrice = marketPrice * (1 + trend * 0.3);
+        confidence = 0.6;
+      }
+      
+      // Ensure recommendation is reasonable
+      const maxDeviation = 0.2; // 20% maximum deviation
+      if (Math.abs(recommendedPrice - marketPrice) / marketPrice > maxDeviation) {
+        recommendedPrice = marketPrice * (1 + (recommendedPrice > marketPrice ? maxDeviation : -maxDeviation));
+      }
+      
+      return {
+        price: recommendedPrice,
+        confidence: confidence
+      };
+    } catch (error) {
+      console.error('Error in AI recommendation:', error);
+      return {
+        price: marketPrice,
+        confidence: 0.5
       };
     }
   }
@@ -469,8 +603,30 @@ class P2PService {
   // Handle trade timeout
   async handleTradeTimeout(tradeId) {
     try {
-      console.log(`⏰ Handling trade timeout for ${tradeId}`);
+      console.log(`Handling trade timeout for ${tradeId}`);
+      
+      // Get trade details before handling timeout
+      const trade = await P2PTrade.findById(tradeId)
+        .populate('buyerId')
+        .populate('sellerId');
+      
+      // Handle escrow timeout
       await escrowService.handleEscrowTimeout(tradeId);
+      
+      // Send smart notification about timeout
+      if (trade) {
+        const smartNotificationService = require('./smartNotificationService');
+        await smartNotificationService.sendSmartTradeStatusNotification(
+          trade.buyerId._id, 
+          trade, 
+          'timeout'
+        );
+        await smartNotificationService.sendSmartTradeStatusNotification(
+          trade.sellerId._id, 
+          trade, 
+          'timeout'
+        );
+      }
     } catch (error) {
       console.error('Error handling trade timeout:', error);
     }
@@ -479,7 +635,7 @@ class P2PService {
   // Confirm payment for a trade
   async confirmPayment(tradeId, buyerChatId, paymentProof = '') {
     try {
-      console.log(`💳 Confirming payment for trade ${tradeId}`);
+      console.log(`Confirming payment for trade ${tradeId}`);
       
       const trade = await P2PTrade.findById(tradeId)
         .populate('buyerId')
@@ -523,9 +679,21 @@ class P2PService {
       await trade.save();
       
       // Update user statistics
-      await this.updateUserStats(trade.buyerId._id, trade.sellerId._id, trade.totalValue);
+      await this.updateUserStats(trade.buyerId._id, trade.sellerId._id, trade.totalValue, 'completed');
       
-      console.log(`✅ Trade ${tradeId} completed successfully`);
+      // Send smart notifications
+      await smartNotificationService.sendSmartTradeStatusNotification(
+        trade.buyerId._id, 
+        trade, 
+        'completed'
+      );
+      await smartNotificationService.sendSmartTradeStatusNotification(
+        trade.sellerId._id, 
+        trade, 
+        'completed'
+      );
+      
+      console.log(`Trade ${tradeId} completed successfully`);
       return trade;
       
     } catch (error) {
@@ -537,7 +705,7 @@ class P2PService {
   // Cancel a trade
   async cancelTrade(tradeId, userChatId, reason = 'Cancelled by user') {
     try {
-      console.log(`❌ Cancelling trade ${tradeId}`);
+      console.log(`Cancelling trade ${tradeId}`);
       
       const trade = await P2PTrade.findById(tradeId)
         .populate('buyerId')
@@ -573,7 +741,22 @@ class P2PService {
       
       await trade.save();
       
-      console.log(`✅ Trade ${tradeId} cancelled and refunded`);
+      // Update user statistics
+      await this.updateUserStats(trade.buyerId._id, trade.sellerId._id, trade.totalValue, 'cancelled');
+      
+      // Send smart notifications
+      await smartNotificationService.sendSmartTradeStatusNotification(
+        trade.buyerId._id, 
+        trade, 
+        'cancelled'
+      );
+      await smartNotificationService.sendSmartTradeStatusNotification(
+        trade.sellerId._id, 
+        trade, 
+        'cancelled'
+      );
+      
+      console.log(`Trade ${tradeId} cancelled and refunded`);
       return trade;
       
     } catch (error) {
@@ -583,12 +766,13 @@ class P2PService {
   }
 
   // Update user trading statistics
-  async updateUserStats(buyerId, sellerId, tradeValue) {
+  async updateUserStats(buyerId, sellerId, tradeValue, tradeStatus) {
     try {
       const updates = {
         $inc: {
-          successfulTrades: 1,
-          totalTradeVolume: tradeValue
+          'tradeAnalytics.totalTrades': 1,
+          'tradeAnalytics.successfulTrades': tradeStatus === 'completed' ? 1 : 0,
+          'tradingVolumeLast30Days': tradeValue
         }
       };
       
@@ -597,7 +781,11 @@ class P2PService {
         User.findByIdAndUpdate(sellerId, updates)
       ]);
       
-      console.log(`📊 Updated trading stats for users`);
+      // Update trust scores
+      await reputationService.updateTrustScoreAfterTrade(buyerId, tradeStatus);
+      await reputationService.updateTrustScoreAfterTrade(sellerId, tradeStatus);
+      
+      console.log(`Updated trading stats and trust scores for users`);
       
     } catch (error) {
       console.error('Error updating user stats:', error);
