@@ -9,7 +9,34 @@ const walletService = require('../services/walletService');
 const p2pService = require('../services/p2pService');
 const { User, PriceHistory } = require('../database/models');
 
+// Simple session storage for user states
+const userSessions = new Map();
+
 class MessageHandler {
+  // Get or create user session
+  getUserSession(chatId) {
+    if (!userSessions.has(chatId)) {
+      userSessions.set(chatId, {});
+    }
+    return userSessions.get(chatId);
+  }
+
+  // Clear user session
+  clearUserSession(chatId) {
+    userSessions.delete(chatId);
+  }
+
+  // Set session data
+  setSessionData(chatId, key, value) {
+    const session = this.getUserSession(chatId);
+    session[key] = value;
+  }
+
+  // Get session data
+  getSessionData(chatId, key) {
+    const session = this.getUserSession(chatId);
+    return session[key];
+  }
   // Handle /start command
   async handleStart(ctx) {
     try {
@@ -83,20 +110,24 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
   async handleTextMessage(ctx) {
     try {
       const text = ctx.message.text;
+      const chatId = ctx.chat.id.toString();
+      
+      console.log(`📝 Processing text message from ${chatId}: "${text}"`);
       
       // Check if user is in transfer mode
-      if (ctx.session && ctx.session.awaitingTransfer) {
-        const transferType = ctx.session.transferType || 'CES';
-        ctx.session.awaitingTransfer = false;
-        ctx.session.transferType = null;
+      const awaitingTransfer = this.getSessionData(chatId, 'awaitingTransfer');
+      if (awaitingTransfer) {
+        const transferType = this.getSessionData(chatId, 'transferType') || 'CES';
+        this.clearUserSession(chatId);
         return await this.processTransferCommand(ctx, text, transferType);
       }
       
       // Check if user is in P2P order mode
-      if (ctx.session && ctx.session.awaitingP2POrder) {
-        const orderType = ctx.session.p2pOrderType || 'buy';
-        ctx.session.awaitingP2POrder = false;
-        ctx.session.p2pOrderType = null;
+      const awaitingP2POrder = this.getSessionData(chatId, 'awaitingP2POrder');
+      if (awaitingP2POrder) {
+        const orderType = this.getSessionData(chatId, 'p2pOrderType') || 'buy';
+        console.log(`🔄 Processing P2P order: type=${orderType}, text="${text}"`);
+        this.clearUserSession(chatId);
         return await this.processP2POrder(ctx, text, orderType);
       }
       
@@ -114,7 +145,15 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
         return await this.processTransferCommand(ctx, text, 'CES');
       }
       
+      // Check if message looks like a P2P order (amount price)
+      const p2pOrderPattern = /^\d+[,.]?\d*\s+\d+[,.]?\d*$/;
+      if (p2pOrderPattern.test(text.trim())) {
+        console.log(`🤔 Message looks like P2P order but no session found: "${text}"`);
+        return await ctx.reply('❌ Сначала выберите тип ордера (покупка или продажа) через меню P2P.\n\n💡 Нажмите кнопку "P2P" для доступа к торговле.');
+      }
+      
       // Default response for unknown text
+      console.log(`❓ Unknown command from ${chatId}: "${text}"`);
       await ctx.reply('😕 Не понимаю эту команду. Используйте кнопки меню или команду /start');
       
     } catch (error) {
@@ -467,6 +506,10 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
   async handleP2PMenu(ctx) {
     try {
       const chatId = ctx.chat.id.toString();
+      
+      // Clear any existing session when entering P2P menu
+      this.clearUserSession(chatId);
+      
       const walletInfo = await walletService.getUserWallet(chatId);
       
       if (!walletInfo || !walletInfo.hasWallet) {
@@ -563,9 +606,8 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
                      'ℹ️ Минимальная сумма: 0.001 CES';
       
       // Store state to handle next user message
-      ctx.session = ctx.session || {};
-      ctx.session.awaitingTransfer = true;
-      ctx.session.transferType = 'CES';
+      this.setSessionData(chatId, 'awaitingTransfer', true);
+      this.setSessionData(chatId, 'transferType', 'CES');
       
       const keyboard = Markup.inlineKeyboard([
         [Markup.button.callback('❌ Отмена', 'p2p_menu')]
@@ -615,9 +657,8 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
                      '⚠️ 0.001 POL останется для комиссии';
       
       // Store state to handle next user message
-      ctx.session = ctx.session || {};
-      ctx.session.awaitingTransfer = true;
-      ctx.session.transferType = 'POL';
+      this.setSessionData(chatId, 'awaitingTransfer', true);
+      this.setSessionData(chatId, 'transferType', 'POL');
       
       const keyboard = Markup.inlineKeyboard([
         [Markup.button.callback('❌ Отмена', 'p2p_menu')]
@@ -782,6 +823,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
   // Handle P2P Buy CES
   async handleP2PBuyCES(ctx) {
     try {
+      const chatId = ctx.chat.id.toString();
       const priceData = await p2pService.getMarketPriceSuggestion();
       
       const message = `📈 **Купить CES токены**\n\n` +
@@ -795,9 +837,9 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
                      `💵 Комиссия: 1% с суммы сделки`;
       
       // Store state to handle next user message
-      ctx.session = ctx.session || {};
-      ctx.session.awaitingP2POrder = true;
-      ctx.session.p2pOrderType = 'buy';
+      console.log(`🔄 Setting P2P buy order session for ${chatId}`);
+      this.setSessionData(chatId, 'awaitingP2POrder', true);
+      this.setSessionData(chatId, 'p2pOrderType', 'buy');
       
       const keyboard = Markup.inlineKeyboard([
         [Markup.button.callback('❌ Отмена', 'p2p_menu')]
@@ -844,9 +886,9 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
                      `💵 Комиссия: 1% с суммы сделки`;
       
       // Store state to handle next user message
-      ctx.session = ctx.session || {};
-      ctx.session.awaitingP2POrder = true;
-      ctx.session.p2pOrderType = 'sell';
+      console.log(`🔄 Setting P2P sell order session for ${chatId}`);
+      this.setSessionData(chatId, 'awaitingP2POrder', true);
+      this.setSessionData(chatId, 'p2pOrderType', 'sell');
       
       const keyboard = Markup.inlineKeyboard([
         [Markup.button.callback('❌ Отмена', 'p2p_menu')]

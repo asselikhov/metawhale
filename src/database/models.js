@@ -29,7 +29,40 @@ const userSchema = new mongoose.Schema({
   successfulTrades: { type: Number, default: 0 },
   totalTradeVolume: { type: Number, default: 0 },
   p2pRating: { type: Number, default: 5.0, min: 1, max: 5 },
-  disputeCount: { type: Number, default: 0 }
+  disputeCount: { type: Number, default: 0 },
+  // Enhanced verification system
+  verificationLevel: { 
+    type: String, 
+    enum: ['unverified', 'phone_verified', 'document_verified', 'premium'], 
+    default: 'unverified' 
+  },
+  phoneNumber: String,
+  phoneVerified: { type: Boolean, default: false },
+  documentsVerified: { type: Boolean, default: false },
+  isPremiumTrader: { type: Boolean, default: false },
+  // Trust and reputation system
+  trustScore: { type: Number, default: 100, min: 0, max: 1000 },
+  completionRate: { type: Number, default: 100 }, // Percentage of completed trades
+  avgReleaseTime: { type: Number, default: 0 }, // Average time to release in minutes
+  tradingVolumeLast30Days: { type: Number, default: 0 },
+  lastOnline: { type: Date, default: Date.now },
+  // Security settings
+  twoFactorEnabled: { type: Boolean, default: false },
+  loginHistory: [{
+    timestamp: { type: Date, default: Date.now },
+    ipAddress: String,
+    userAgent: String
+  }],
+  // Trading preferences
+  preferredPaymentMethods: [{ type: String, enum: ['bank_transfer', 'sbp', 'qiwi', 'yoomoney'] }],
+  tradingLimits: {
+    dailyLimit: { type: Number, default: 50000 }, // in rubles
+    monthlyLimit: { type: Number, default: 1000000 }, // in rubles
+    maxSingleTrade: { type: Number, default: 100000 } // in rubles
+  },
+  // Blocked/restricted users
+  blockedUsers: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+  restrictedUntil: Date
 });
 
 // Wallet Schema
