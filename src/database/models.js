@@ -188,7 +188,9 @@ const p2pTradeSchema = new mongoose.Schema({
   amount: { type: Number, required: true }, // CES amount traded
   pricePerToken: { type: Number, required: true }, // Price per CES token in rubles
   totalValue: { type: Number, required: true }, // Total value in rubles
-  commission: { type: Number, required: true }, // 1% commission in rubles
+  buyerCommission: { type: Number, default: 0 }, // 1% commission from buyer in rubles
+  sellerCommission: { type: Number, default: 0 }, // 1% commission from seller in rubles
+  commission: { type: Number, required: true }, // Total commission in rubles (for backward compatibility)
   status: { 
     type: String, 
     enum: ['pending', 'escrow_locked', 'payment_pending', 'payment_confirmed', 'completed', 'disputed', 'cancelled', 'failed'], 

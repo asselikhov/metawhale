@@ -113,7 +113,7 @@ class MessageHandler {
 ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${priceService.formatNumber(priceData.volume24h).replace(/(\d+\.\d{2})K/, (match) => {
         const num = parseFloat(match.replace('K', ''));
         return num.toFixed(1) + 'K';
-      })} • 🅐🅣🅗 ${athDisplay}`;
+      })} • 🅐� ТеH ${athDisplay}`;
       
       // Edit the original message instead of sending new one
       await ctx.telegram.editMessageText(
@@ -1031,10 +1031,13 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
       const chatId = ctx.chat.id.toString();
       const walletInfo = await walletService.getUserWallet(chatId);
       
-      if (walletInfo.cesBalance <= 0) {
+      if (walletInfo.cesBalance < 1) {
         const message = `📉 ПРОДАЖА CES ТОКЕНОВ\n\n` +
-                       `Ваш баланс: ${walletInfo.cesBalance.toFixed(4)} CES\n` +
-                       `⚠️ Недостаточно CES для продажи\n\n` +
+                       `⚠️ Недостаточно CES для продажи\n` +
+                       `Ваш баланс: ${walletInfo.cesBalance.toFixed(4)} CES\n\n` +
+                       `Информация:\n` +
+                       `➤ Минимальная сумма: 1 CES\n` +
+                       `➤ Комиссия платформы: 1%\n\n` +
                        `💡 Пополните баланс CES`;
         
         const keyboard = Markup.inlineKeyboard([

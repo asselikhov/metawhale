@@ -1,6 +1,6 @@
 /**
  * P2P Trading Service with Escrow
- * Handles buying and selling CES tokens for rubles with 1% commission
+ * Handles buying and selling CES tokens for rubles with 1% commission from both buyer and seller
  * Includes advanced escrow system for maximum security
  */
 
@@ -248,9 +248,13 @@ class P2PService {
             // Use seller's price for the trade
             const tradePrice = sellOrder.pricePerToken;
             const totalValue = tradeAmount * tradePrice;
-            const commission = totalValue * this.commissionRate;
             
-            console.log(`Executing trade: ${tradeAmount} CES at ₽${tradePrice} (commission: ₽${commission.toFixed(2)})`);
+            // Calculate commissions: 1% from buyer and 1% from seller
+            const buyerCommission = totalValue * this.commissionRate; // 1% from buyer
+            const sellerCommission = totalValue * this.commissionRate; // 1% from seller
+            const totalCommission = buyerCommission + sellerCommission; // Total 2%
+            
+            console.log(`Executing trade: ${tradeAmount} CES at ₽${tradePrice} (buyer commission: ₽${buyerCommission.toFixed(2)}, seller commission: ₽${sellerCommission.toFixed(2)})`);
             
             // Send smart notifications to both users
             await smartNotificationService.sendSmartOrderMatchNotification(
@@ -265,8 +269,8 @@ class P2PService {
               sellOrder
             );
             
-            // Execute the trade
-            await this.executeTrade(buyOrder, sellOrder, tradeAmount, tradePrice, totalValue, commission);
+            // Execute the trade with both commissions
+            await this.executeTrade(buyOrder, sellOrder, tradeAmount, tradePrice, totalValue, buyerCommission, sellerCommission);
             
             // Update order statuses
             buyOrder.remainingAmount -= tradeAmount;
@@ -336,9 +340,12 @@ class P2PService {
   }
 
   // Execute a trade between two orders with escrow
-  async executeTrade(buyOrder, sellOrder, amount, pricePerToken, totalValue, commission) {
+  async executeTrade(buyOrder, sellOrder, amount, pricePerToken, totalValue, buyerCommission, sellerCommission) {
     try {
-      console.log(`Executing escrow trade: ${amount} CES at ₽${pricePerToken} (commission: ₽${commission.toFixed(2)})`);
+      console.log(`Executing escrow trade: ${amount} CES at ₽${pricePerToken} (buyer commission: ₽${buyerCommission.toFixed(2)}, seller commission: ₽${sellerCommission.toFixed(2)})`);
+      
+      // Calculate total commission
+      const totalCommission = buyerCommission + sellerCommission;
       
       // Create trade record with escrow status
       const trade = new P2PTrade({
@@ -349,7 +356,9 @@ class P2PService {
         amount: amount,
         pricePerToken: pricePerToken,
         totalValue: totalValue,
-        commission: commission,
+        buyerCommission: buyerCommission, // 1% commission from buyer
+        sellerCommission: sellerCommission, // 1% commission from seller
+        commission: totalCommission, // Total commission for backward compatibility
         status: 'escrow_locked',
         escrowStatus: 'locked',
         paymentMethod: buyOrder.paymentMethods ? buyOrder.paymentMethods[0] : 'bank_transfer',
@@ -618,24 +627,43 @@ class P2PService {
       
       await trade.save();
       
-      // Transfer 1% commission to admin wallet
+      // Transfer commissions to admin wallet
       try {
-        const commissionAmount = trade.commission; // Commission is in rubles
-        // Calculate equivalent CES amount based on trade price
-        const commissionInCES = commissionAmount / trade.pricePerToken;
+        // Transfer buyer commission (1%)
+        if (trade.buyerCommission > 0) {
+          // Calculate equivalent CES amount based on trade price
+          const buyerCommissionInCES = trade.buyerCommission / trade.pricePerToken;
+          
+          if (buyerCommissionInCES > 0) {
+            console.log(`Transferring buyer commission: ${buyerCommissionInCES} CES to admin wallet`);
+            // Transfer commission from buyer to admin wallet
+            await walletService.sendCESTokens(
+              trade.buyerId.chatId, // Use buyer as sender
+              '0xC2D5FABd53F537A1225460AE30097198aB14FF32', // Admin wallet address
+              buyerCommissionInCES
+            );
+            console.log(`Buyer commission transfer completed successfully`);
+          }
+        }
         
-        if (commissionInCES > 0) {
-          console.log(`Transferring commission: ${commissionInCES} CES to admin wallet`);
-          // Transfer commission from seller to admin wallet
-          await walletService.sendCESTokens(
-            trade.sellerId.chatId, // Use seller as sender since they have the tokens
-            '0xC2D5FABd53F537A1225460AE30097198aB14FF32', // Admin wallet address
-            commissionInCES
-          );
-          console.log(`Commission transfer completed successfully`);
+        // Transfer seller commission (1%)
+        if (trade.sellerCommission > 0) {
+          // Calculate equivalent CES amount based on trade price
+          const sellerCommissionInCES = trade.sellerCommission / trade.pricePerToken;
+          
+          if (sellerCommissionInCES > 0) {
+            console.log(`Transferring seller commission: ${sellerCommissionInCES} CES to admin wallet`);
+            // Transfer commission from seller to admin wallet
+            await walletService.sendCESTokens(
+              trade.sellerId.chatId, // Use seller as sender
+              '0xC2D5FABd53F537A1225460AE30097198aB14FF32', // Admin wallet address
+              sellerCommissionInCES
+            );
+            console.log(`Seller commission transfer completed successfully`);
+          }
         }
       } catch (commissionError) {
-        console.error('Error transferring commission:', commissionError);
+        console.error('Error transferring commissions:', commissionError);
         // Don't fail the trade if commission transfer fails
       }
       
