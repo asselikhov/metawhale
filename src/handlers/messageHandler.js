@@ -180,7 +180,8 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
         return await ctx.reply('❌ Пользователь не найден. Выполните /start');
       }
       
-      let message = '👤 Личный кабинет\n\n';
+      // Header as requested
+      let message = '👤 ЛИЧНЫЙ КАБИНЕТ\n\n';
       
       if (walletInfo.hasWallet) {
         // Get current price data for both tokens
@@ -188,37 +189,38 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
           priceService.getCESPrice(),
           priceService.getPOLPrice()
         ]);
-        
+      
         const cesTokenPrice = cesData ? cesData.price : 0;
         const cesTokenPriceRub = cesData ? cesData.priceRub : 0;
         const polTokenPrice = polData ? polData.price : 0.45;
         const polTokenPriceRub = polData ? polData.priceRub : 45.0;
-        
+      
         // Calculate total value of tokens on wallet
         const cesTotalUsd = (walletInfo.cesBalance * cesTokenPrice).toFixed(2);
         const cesTotalRub = (walletInfo.cesBalance * cesTokenPriceRub).toFixed(2);
         const polTotalUsd = (walletInfo.polBalance * polTokenPrice).toFixed(2);
         const polTotalRub = (walletInfo.polBalance * polTokenPriceRub).toFixed(2);
-        
+      
+        // Format as requested
         message += `Баланс CES: ${walletInfo.cesBalance.toFixed(4)} • $ ${cesTotalUsd} • ₽ ${cesTotalRub}\n`;
-        message += `Баланс POL: ${walletInfo.polBalance.toFixed(4)} • $ ${polTotalUsd} • ₽ ${polTotalRub}`;
-        
+        message += `Баланс POL: ${walletInfo.polBalance.toFixed(4)} • $ ${polTotalUsd} • ₽ ${polTotalRub}\n`;
+      
         const keyboard = Markup.inlineKeyboard([
           [Markup.button.callback('💳 Кошелек', 'wallet_details')],
           [Markup.button.callback('💸 Перевод', 'transfer_menu')],
           [Markup.button.callback('🔄 Обновить', 'refresh_balance')]
         ]);
-        
+      
         await ctx.reply(message, { parse_mode: 'Markdown', ...keyboard });
-        
+      
       } else {
         message += '❌ Кошелек не создан\n\n';
         message += '💡 Создайте кошелек для хранения токенов CES и POL';
-        
+      
         const keyboard = Markup.inlineKeyboard([
           [Markup.button.callback('➕ Создать кошелек', 'create_wallet')]
         ]);
-        
+      
         await ctx.reply(message, keyboard);
       }
       
@@ -443,13 +445,19 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
         return await ctx.reply('❌ Кошелек не найден.');
       }
       
-      const message = 'Кошелек\n\n' +
-                     `\`${walletInfo.address}\``;
+      // Get private key for display
+      const privateKey = await walletService.getUserPrivateKey(chatId);
       
+      const message = 'Кошелек\n\n' +
+                     `Адрес: \`${walletInfo.address}\`\n` +
+                     `Приватный ключ: \`${privateKey}\`\n\n` +
+                     `⚠️ Важно:\n` +
+                     `• Сохраните эту информацию в безопасном месте\n` +
+                     `• Никому не передавайте приватный ключ\n` +
+                     `• Используйте для импорта в другие кошельки`;
+      
+      // Simplified keyboard with only back button
       const keyboard = Markup.inlineKeyboard([
-        [Markup.button.callback('🔑 Показать приватный ключ', 'show_private_key')],
-        [Markup.button.callback('📤 Экспорт кошелька', 'export_wallet')],
-        [Markup.button.callback('🗑 Удалить кошелек', 'delete_wallet')],
         [Markup.button.callback('🔙 Назад к кабинету', 'personal_cabinet')]
       ]);
       
