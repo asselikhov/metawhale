@@ -1,8 +1,10 @@
-const { Telegraf } = require('telegraf');
+const { Telegraf, Markup } = require('telegraf');
 const mongoose = require('mongoose');
 const cron = require('node-cron');
 const axios = require('axios');
 const express = require('express');
+const { ethers } = require('ethers');
+const crypto = require('crypto');
 require('dotenv').config();
 
 // Инициализация бота
@@ -24,10 +26,42 @@ const userSchema = new mongoose.Schema({
   isActive: { type: Boolean, default: true },
   subscribedAt: { type: Date, default: Date.now },
   lastNotified: Date,
-  language: { type: String, default: 'ru' }
+  language: { type: String, default: 'ru' },
+  // Wallet functionality
+  walletAddress: { type: String, unique: true, sparse: true }, // Polygon wallet address
+  walletCreatedAt: { type: Date },
+  cesBalance: { type: Number, default: 0 }, // CES token balance
+  lastBalanceUpdate: { type: Date }
 });
 
 const User = mongoose.model('User', userSchema);
+
+// Схема кошелька для хранения приватных ключей (зашифрованных)
+const walletSchema = new mongoose.Schema({
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  address: { type: String, required: true, unique: true },
+  encryptedPrivateKey: { type: String, required: true }, // Зашифрованный приватный ключ
+  createdAt: { type: Date, default: Date.now }
+});
+
+const Wallet = mongoose.model('Wallet', walletSchema);
+
+// Схема транзакций
+const transactionSchema = new mongoose.Schema({
+  fromUserId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  toUserId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  fromAddress: { type: String, required: true },
+  toAddress: { type: String, required: true },
+  amount: { type: Number, required: true },
+  tokenType: { type: String, default: 'CES' },
+  txHash: String, // Хеш транзакции в блокчейне
+  status: { type: String, enum: ['pending', 'completed', 'failed'], default: 'pending' },
+  type: { type: String, enum: ['deposit', 'withdrawal', 'p2p'], required: true },
+  createdAt: { type: Date, default: Date.now },
+  completedAt: Date
+});
+
+const Transaction = mongoose.model('Transaction', transactionSchema);
 
 // Схема истории цен
 const priceHistorySchema = new mongoose.Schema({
@@ -56,8 +90,38 @@ mongoose.connect(process.env.MONGODB_URI)
 
 // Команда /start
 bot.start(async (ctx) => {
-  const welcomeMessage = 'Добро пожаловать в Rustling Grass 🌾 assistant !';
-  await ctx.reply(welcomeMessage);
+  try {
+    // Регистрируем или обновляем пользователя в базе данных
+    const user = await User.findOneAndUpdate(
+      { chatId: ctx.chat.id.toString() },
+      {
+        username: ctx.from.username,
+        firstName: ctx.from.first_name,
+        lastName: ctx.from.last_name,
+        isActive: true
+      },
+      { upsert: true, new: true }
+    );
+    
+    const welcomeMessage = 'Добро пожаловать в Rustling Grass 🌾 assistant !';
+    
+    // Главное меню с кнопками
+    const mainMenu = Markup.inlineKeyboard([
+      [
+        Markup.button.callback('👤 Личный кабинет', 'personal_cabinet'),
+        Markup.button.callback('🔄 P2P', 'p2p_menu')
+      ],
+      [
+        Markup.button.callback('💰 Цена CES', 'get_price')
+      ]
+    ]);
+    
+    await ctx.reply(welcomeMessage, mainMenu);
+    
+  } catch (error) {
+    console.error('Ошибка команды /start:', error);
+    await ctx.reply('Произошла ошибка при запуске. Попробуйте еще раз.');
+  }
 });
 
 // Команда /price
@@ -65,10 +129,287 @@ bot.command('price', async (ctx) => {
   await sendPriceToUser(ctx);
 });
 
+// Обработчики кнопок меню
+
+// Кнопка "Личный кабинет"
+bot.action('personal_cabinet', async (ctx) => {
+  await showPersonalCabinet(ctx);
+});
+
+// Кнопка "P2P"
+bot.action('p2p_menu', async (ctx) => {
+  await showP2PMenu(ctx);
+});
+
+// Кнопка "Цена CES"
+bot.action('get_price', async (ctx) => {
+  await sendPriceToUser(ctx);
+});
+
+// Кнопка "Редактировать"
+bot.action('edit_wallet', async (ctx) => {
+  await showWalletEditMenu(ctx);
+});
+
+// Обработчик создания кошелька
+bot.action('create_wallet', async (ctx) => {
+  await createUserWallet(ctx);
+});
+
+// Обработчик возврата к главному меню
+bot.action('back_to_menu', async (ctx) => {
+  const mainMenu = Markup.inlineKeyboard([
+    [
+      Markup.button.callback('👤 Личный кабинет', 'personal_cabinet'),
+      Markup.button.callback('🔄 P2P', 'p2p_menu')
+    ],
+    [
+      Markup.button.callback('💰 Цена CES', 'get_price')
+    ]
+  ]);
+  
+  await ctx.editMessageText('🌾 Главное меню', mainMenu);
+});
+
+// Обновление баланса
+bot.action('refresh_balance', async (ctx) => {
+  await showPersonalCabinet(ctx);
+});
+
+// Показ приватного ключа
+bot.action('show_private_key', async (ctx) => {
+  try {
+    const chatId = ctx.chat.id.toString();
+    const user = await User.findOne({ chatId });
+    
+    if (!user || !user.walletAddress) {
+      return await ctx.editMessageText('❌ Кошелек не найден');
+    }
+    
+    const wallet = await Wallet.findOne({ userId: user._id });
+    if (!wallet) {
+      return await ctx.editMessageText('❌ Приватный ключ не найден');
+    }
+    
+    const privateKey = decryptPrivateKey(wallet.encryptedPrivateKey);
+    
+    const message = `🔑 **Приватный ключ**\n\n` +
+                   `⚠️ **Осторожно!** Никому не показывайте этот ключ!\n\n` +
+                   `🔐 \`${privateKey}\``;
+    
+    const keyboard = Markup.inlineKeyboard([
+      [Markup.button.callback('🔙 Назад к редактированию', 'edit_wallet')]
+    ]);
+    
+    await ctx.editMessageText(message, { parse_mode: 'Markdown', ...keyboard });
+    
+  } catch (error) {
+    console.error('Ошибка показа приватного ключа:', error);
+    await ctx.editMessageText('❌ Ошибка получения приватного ключа');
+  }
+});
+
 // Глобальная переменная для отслеживания последнего запроса к API
 let lastApiCall = 0;
 // Короткий интервал между запросами только для предотвращения частых вызовов /price
 const API_CALL_INTERVAL = parseInt(process.env.API_CALL_INTERVAL) || 3000; // 3 секунды между командами
+
+// Константы для криптографии
+const ENCRYPTION_KEY = process.env.WALLET_ENCRYPTION_KEY || crypto.randomBytes(32);
+const IV_LENGTH = 16;
+
+// Функции для работы с кошельками
+
+// Шифрование приватного ключа
+function encryptPrivateKey(privateKey) {
+  const iv = crypto.randomBytes(IV_LENGTH);
+  const cipher = crypto.createCipher('aes-256-cbc', ENCRYPTION_KEY);
+  let encrypted = cipher.update(privateKey, 'utf8', 'hex');
+  encrypted += cipher.final('hex');
+  return iv.toString('hex') + ':' + encrypted;
+}
+
+// Дешифрование приватного ключа
+function decryptPrivateKey(encryptedData) {
+  const parts = encryptedData.split(':');
+  const iv = Buffer.from(parts[0], 'hex');
+  const encrypted = parts[1];
+  const decipher = crypto.createDecipher('aes-256-cbc', ENCRYPTION_KEY);
+  let decrypted = decipher.update(encrypted, 'hex', 'utf8');
+  decrypted += decipher.final('utf8');
+  return decrypted;
+}
+
+// Создание нового кошелька
+async function createUserWallet(ctx) {
+  try {
+    const chatId = ctx.chat.id.toString();
+    
+    // Проверяем, есть ли уже кошелек у пользователя
+    let user = await User.findOne({ chatId });
+    if (!user) {
+      return await ctx.editMessageText('❌ Пользователь не найден. Выполните /start');
+    }
+    
+    if (user.walletAddress) {
+      return await ctx.editMessageText('⚠️ У вас уже есть кошелек: ' + user.walletAddress);
+    }
+    
+    // Создаем новый кошелек
+    const wallet = ethers.Wallet.createRandom();
+    const encryptedPrivateKey = encryptPrivateKey(wallet.privateKey);
+    
+    // Сохраняем в базу данных
+    const newWallet = new Wallet({
+      userId: user._id,
+      address: wallet.address,
+      encryptedPrivateKey: encryptedPrivateKey
+    });
+    
+    await newWallet.save();
+    
+    // Обновляем пользователя
+    user.walletAddress = wallet.address;
+    user.walletCreatedAt = new Date();
+    await user.save();
+    
+    const keyboard = Markup.inlineKeyboard([
+      [Markup.button.callback('🔙 Назад к кабинету', 'personal_cabinet')],
+      [Markup.button.callback('🏠 Главное меню', 'back_to_menu')]
+    ]);
+    
+    await ctx.editMessageText(
+      `✅ Кошелек успешно создан!\n\n` +
+      `📍 Адрес: \`${wallet.address}\`\n` +
+      `🌐 Сеть: Polygon\n\n` +
+      `⚠️ Сохраните приватный ключ в безопасном месте:\n` +
+      `🔐 \`${wallet.privateKey}\`\n\n` +
+      `🚨 Никому не сообщайте ваш приватный ключ!`,
+      keyboard
+    );
+    
+  } catch (error) {
+    console.error('Ошибка создания кошелька:', error);
+    await ctx.editMessageText('❌ Ошибка при создании кошелька. Попробуйте позже.');
+  }
+}
+
+// Получение баланса CES токена
+async function getCESBalance(address) {
+  try {
+    // Здесь должен быть вызов к Polygon RPC для получения баланса токена CES
+    // Пока возвращаем заглушку
+    const cesContractAddress = process.env.CES_CONTRACT_ADDRESS || '0x1bdf71ede1a4777db1eebe7232bcda20d6fc1610';
+    
+    // TODO: Реализовать получение баланса через Web3/ethers.js
+    // const provider = new ethers.JsonRpcProvider(process.env.POLYGON_RPC_URL);
+    // const contract = new ethers.Contract(cesContractAddress, erc20Abi, provider);
+    // const balance = await contract.balanceOf(address);
+    
+    // Заглушка - возвращаем случайный баланс
+    return Math.random() * 1000;
+    
+  } catch (error) {
+    console.error('Ошибка получения баланса CES:', error);
+    return 0;
+  }
+}
+
+// Показать личный кабинет
+async function showPersonalCabinet(ctx) {
+  try {
+    const chatId = ctx.chat.id.toString();
+    let user = await User.findOne({ chatId });
+    
+    if (!user) {
+      return await ctx.editMessageText('❌ Пользователь не найден. Выполните /start');
+    }
+    
+    let message = '👤 **Личный кабинет**\n\n';
+    
+    if (user.walletAddress) {
+      // Получаем баланс CES
+      const cesBalance = await getCESBalance(user.walletAddress);
+      
+      // Обновляем баланс в базе данных
+      user.cesBalance = cesBalance;
+      user.lastBalanceUpdate = new Date();
+      await user.save();
+      
+      message += `🌐 **Polygon Wallet**\n`;
+      message += `📍 Адрес: \`${user.walletAddress}\`\n`;
+      message += `💎 Баланс CES: **${cesBalance.toFixed(4)} CES**\n`;
+      message += `⏰ Обновлено: ${user.lastBalanceUpdate.toLocaleString('ru-RU')}\n\n`;
+      
+      const keyboard = Markup.inlineKeyboard([
+        [Markup.button.callback('✏️ Редактировать', 'edit_wallet')],
+        [Markup.button.callback('🔄 Обновить баланс', 'refresh_balance')],
+        [Markup.button.callback('🏠 Главное меню', 'back_to_menu')]
+      ]);
+      
+      await ctx.editMessageText(message, { parse_mode: 'Markdown', ...keyboard });
+      
+    } else {
+      message += '❌ Кошелек не создан\n\n';
+      message += 'Создайте кошелек для хранения токенов CES';
+      
+      const keyboard = Markup.inlineKeyboard([
+        [Markup.button.callback('➕ Создать кошелек', 'create_wallet')],
+        [Markup.button.callback('🏠 Главное меню', 'back_to_menu')]
+      ]);
+      
+      await ctx.editMessageText(message, keyboard);
+    }
+    
+  } catch (error) {
+    console.error('Ошибка отображения личного кабинета:', error);
+    await ctx.editMessageText('❌ Ошибка загрузки личного кабинета. Попробуйте позже.');
+  }
+}
+
+// Показать меню редактирования кошелька
+async function showWalletEditMenu(ctx) {
+  try {
+    const message = '⚙️ **Редактирование кошелька**\n\n' +
+                   'Выберите действие:';
+    
+    const keyboard = Markup.inlineKeyboard([
+      [Markup.button.callback('🔑 Показать приватный ключ', 'show_private_key')],
+      [Markup.button.callback('📤 Экспорт кошелька', 'export_wallet')],
+      [Markup.button.callback('🗑 Удалить кошелек', 'delete_wallet')],
+      [Markup.button.callback('🔙 Назад к кабинету', 'personal_cabinet')]
+    ]);
+    
+    await ctx.editMessageText(message, { parse_mode: 'Markdown', ...keyboard });
+    
+  } catch (error) {
+    console.error('Ошибка меню редактирования:', error);
+    await ctx.editMessageText('❌ Ошибка загрузки меню. Попробуйте позже.');
+  }
+}
+
+// Показать P2P меню
+async function showP2PMenu(ctx) {
+  try {
+    const message = '🔄 **P2P Обмен**\n\n' +
+                   'Функциональность P2P обмена находится в разработке.\n\n' +
+                   'Скоро здесь вы сможете:\n' +
+                   '• 💸 Отправлять CES токены\n' +
+                   '• 📥 Получать переводы\n' +
+                   '• 📊 Просматривать историю транзакций\n' +
+                   '• 🔁 Обменивать токены';
+    
+    const keyboard = Markup.inlineKeyboard([
+      [Markup.button.callback('🏠 Главное меню', 'back_to_menu')]
+    ]);
+    
+    await ctx.editMessageText(message, { parse_mode: 'Markdown', ...keyboard });
+    
+  } catch (error) {
+    console.error('Ошибка P2P меню:', error);
+    await ctx.editMessageText('❌ Ошибка загрузки P2P меню. Попробуйте позже.');
+  }
+}
 
 // Функция создания графиков удалена для ускорения работы бота
 
