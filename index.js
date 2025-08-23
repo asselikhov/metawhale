@@ -286,8 +286,9 @@ async function sendPriceToUser(ctx) {
     // Индикатор источника данных
     const sourceEmoji = priceData.source === 'database' ? '🗄️' : '🄲🄼🄲';
     
-    // Новый формат сообщения
-    const message = `💰 Цена токена CES: $ ${priceData.price.toFixed(2)}${priceData.priceRub > 0 ? ` | ₽ ${priceData.priceRub.toFixed(2)}` : ''} ${sourceEmoji}
+    // Новый формат сообщения согласно требованиям
+    const message = `➖➖➖➖➖➖➖➖➖➖➖➖➖➖➖
+💰 Цена токена CES: $ ${priceData.price.toFixed(2)}${priceData.priceRub > 0 ? ` | ₽ ${priceData.priceRub.toFixed(2)}` : ''} ${sourceEmoji}
 ➖➖➖➖➖➖➖➖➖➖➖➖➖➖➖
 ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${formatNumber(priceData.volume24h)} • 🅐🅣🅗 ${athDisplay}`;
     

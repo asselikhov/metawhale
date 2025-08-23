@@ -112,7 +112,8 @@ function testMessageFormat() {
   const athDisplay = isNewATH ? `🏆 $ ${testDataCMC.ath.toFixed(2)}` : `$ ${testDataCMC.ath.toFixed(2)}`;
   const sourceEmoji = '🅲🅼🅲';
   
-  const messageCMC = `💰 Цена токена CES: $ ${testDataCMC.price.toFixed(2)} | ₽ ${testDataCMC.priceRub.toFixed(2)} ${sourceEmoji}
+  const messageCMC = `➖➖➖➖➖➖➖➖➖➖➖➖➖➖➖
+💰 Цена токена CES: $ ${testDataCMC.price.toFixed(2)} | ₽ ${testDataCMC.priceRub.toFixed(2)} ${sourceEmoji}
 ➖➖➖➖➖➖➖➖➖➖➖➖➖➖➖
 ${changeEmoji} ${changeSign}${testDataCMC.change24h.toFixed(2)}% • 🅥 $ ${formatNumber(testDataCMC.volume24h)} • 🅐🅣🅗 ${athDisplay}`;
   
@@ -127,7 +128,8 @@ ${changeEmoji} ${changeSign}${testDataCMC.change24h.toFixed(2)}% • 🅥 $ ${fo
   
   const sourceEmojiDB = '🗄️';
   
-  const messageDB = `💰 Цена токена CES: $ ${testDataDB.price.toFixed(2)} | ₽ ${testDataDB.priceRub.toFixed(2)} ${sourceEmojiDB}
+  const messageDB = `➖➖➖➖➖➖➖➖➖➖➖➖➖➖➖
+💰 Цена токена CES: $ ${testDataDB.price.toFixed(2)} | ₽ ${testDataDB.priceRub.toFixed(2)} ${sourceEmojiDB}
 ➖➖➖➖➖➖➖➖➖➖➖➖➖➖➖
 ${changeEmoji} ${changeSign}${testDataDB.change24h.toFixed(2)}% • 🅥 $ ${formatNumber(testDataDB.volume24h)} • 🅐🅣🅗 ${athDisplay}`;
   
