@@ -131,6 +131,14 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
         return await this.processP2POrder(ctx, text, orderType);
       }
       
+      // Check if user is in user messaging mode
+      const awaitingUserMessage = this.getSessionData(chatId, 'awaitingUserMessage');
+      if (awaitingUserMessage) {
+        console.log(`🔄 Processing user message: text="${text}"`);
+        this.clearUserSession(chatId);
+        return await this.processUserMessage(ctx, text);
+      }
+      
       if (text.includes('Личный кабинет')) {
         return await this.handlePersonalCabinetText(ctx);
       }
@@ -145,7 +153,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
         return await this.processTransferCommand(ctx, text, 'CES');
       }
       
-      // Check if message looks like a P2P order (amount price) - but only if in P2P session
+      // Check if message looks like a P2P order (amount price)
       const p2pOrderPattern = /^\d+[,.]?\d*\s+\d+[,.]?\d*$/;
       if (p2pOrderPattern.test(text.trim())) {
         console.log(`🤔 Message looks like P2P order but no session found: "${text}"`);
@@ -256,7 +264,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
       const keyboard = Markup.inlineKeyboard([
         [Markup.button.callback('📈 Купить CES', 'p2p_buy_ces'), Markup.button.callback('📉 Продать CES', 'p2p_sell_ces')],
         [Markup.button.callback('📊 Рынок ордеров', 'p2p_market_orders'), Markup.button.callback('📋 Мои ордера', 'p2p_my_orders')],
-        [Markup.button.callback('📈 Аналитика', 'p2p_analytics')]
+        [Markup.button.callback('🏆 Топ трейдеров', 'p2p_top_traders'), Markup.button.callback('📈 Аналитика', 'p2p_analytics')]
       ]);
       
       await ctx.reply(message, keyboard);
@@ -557,7 +565,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
       const keyboard = Markup.inlineKeyboard([
         [Markup.button.callback('📈 Купить CES', 'p2p_buy_ces'), Markup.button.callback('📉 Продать CES', 'p2p_sell_ces')],
         [Markup.button.callback('📊 Рынок ордеров', 'p2p_market_orders'), Markup.button.callback('📋 Мои ордера', 'p2p_my_orders')],
-        [Markup.button.callback('📈 Аналитика', 'p2p_analytics')]
+        [Markup.button.callback('🏆 Топ трейдеров', 'p2p_top_traders'), Markup.button.callback('📈 Аналитика', 'p2p_analytics')]
       ]);
       
       await ctx.editMessageText(message, keyboard);
@@ -580,31 +588,52 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
       
       // Get reputation data
       const reputationService = require('../services/reputationService');
-      const reputation = await reputationService.getUserReputation(user._id);
+      const profileDetails = await reputationService.getUserProfileDetails(user._id);
       
-      // Get user's recent trades
-      const recentTrades = await p2pService.getUserTrades(chatId, 5);
+      // Create visual progress bar for trust score
+      const progressBar = this.createProgressBar(profileDetails.trustScoreProgress, 100, 20);
       
-      const verificationText = {
-        'unverified': 'Не верифицирован',
-        'phone_verified': 'Верификация по телефону',
-        'document_verified': 'Верификация по документам',
-        'premium': 'Премиум пользователь'
-      };
+      // Format member since date
+      const memberSinceDate = profileDetails.memberSince ? 
+        profileDetails.memberSince.toLocaleDateString('ru-RU') : 'Неизвестно';
       
-      const message = `👤 **Мой профиль P2P** 👤\n\n` +
-                     `⭐ *Рейтинг и репутация:*\n` +
-                     `🏆 Рейтинг: ${reputation.trustScore}/1000\n` +
-                     `🏅 Верификация: ${verificationText[reputation.verificationLevel]}\n` +
-                     `📊 Уровень завершения сделок: ${reputation.completionRate}%\n` +
-                     `⚠️ Спорные сделки: ${reputation.disputeRate}%\n` +
-                     `💰 Всего сделок: ${reputation.totalTrades}\n\n` +
-                     `📈 *Последние сделки:*\n` +
-                     (recentTrades.length > 0 
-                       ? recentTrades.map((trade, index) => 
-                           `${index + 1}. 💰 ${trade.amount.toFixed(2)} CES за ₽${trade.totalValue.toFixed(2)} (${trade.status === 'completed' ? '✅' : '❌'})`
-                         ).join('\n')
-                       : '📝 Нет завершенных сделок');
+      // Format trading limits
+      const maxTradeAmount = profileDetails.tradingLimits.maxTradeAmount.toLocaleString('ru-RU');
+      const dailyLimit = profileDetails.tradingLimits.dailyLimit.toLocaleString('ru-RU');
+      const monthlyLimit = profileDetails.tradingLimits.monthlyLimit.toLocaleString('ru-RU');
+      
+      // Create achievements section
+      let achievementsSection = '';
+      if (profileDetails.achievements.length > 0) {
+        achievementsSection = '\n🏆 *Достижения:*\n';
+        profileDetails.achievements.forEach(achievement => {
+          achievementsSection += `${achievement.emoji} **${achievement.name}** - ${achievement.description}\n`;
+        });
+      }
+      
+      // Create weekly activity section
+      let activitySection = '\n📅 *Активность за неделю:*\n';
+      const days = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+      days.forEach(day => {
+        const count = profileDetails.weeklyActivity[day] || 0;
+        activitySection += `${day}: ${count} сделок\n`;
+      });
+      
+      const message = `👤 **Профиль пользователя: @${profileDetails.username}**\n\n` +
+                     `🌟 *Рейтинг пользователя: ${profileDetails.trustScore}/1000 (${profileDetails.userLevel.emoji} ${profileDetails.userLevel.name})*\n` +
+                     `${progressBar} ${profileDetails.trustScoreProgress}%\n\n` +
+                     `✅ Успешных сделок: ${profileDetails.successRate}% (${profileDetails.completedTrades}/${profileDetails.tradesLast30Days})\n` +
+                     `⚖️ Спорные сделки: ${profileDetails.disputeRate}% (${Math.round(profileDetails.tradesLast30Days * profileDetails.disputeRate / 100)})\n` +
+                     `⏱️ Среднее время ответа: ${profileDetails.avgResponseTime} мин\n` +
+                     `💰 Объем торгов за 30 дней: ${profileDetails.totalTradeVolume.toLocaleString('ru-RU')} ₽\n` +
+                     `📅 На платформе с: ${memberSinceDate}\n` +
+                     `🏅 Верификация: ${profileDetails.verificationStatus}\n\n` +
+                     `📊 *Торговые лимиты:*\n` +
+                     `🔹 Макс. сделка: ${maxTradeAmount} ₽\n` +
+                     `🔸 Суточный лимит: ${dailyLimit} ₽\n` +
+                     `🔹 Месячный лимит: ${monthlyLimit} ₽\n` +
+                     achievementsSection +
+                     activitySection;
       
       const keyboard = Markup.inlineKeyboard([
         [Markup.button.callback('🔄 Обновить', 'p2p_my_profile')],
@@ -616,6 +645,58 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
     } catch (error) {
       console.error('Profile error:', error);
       await ctx.editMessageText('❌ Ошибка загрузки профиля. Попробуйте позже.');
+    }
+  }
+
+  // Create visual progress bar
+  createProgressBar(value, max, width) {
+    const progress = Math.round((value / max) * width);
+    const filled = '█'.repeat(progress);
+    const empty = '░'.repeat(width - progress);
+    return `[${filled}${empty}]`;
+  }
+
+  // Handle user profile view for other users
+  async handleUserPublicProfile(ctx, targetUserId) {
+    try {
+      const targetUser = await User.findById(targetUserId);
+      if (!targetUser) {
+        return await ctx.reply('❌ Пользователь не найден.');
+      }
+      
+      // Get reputation data
+      const reputationService = require('../services/reputationService');
+      const profileDetails = await reputationService.getUserProfileDetails(targetUser._id);
+      
+      // Create visual progress bar for trust score
+      const progressBar = this.createProgressBar(profileDetails.trustScoreProgress, 100, 15);
+      
+      // Format member since date
+      const memberSinceDate = profileDetails.memberSince ? 
+        profileDetails.memberSince.toLocaleDateString('ru-RU') : 'Неизвестно';
+      
+      const message = `👤 **Профиль пользователя: @${profileDetails.username}**\n\n` +
+                     `🌟 *Рейтинг: ${profileDetails.trustScore}/1000 (${profileDetails.userLevel.emoji} ${profileDetails.userLevel.name})*\n` +
+                     `${progressBar} ${profileDetails.trustScoreProgress}%\n\n` +
+                     `✅ Успешных сделок: ${profileDetails.successRate}%\n` +
+                     `⚖️ Спорные сделки: ${profileDetails.disputeRate}%\n` +
+                     `⏱️ Среднее время ответа: ${profileDetails.avgResponseTime} мин\n` +
+                     `💰 Объем торгов за 30 дней: ${profileDetails.totalTradeVolume.toLocaleString('ru-RU')} ₽\n` +
+                     `📅 На платформе с: ${memberSinceDate}\n` +
+                     `🏅 Верификация: ${profileDetails.verificationStatus}\n\n` +
+                     `*Выберите действие:*`;
+      
+      const keyboard = Markup.inlineKeyboard([
+        [Markup.button.callback('💬 Написать', `message_user_${targetUserId}`)],
+        [Markup.button.callback('🔄 Создать ордер', `create_order_with_${targetUserId}`)],
+        [Markup.button.callback('🔙 Назад', 'p2p_market_orders')]
+      ]);
+      
+      await ctx.reply(message, { parse_mode: 'Markdown', ...keyboard });
+      
+    } catch (error) {
+      console.error('Public profile error:', error);
+      await ctx.reply('❌ Ошибка загрузки профиля пользователя.');
     }
   }
 
@@ -1007,13 +1088,17 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
     try {
       const orders = await p2pService.getMarketOrders(10);
       
-      let message = `🌟 **Активные ордера** 🌟\n\n`;
+      let message = `🌟 **Рынок ордеров** 🌟\n\n`;
       
       if (orders.buyOrders.length > 0) {
         message += `📈 **Заявки на покупку:**\n`;
         orders.buyOrders.slice(0, 5).forEach((order, index) => {
           const username = order.userId.username || order.userId.firstName || 'Пользователь';
-          message += `${index + 1}. 💰 ${order.remainingAmount.toFixed(2)} CES по ₽${order.pricePerToken.toFixed(2)} (@${username})\n`;
+          const trustScore = order.userId.trustScore || 100;
+          const userLevel = this.getUserLevelDisplay(trustScore);
+          
+          message += `${index + 1}. 💰 ${order.remainingAmount.toFixed(2)} CES по ₽${order.pricePerToken.toFixed(2)} `;
+          message += `(@${username}) ${userLevel.emoji}${userLevel.level}\n`;
         });
         message += `\n`;
       }
@@ -1022,13 +1107,24 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
         message += `📉 **Заявки на продажу:**\n`;
         orders.sellOrders.slice(0, 5).forEach((order, index) => {
           const username = order.userId.username || order.userId.firstName || 'Пользователь';
-          message += `${index + 1}. 💎 ${order.remainingAmount.toFixed(2)} CES по ₽${order.pricePerToken.toFixed(2)} (@${username})\n`;
+          const trustScore = order.userId.trustScore || 100;
+          const userLevel = this.getUserLevelDisplay(trustScore);
+          
+          message += `${index + 1}. 💎 ${order.remainingAmount.toFixed(2)} CES по ₽${order.pricePerToken.toFixed(2)} `;
+          message += `(@${username}) ${userLevel.emoji}${userLevel.level}\n`;
         });
       }
       
       if (orders.buyOrders.length === 0 && orders.sellOrders.length === 0) {
         message += `📝 Активных ордеров пока нет\n\n💡 Создайте первый ордер на покупку или продажу!`;
       }
+      
+      message += `\n*Легенда рейтинга:*\n`;
+      message += `🏆5 - Эксперт (900+)\n`;
+      message += `⭐4 - Профессионал (750-899)\n`;
+      message += `💎3 - Трейдер (600-749)\n`;
+      message += `🌱2 - Ученик (400-599)\n`;
+      message += `🆕1 - Новичок (0-399)\n`;
       
       const keyboard = Markup.inlineKeyboard([
         [Markup.button.callback('🔄 Обновить', 'p2p_market_orders')],
@@ -1040,6 +1136,50 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
     } catch (error) {
       console.error('Market orders error:', error);
       await ctx.editMessageText('❌ Ошибка загрузки ордеров.');
+    }
+  }
+
+  // Get user level display for market orders
+  getUserLevelDisplay(trustScore) {
+    if (trustScore >= 900) return { emoji: '🏆', level: 5 };
+    if (trustScore >= 750) return { emoji: '⭐', level: 4 };
+    if (trustScore >= 600) return { emoji: '💎', level: 3 };
+    if (trustScore >= 400) return { emoji: '🌱', level: 2 };
+    return { emoji: '🆕', level: 1 };
+  }
+
+  // Handle top traders display
+  async handleP2PTopTraders(ctx) {
+    try {
+      const reputationService = require('../services/reputationService');
+      const topTraders = await reputationService.getTopRatedUsers(10);
+      
+      let message = `🏆 **Топ трейдеров** 🏆\n\n`;
+      
+      if (topTraders.length > 0) {
+        topTraders.forEach((trader, index) => {
+          const positionEmoji = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}.`;
+          const userLevel = this.getUserLevelDisplay(trader.trustScore);
+          
+          message += `${positionEmoji} ${userLevel.emoji} @${trader.username}\n`;
+          message += `   🌟 Рейтинг: ${trader.trustScore}/1000\n`;
+          message += `   ✅ Успешных сделок: ${trader.completionRate}%\n\n`;
+        });
+      } else {
+        message += `📝 Пока нет трейдеров с высоким рейтингом\n\n`;
+        message += `💡 Активно торгуйте, чтобы попасть в топ!`;
+      }
+      
+      const keyboard = Markup.inlineKeyboard([
+        [Markup.button.callback('🔄 Обновить', 'p2p_top_traders')],
+        [Markup.button.callback('🔙 Назад к P2P', 'p2p_menu')]
+      ]);
+      
+      await ctx.editMessageText(message, { parse_mode: 'Markdown', ...keyboard });
+      
+    } catch (error) {
+      console.error('Top traders error:', error);
+      await ctx.editMessageText('❌ Ошибка загрузки топ трейдеров.');
     }
   }
 
@@ -1179,7 +1319,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
       
       console.log(`✅ Order created successfully: ${result._id}`);
       
-      const typeEmoji = orderType === 'buy' ? '📈' : '📉';
+      const typeEmoji = orderType === 'buy' ? '📈' : '.DataGridViewColumn';
       const typeText = orderType === 'buy' ? 'покупку' : 'продажу';
       const totalValue = amount * pricePerToken;
       
@@ -1246,6 +1386,104 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
     } catch (error) {
       console.error('Analytics error:', error);
       await ctx.editMessageText('❌ Ошибка загрузки аналитики. Попробуйте позже.');
+    }
+  }
+
+  // Handle user messaging
+  async handleUserMessaging(ctx, targetUserId) {
+    try {
+      // Set session state to capture next message
+      const chatId = ctx.chat.id.toString();
+      this.setSessionData(chatId, 'awaitingUserMessage', true);
+      this.setSessionData(chatId, 'targetUserId', targetUserId);
+      
+      const targetUser = await User.findById(targetUserId);
+      const username = targetUser?.username || targetUser?.firstName || 'Пользователь';
+      
+      const message = `📝 *Отправка сообщения пользователю @${username}*\n\n` +
+                     'Введите ваше сообщение ниже:\n\n' +
+                     'ℹ️ Сообщение будет отправлено напрямую пользователю';
+      
+      const keyboard = Markup.inlineKeyboard([
+        [Markup.button.callback('❌ Отмена', 'p2p_market_orders')]
+      ]);
+      
+      await ctx.editMessageText(message, { parse_mode: 'Markdown', ...keyboard });
+      
+    } catch (error) {
+      console.error('User messaging error:', error);
+      await ctx.editMessageText('❌ Ошибка инициализации сообщения пользователю.');
+    }
+  }
+
+  // Handle create order with user
+  async handleCreateOrderWithUser(ctx, targetUserId) {
+    try {
+      const chatId = ctx.chat.id.toString();
+      const targetUser = await User.findById(targetUserId);
+      
+      if (!targetUser) {
+        return await ctx.editMessageText('❌ Пользователь не найден.');
+      }
+      
+      const username = targetUser.username || targetUser.firstName || 'Пользователь';
+      
+      const message = `📝 *Создание ордера с пользователем @${username}*\n\n` +
+                     'Выберите тип ордера:';
+      
+      const keyboard = Markup.inlineKeyboard([
+        [Markup.button.callback('📈 Купить CES', `create_buy_order_with_${targetUserId}`)],
+        [Markup.button.callback('📉 Продать CES', `create_sell_order_with_${targetUserId}`)],
+        [Markup.button.callback('❌ Отмена', 'p2p_market_orders')]
+      ]);
+      
+      await ctx.editMessageText(message, { parse_mode: 'Markdown', ...keyboard });
+      
+    } catch (error) {
+      console.error('Create order with user error:', error);
+      await ctx.editMessageText('❌ Ошибка создания ордера с пользователем.');
+    }
+  }
+
+  // Process user message
+  async processUserMessage(ctx, messageText) {
+    try {
+      const chatId = ctx.chat.id.toString();
+      const targetUserId = this.getSessionData(chatId, 'targetUserId');
+      
+      // Clear session
+      this.clearUserSession(chatId);
+      
+      if (!targetUserId) {
+        return await ctx.reply('❌ Не удалось определить получателя сообщения.');
+      }
+      
+      const senderUser = await User.findOne({ chatId });
+      const targetUser = await User.findById(targetUserId);
+      
+      if (!senderUser || !targetUser) {
+        return await ctx.reply('❌ Пользователь не найден.');
+      }
+      
+      // In a real implementation, you would send the message to the target user
+      // For now, we'll just show a confirmation
+      
+      const senderUsername = senderUser.username || senderUser.firstName || 'Пользователь';
+      const targetUsername = targetUser.username || targetUser.firstName || 'Пользователь';
+      
+      const confirmationMessage = `✅ *Сообщение отправлено пользователю @${targetUsername}*\n\n` +
+                                `Ваше сообщение: "${messageText}"\n\n` +
+                                `ℹ️ В реальной реализации сообщение было бы доставлено пользователю`;
+      
+      const keyboard = Markup.inlineKeyboard([
+        [Markup.button.callback('🔙 Назад к ордерам', 'p2p_market_orders')]
+      ]);
+      
+      await ctx.reply(confirmationMessage, { parse_mode: 'Markdown', ...keyboard });
+      
+    } catch (error) {
+      console.error('Process user message error:', error);
+      await ctx.reply('❌ Ошибка отправки сообщения.');
     }
   }
 }

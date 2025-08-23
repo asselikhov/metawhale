@@ -148,6 +148,18 @@ class ReputationService {
         .slice(0, 3)
         .map(([method, count]) => ({ method, count }));
 
+      // Calculate average response time (simplified)
+      const avgResponseTime = totalTrades > 0 ? 
+        Math.round(recentTrades.reduce((sum, trade) => {
+          if (trade.timeTracking?.paymentMadeAt && trade.timeTracking?.createdAt) {
+            return sum + (trade.timeTracking.paymentMadeAt - trade.timeTracking.createdAt) / (1000 * 60); // in minutes
+          }
+          return sum;
+        }, 0) / totalTrades) : 0;
+
+      // Get user level based on trust score
+      const userLevel = this.getUserLevel(user.trustScore || 100);
+
       return {
         trustScore: user.trustScore || 100,
         verificationLevel: user.verificationLevel || 'unverified',
@@ -158,10 +170,103 @@ class ReputationService {
         recentTrades: recentTrades.length,
         favoritePaymentMethods,
         isPremiumTrader: user.isPremiumTrader || false,
-        lastActive: user.lastOnline || user.updatedAt
+        lastActive: user.lastOnline || user.updatedAt,
+        avgResponseTime,
+        userLevel,
+        // Additional metrics for visual display
+        tradesLast30Days: totalTrades,
+        successRate: completionRate.toFixed(1),
+        trustScoreProgress: Math.round((user.trustScore || 100) / 10), // For progress bar (0-100)
+        achievements: this.getUserAchievements(user, totalTrades, completionRate)
       };
     } catch (error) {
       console.error('Error getting user reputation:', error);
+      return null;
+    }
+  }
+
+  // Get user level based on trust score
+  getUserLevel(trustScore) {
+    if (trustScore >= 900) return { name: 'Эксперт', emoji: '🏆', level: 5 };
+    if (trustScore >= 750) return { name: 'Профессионал', emoji: '⭐', level: 4 };
+    if (trustScore >= 600) return { name: 'Трейдер', emoji: '💎', level: 3 };
+    if (trustScore >= 400) return { name: 'Ученик', emoji: '🌱', level: 2 };
+    return { name: 'Новичок', emoji: '🆕', level: 1 };
+  }
+
+  // Get user achievements
+  getUserAchievements(user, totalTrades, completionRate) {
+    const achievements = [];
+    
+    if (totalTrades >= 100) {
+      achievements.push({ name: '100+ Сделок', emoji: '💯', description: 'Более 100 совершенных сделок' });
+    }
+    
+    if (completionRate >= 95) {
+      achievements.push({ name: 'Высокий рейтинг', emoji: '✅', description: 'Уровень завершения сделок выше 95%' });
+    }
+    
+    if (user.isPremiumTrader) {
+      achievements.push({ name: 'Премиум трейдер', emoji: '👑', description: 'Премиум статус на платформе' });
+    }
+    
+    if (user.verificationLevel === 'premium') {
+      achievements.push({ name: 'Премиум верификация', emoji: '🛡️', description: 'Пройдена премиум верификация' });
+    }
+    
+    if (totalTrades >= 10 && completionRate >= 90) {
+      achievements.push({ name: 'Надежный трейдер', emoji: '🤝', description: 'Более 10 сделок с 90%+ успешным завершением' });
+    }
+    
+    return achievements;
+  }
+
+  // Get detailed user profile for display
+  async getUserProfileDetails(userId) {
+    try {
+      const user = await User.findById(userId);
+      if (!user) return null;
+
+      // Get reputation data
+      const reputation = await this.getUserReputation(userId);
+      
+      // Get recent trades for activity display
+      const recentTrades = await P2PTrade.find({
+        $or: [{ buyerId: userId }, { sellerId: userId }],
+        createdAt: { $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) } // Last 7 days
+      }).sort({ createdAt: -1 }).limit(10);
+
+      // Calculate weekly activity
+      const activityByDay = {};
+      const days = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
+      
+      recentTrades.forEach(trade => {
+        const day = days[trade.createdAt.getDay()];
+        activityByDay[day] = (activityByDay[day] || 0) + 1;
+      });
+
+      // Get verification level text
+      const verificationText = {
+        'unverified': 'Не верифицирован',
+        'phone_verified': 'Верификация по телефону',
+        'document_verified': 'Верификация по документам',
+        'premium': 'Премиум пользователь'
+      };
+
+      // Get trading limits based on trust score
+      const tradingLimits = this.getUserVerificationRequirements(user.trustScore || 100);
+
+      return {
+        ...reputation,
+        username: user.username || user.firstName || 'Пользователь',
+        memberSince: user.subscribedAt,
+        verificationStatus: verificationText[user.verificationLevel] || 'Не верифицирован',
+        weeklyActivity: activityByDay,
+        tradingLimits,
+        totalTradeVolume: user.tradingVolumeLast30Days || 0
+      };
+    } catch (error) {
+      console.error('Error getting user profile details:', error);
       return null;
     }
   }

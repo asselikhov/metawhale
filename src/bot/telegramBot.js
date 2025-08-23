@@ -73,6 +73,7 @@ class Bot {
     this.bot.action('p2p_my_orders', messageHandler.handleP2PMyOrders.bind(messageHandler));
     this.bot.action('p2p_analytics', messageHandler.handleP2PAnalytics.bind(messageHandler));
     this.bot.action('p2p_my_profile', messageHandler.handleP2PMyProfile.bind(messageHandler));
+    this.bot.action('p2p_top_traders', messageHandler.handleP2PTopTraders.bind(messageHandler));
     
     // Handle transfer confirmations (dynamic callbacks)
     this.bot.action(/^confirm_transfer_/, (ctx) => {
@@ -82,6 +83,18 @@ class Bot {
     // Handle P2P order confirmations (dynamic callbacks)
     this.bot.action(/^confirm_p2p_order_/, (ctx) => {
       return messageHandler.handleP2POrderConfirmation.call(messageHandler, ctx, ctx.callbackQuery.data);
+    });
+    
+    // Handle user messaging (dynamic callbacks)
+    this.bot.action(/^message_user_/, (ctx) => {
+      const userId = ctx.callbackQuery.data.split('_')[2];
+      return messageHandler.handleUserMessaging.call(messageHandler, ctx, userId);
+    });
+    
+    // Handle order creation with user (dynamic callbacks)
+    this.bot.action(/^create_order_with_/, (ctx) => {
+      const userId = ctx.callbackQuery.data.split('_')[3];
+      return messageHandler.handleCreateOrderWithUser.call(messageHandler, ctx, userId);
     });
   }
 
