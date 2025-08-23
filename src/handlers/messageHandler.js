@@ -257,10 +257,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
       const profileDetails = await reputationService.getUserProfileDetails(user._id);
       const userLevel = this.getUserLevelDisplayNew(reputation.trustScore);
       
-      // Send the p2plogo image first
-      await ctx.replyWithPhoto({ source: 'p2plogo.png' });
-      
-      // Then send the P2P Exchange menu with required format (without header and action text)
+      // Send the p2plogo image with user statistics as caption
       const message = `Рейтинг: ${reputation.trustScore}/1000 ${userLevel.emoji}\n` +
                      `Объем сделок: ${(profileDetails.totalTradeVolume || 0).toLocaleString('ru-RU')} ₽\n` +
                      `Завершенные сделки: ${reputation.completionRate}%\n` +
@@ -273,7 +270,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
         [Markup.button.callback('🏆 Топ трейдеров', 'p2p_top_traders'), Markup.button.callback('🧮 Аналитика', 'p2p_analytics')]
       ]);
       
-      await ctx.reply(message, keyboard);
+      await ctx.replyWithPhoto({ source: 'p2plogo.png' }, { caption: message, reply_markup: keyboard });
       
     } catch (error) {
       console.error('P2P menu text error:', error);
@@ -564,10 +561,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
       const profileDetails = await reputationService.getUserProfileDetails(user._id);
       const userLevel = this.getUserLevelDisplayNew(reputation.trustScore);
       
-      // Send the p2plogo image first
-      await ctx.replyWithPhoto({ source: 'p2plogo.png' });
-      
-      // Then send the P2P Exchange menu with required format (without header and action text)
+      // Send the p2plogo image with user statistics as caption
       const message = `Рейтинг: ${reputation.trustScore}/1000 ${userLevel.emoji}\n` +
                      `Объем сделок: ${(profileDetails.totalTradeVolume || 0).toLocaleString('ru-RU')} ₽\n` +
                      `Завершенные сделки: ${reputation.completionRate}%\n` +
@@ -580,7 +574,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
         [Markup.button.callback('🏆 Топ трейдеров', 'p2p_top_traders'), Markup.button.callback('🧮 Аналитика', 'p2p_analytics')]
       ]);
       
-      await ctx.reply(message, keyboard);
+      await ctx.replyWithPhoto({ source: 'p2plogo.png' }, { caption: message, reply_markup: keyboard });
       
     } catch (error) {
       console.error('P2P menu error:', error);
