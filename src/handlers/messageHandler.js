@@ -95,7 +95,7 @@ class MessageHandler {
       const message = `➖➖➖➖➖➖➖➖➖➖➖➖➖➖➖
 💰 Цена токена CES: $ ${priceData.price.toFixed(2)} | ₽ ${priceData.priceRub.toFixed(2)}
 ➖➖➖➖➖➖➖➖➖➖➖➖➖➖➖
-${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${priceService.formatNumber(priceData.volume24h).replace(/(\d+\.\d)0*K/, '$1K')} • 🅐�🅣🅗 ${athDisplay}`;
+${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${priceService.formatNumber(priceData.volume24h).replace(/(\d+\.\d)0*K/, '$1K')} • 🅐�🅣� ${athDisplay}`;
       
       // Send text message for maximum speed
       await ctx.reply(message);
@@ -378,8 +378,8 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
       const message = '💸 ПЕРЕВОД';
       
       const keyboard = Markup.inlineKeyboard([
-        [Markup.button.callback('💸 Перевести CES', 'send_ces_tokens')],
-        [Markup.button.callback('💎 Перевести POL', 'send_pol_tokens')],
+        [Markup.button.callback('🧿 Перевести CES', 'send_ces_tokens')],
+        [Markup.button.callback('🧿 Перевести POL', 'send_pol_tokens')],
         [Markup.button.callback('📊 История', 'transaction_history')],
         [Markup.button.callback('🔙 Назад к кабинету', 'personal_cabinet')]
       ]);
@@ -732,8 +732,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
                        `💼 Ваш баланс: **${walletInfo.cesBalance.toFixed(4)} CES**`;
         
         const keyboard = Markup.inlineKeyboard([
-          [Markup.button.callback('🔄 Обновить баланс', 'refresh_balance')],
-          [Markup.button.callback('🔙 Назад', 'p2p_menu')]
+          [Markup.button.callback('🔙 Назад', 'transfer_menu')]
         ]);
         
         return await ctx.reply(message, { parse_mode: 'Markdown', ...keyboard });
@@ -752,7 +751,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
       this.setSessionData(chatId, 'transferType', 'CES');
       
       const keyboard = Markup.inlineKeyboard([
-        [Markup.button.callback('❌ Отмена', 'p2p_menu')]
+        [Markup.button.callback('❌ Отмена', 'transfer_menu')]
       ]);
       
       await ctx.reply(message, { parse_mode: 'Markdown', ...keyboard });
@@ -780,8 +779,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
                        'ℹ️ Минимум 0.001 POL нужно оставить для комиссии';
         
         const keyboard = Markup.inlineKeyboard([
-          [Markup.button.callback('🔄 Обновить баланс', 'refresh_balance')],
-          [Markup.button.callback('🔙 Назад', 'p2p_menu')]
+          [Markup.button.callback('🔙 Назад', 'transfer_menu')]
         ]);
         
         return await ctx.reply(message, { parse_mode: 'Markdown', ...keyboard });
@@ -803,7 +801,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
       this.setSessionData(chatId, 'transferType', 'POL');
       
       const keyboard = Markup.inlineKeyboard([
-        [Markup.button.callback('❌ Отмена', 'p2p_menu')]
+        [Markup.button.callback('❌ Отмена', 'transfer_menu')]
       ]);
       
       await ctx.reply(message, { parse_mode: 'Markdown', ...keyboard });
@@ -836,7 +834,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
                              tx.status === 'pending' ? '⏳' : '❌';
           
           message += `${index + 1}. ${direction}\n`;
-          message += `💰 ${tx.amount} CES ${statusEmoji}\n`;
+          message += `💰 ${tx.amount} ${tx.tokenType} ${statusEmoji}\n`;
           message += `📅 ${tx.createdAt.toLocaleString('ru-RU')}\n`;
           
           if (tx.txHash) {
@@ -849,7 +847,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
       }
       
       const keyboard = Markup.inlineKeyboard([
-        [Markup.button.callback('🔙 Назад к P2P', 'p2p_menu')]
+        [Markup.button.callback('🔙 Назад', 'transfer_menu')]
       ]);
       
       await ctx.reply(message, { parse_mode: 'Markdown', ...keyboard });
@@ -942,7 +940,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
         
         const keyboard = Markup.inlineKeyboard([
           [Markup.button.callback(`💸 Перевести еще ${tokenType}`, tokenType === 'POL' ? 'send_pol_tokens' : 'send_ces_tokens')],
-          [Markup.button.callback('🔙 К P2P меню', 'p2p_menu')]
+          [Markup.button.callback('🔙 Назад', 'transfer_menu')]
         ]);
         
         await ctx.reply(message, { parse_mode: 'Markdown', ...keyboard });
@@ -955,7 +953,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
                           `ℹ️ ${error.message}`;
       
       const keyboard = Markup.inlineKeyboard([
-        [Markup.button.callback('🔙 К P2P меню', 'p2p_menu')]
+        [Markup.button.callback('🔙 Назад', 'transfer_menu')]
       ]);
       
       await ctx.reply(errorMessage, { parse_mode: 'Markdown', ...keyboard });
