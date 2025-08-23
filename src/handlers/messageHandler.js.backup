@@ -180,7 +180,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
         return await ctx.reply('❌ Пользователь не найден. Выполните /start');
       }
       
-      let message = '👤 Личный кабинет\n\n';
+      let message = '👤 **Личный кабинет**\n\n';
       
       if (walletInfo.hasWallet) {
         // Get current price data for both tokens
@@ -238,11 +238,10 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
       
       if (!walletInfo || !walletInfo.hasWallet) {
         const message = 'У вас нет кошелька.\n\n' +
-                       '💡 Создайте кошелек в Личном кабинете для использования P2P функций.';
+                       'Создайте кошелек в Личном кабинете для использования P2P функций.';
         
-        // Remove the Главное меню button
         const keyboard = Markup.inlineKeyboard([
-          [Markup.button.callback('➕ Создать кошелек', 'create_wallet')]
+          [Markup.button.callback('🏠 Главное меню', 'back_to_menu')]
         ]);
         
         return await ctx.reply(message, keyboard);
@@ -286,7 +285,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
       const walletInfo = await walletService.getUserWallet(chatId);
       
       if (!walletInfo) {
-        return await ctx.reply('❌ Пользователь не найден. Выполните /start');
+        return await ctx.editMessageText('❌ Пользователь не найден. Выполните /start');
       }
       
       let message = 'Личный кабинет\n\n';
@@ -318,23 +317,23 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
           [Markup.button.callback('🔄 Обновить', 'refresh_balance')]
         ]);
         
-        await ctx.reply(message, { parse_mode: 'Markdown', ...keyboard });
+        await ctx.editMessageText(message, { parse_mode: 'Markdown', ...keyboard });
         
       } else {
         message += '❌ Кошелек не создан\n\n';
         message += '💡 Создайте кошелек для хранения токенов CES и POL';
         
-        // Remove the Главное меню button
         const keyboard = Markup.inlineKeyboard([
-          [Markup.button.callback('➕ Создать кошелек', 'create_wallet')]
+          [Markup.button.callback('➕ Создать кошелек', 'create_wallet')],
+          [Markup.button.callback('🏠 Главное меню', 'back_to_menu')]
         ]);
         
-        await ctx.reply(message, keyboard);
+        await ctx.editMessageText(message, keyboard);
       }
       
     } catch (error) {
       console.error('Error showing personal cabinet:', error);
-      await ctx.reply('❌ Ошибка загрузки личного кабинета. Попробуйте позже.');
+      await ctx.editMessageText('❌ Ошибка загрузки личного кабинета. Попробуйте позже.');
     }
   }
 
@@ -349,7 +348,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
         [Markup.button.callback('🏠 Главное меню', 'back_to_menu')]
       ]);
       
-      await ctx.reply(
+      await ctx.editMessageText(
         `Кошелек успешно создан!\n\n` +
         `Адрес: \`${walletResult.address}\`\n` +
         `Сеть: Polygon\n\n` +
@@ -361,7 +360,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
       
     } catch (error) {
       console.error('Wallet creation error:', error);
-      await ctx.reply(`❌ ${error.message}`);
+      await ctx.editMessageText(`❌ ${error.message}`);
     }
   }
 
@@ -378,11 +377,11 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
         [Markup.button.callback('🔙 Назад к кабинету', 'personal_cabinet')]
       ]);
       
-      await ctx.reply(message, { parse_mode: 'Markdown', ...keyboard });
+      await ctx.editMessageText(message, { parse_mode: 'Markdown', ...keyboard });
       
     } catch (error) {
       console.error('Wallet edit menu error:', error);
-      await ctx.reply('❌ Ошибка загрузки меню. Попробуйте позже.');
+      await ctx.editMessageText('❌ Ошибка загрузки меню. Попробуйте позже.');
     }
   }
 
@@ -393,7 +392,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
       const walletInfo = await walletService.getUserWallet(chatId);
       
       if (!walletInfo || !walletInfo.hasWallet) {
-        return await ctx.reply('❌ Кошелек не найден.');
+        return await ctx.editMessageText('❌ Кошелек не найден.');
       }
       
       const message = 'Кошелек\n\n' +
@@ -406,11 +405,11 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
         [Markup.button.callback('🔙 Назад к кабинету', 'personal_cabinet')]
       ]);
       
-      await ctx.reply(message, { parse_mode: 'Markdown', ...keyboard });
+      await ctx.editMessageText(message, { parse_mode: 'Markdown', ...keyboard });
       
     } catch (error) {
       console.error('Wallet details error:', error);
-      await ctx.reply('❌ Ошибка загрузки данных кошелька.');
+      await ctx.editMessageText('❌ Ошибка загрузки данных кошелька.');
     }
   }
 
@@ -426,11 +425,11 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
         [Markup.button.callback('🔙 Назад к кабинету', 'personal_cabinet')]
       ]);
       
-      await ctx.reply(message, keyboard);
+      await ctx.editMessageText(message, keyboard);
       
     } catch (error) {
       console.error('Transfer menu error:', error);
-      await ctx.reply('❌ Ошибка загрузки меню переводов.');
+      await ctx.editMessageText('❌ Ошибка загрузки меню переводов.');
     }
   }
 
@@ -448,11 +447,11 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
         [Markup.button.callback('🔙 Назад к редактированию', 'edit_wallet')]
       ]);
       
-      await ctx.reply(message, { parse_mode: 'Markdown', ...keyboard });
+      await ctx.editMessageText(message, { parse_mode: 'Markdown', ...keyboard });
       
     } catch (error) {
       console.error('Show private key error:', error);
-      await ctx.reply(`❌ ${error.message}`);
+      await ctx.editMessageText(`❌ ${error.message}`);
     }
   }
 
@@ -464,7 +463,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
       const privateKey = await walletService.getUserPrivateKey(chatId);
       
       if (!walletInfo || !walletInfo.hasWallet) {
-        return await ctx.reply('❌ Кошелек не найден.');
+        return await ctx.editMessageText('❌ Кошелек не найден.');
       }
       
       const message = `📤 **Экспорт кошелька**\n\n` +
@@ -479,11 +478,11 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
         [Markup.button.callback('🔙 Назад к редактированию', 'edit_wallet')]
       ]);
       
-      await ctx.reply(message, { parse_mode: 'Markdown', ...keyboard });
+      await ctx.editMessageText(message, { parse_mode: 'Markdown', ...keyboard });
       
     } catch (error) {
       console.error('Export wallet error:', error);
-      await ctx.reply(`❌ ${error.message}`);
+      await ctx.editMessageText(`❌ ${error.message}`);
     }
   }
 
@@ -501,11 +500,11 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
         [Markup.button.callback('❌ Отмена', 'edit_wallet')]
       ]);
       
-      await ctx.reply(message, { parse_mode: 'Markdown', ...keyboard });
+      await ctx.editMessageText(message, { parse_mode: 'Markdown', ...keyboard });
       
     } catch (error) {
       console.error('Delete wallet confirmation error:', error);
-      await ctx.reply('❌ Ошибка подтверждения удаления.');
+      await ctx.editMessageText('❌ Ошибка подтверждения удаления.');
     }
   }
 
@@ -524,11 +523,11 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
         [Markup.button.callback('🔙 К личному кабинету', 'personal_cabinet')]
       ]);
       
-      await ctx.reply(message, { parse_mode: 'Markdown', ...keyboard });
+      await ctx.editMessageText(message, { parse_mode: 'Markdown', ...keyboard });
       
     } catch (error) {
       console.error('Confirm delete wallet error:', error);
-      await ctx.reply(`❌ Ошибка удаления: ${error.message}`);
+      await ctx.editMessageText(`❌ Ошибка удаления: ${error.message}`);
     }
   }
 
@@ -545,11 +544,10 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
       
       if (!walletInfo || !walletInfo.hasWallet) {
         const message = 'У вас нет кошелька.\n\n' +
-                       '💡 Создайте кошелек в Личном кабинете для использования P2P функций.';
+                       'Создайте кошелек в Личном кабинете для использования P2P функций.';
         
-        // Remove the Главное меню button
         const keyboard = Markup.inlineKeyboard([
-          [Markup.button.callback('➕ Создать кошелек', 'create_wallet')]
+          [Markup.button.callback('🏠 Главное меню', 'back_to_menu')]
         ]);
         
         return await ctx.reply(message, keyboard);
@@ -595,7 +593,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
       const user = await User.findOne({ chatId });
       
       if (!user) {
-        return await ctx.reply('❌ Пользователь не найден.');
+        return await ctx.editMessageText('❌ Пользователь не найден.');
       }
       
       // Get reputation data
@@ -652,11 +650,11 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
         [Markup.button.callback('🔙 Назад к P2P', 'p2p_menu')]
       ]);
       
-      await ctx.reply(message, { parse_mode: 'Markdown', ...keyboard });
+      await ctx.editMessageText(message, { parse_mode: 'Markdown', ...keyboard });
       
     } catch (error) {
       console.error('Profile error:', error);
-      await ctx.reply('❌ Ошибка загрузки профиля. Попробуйте позже.');
+      await ctx.editMessageText('❌ Ошибка загрузки профиля. Попробуйте позже.');
     }
   }
 
@@ -719,7 +717,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
         ['👤 Личный кабинет', '🔄 P2P']
       ]).resize();
       
-      await ctx.reply('🌾 Главное меню', mainMenu);
+      await ctx.editMessageText('🌾 Главное меню', mainMenu);
     } catch (error) {
       console.error('Back to menu error:', error);
       // Fallback: send new message if editing fails
@@ -760,7 +758,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
       const walletInfo = await walletService.getUserWallet(chatId);
       
       if (!walletInfo || !walletInfo.hasWallet) {
-        return await ctx.reply('❌ У вас нет кошелька. Создайте его в Личном кабинете.');
+        return await ctx.editMessageText('❌ У вас нет кошелька. Создайте его в Личном кабинете.');
       }
       
       if (walletInfo.cesBalance <= 0) {
@@ -773,7 +771,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
           [Markup.button.callback('🔙 Назад', 'p2p_menu')]
         ]);
         
-        return await ctx.reply(message, { parse_mode: 'Markdown', ...keyboard });
+        return await ctx.editMessageText(message, { parse_mode: 'Markdown', ...keyboard });
       }
       
       const message = '💸 **Перевод CES токенов**\n\n' +
@@ -792,11 +790,11 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
         [Markup.button.callback('❌ Отмена', 'p2p_menu')]
       ]);
       
-      await ctx.reply(message, { parse_mode: 'Markdown', ...keyboard });
+      await ctx.editMessageText(message, { parse_mode: 'Markdown', ...keyboard });
       
     } catch (error) {
       console.error('Error initiating CES transfer:', error);
-      await ctx.reply('❌ Ошибка инициализации перевода. Попробуйте позже.');
+      await ctx.editMessageText('❌ Ошибка инициализации перевода. Попробуйте позже.');
     }
   }
 
@@ -807,7 +805,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
       const walletInfo = await walletService.getUserWallet(chatId);
       
       if (!walletInfo || !walletInfo.hasWallet) {
-        return await ctx.reply('❌ У вас нет кошелька. Создайте его в Личном кабинете.');
+        return await ctx.editMessageText('❌ У вас нет кошелька. Создайте его в Личном кабинете.');
       }
       
       if (walletInfo.polBalance <= 0.001) {
@@ -821,7 +819,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
           [Markup.button.callback('🔙 Назад', 'p2p_menu')]
         ]);
         
-        return await ctx.reply(message, { parse_mode: 'Markdown', ...keyboard });
+        return await ctx.editMessageText(message, { parse_mode: 'Markdown', ...keyboard });
       }
       
       const maxTransfer = (walletInfo.polBalance - 0.001).toFixed(4);
@@ -843,11 +841,11 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
         [Markup.button.callback('❌ Отмена', 'p2p_menu')]
       ]);
       
-      await ctx.reply(message, { parse_mode: 'Markdown', ...keyboard });
+      await ctx.editMessageText(message, { parse_mode: 'Markdown', ...keyboard });
       
     } catch (error) {
       console.error('Error initiating POL transfer:', error);
-      await ctx.reply('❌ Ошибка инициализации перевода. Попробуйте позже.');
+      await ctx.editMessageText('❌ Ошибка инициализации перевода. Попробуйте позже.');
     }
   }
 
@@ -889,11 +887,11 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
         [Markup.button.callback('🔙 Назад к P2P', 'p2p_menu')]
       ]);
       
-      await ctx.reply(message, { parse_mode: 'Markdown', ...keyboard });
+      await ctx.editMessageText(message, { parse_mode: 'Markdown', ...keyboard });
       
     } catch (error) {
       console.error('Error showing transaction history:', error);
-      await ctx.reply('❌ Ошибка загрузки истории. Попробуйте позже.');
+      await ctx.editMessageText('❌ Ошибка загрузки истории. Попробуйте позже.');
     }
   }
 
@@ -960,7 +958,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
       const amount = parseFloat(amountStr);
       const chatId = ctx.chat.id.toString();
       
-      await ctx.reply('⏳ Обработка перевода... Подождите.');
+      await ctx.editMessageText('⏳ Обработка перевода... Подождите.');
       
       let result;
       if (tokenType === 'POL') {
@@ -982,7 +980,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
           [Markup.button.callback('🔙 К P2P меню', 'p2p_menu')]
         ]);
         
-        await ctx.reply(message, { parse_mode: 'Markdown', ...keyboard });
+        await ctx.editMessageText(message, { parse_mode: 'Markdown', ...keyboard });
       }
       
     } catch (error) {
@@ -995,7 +993,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
         [Markup.button.callback('🔙 К P2P меню', 'p2p_menu')]
       ]);
       
-      await ctx.reply(errorMessage, { parse_mode: 'Markdown', ...keyboard });
+      await ctx.editMessageText(errorMessage, { parse_mode: 'Markdown', ...keyboard });
     }
   }
 
@@ -1141,7 +1139,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
   // Get user level display for market orders (new format)
   getUserLevelDisplayNew(trustScore) {
     if (trustScore >= 1000) return { emoji: '🐋' };
-    if (trustScore >= 500) return { emoji: 'ewolf' };
+    if (trustScore >= 500) return { emoji: '🐺' };
     if (trustScore >= 200) return { emoji: '🦅' };
     if (trustScore >= 50) return { emoji: '🐿️' };
     return { emoji: '🐹' }; // For 0-49 trust score
@@ -1212,11 +1210,11 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
         [Markup.button.callback('🔙 Назад к P2P', 'p2p_menu')]
       ]);
       
-      await ctx.reply(message, keyboard);
+      await ctx.editMessageText(message, keyboard);
       
     } catch (error) {
       console.error('My orders error:', error);
-      await ctx.reply('❌ Ошибка загрузки ваших ордеров.');
+      await ctx.editMessageText('❌ Ошибка загрузки ваших ордеров.');
     }
   }
 
@@ -1304,7 +1302,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
       
       console.log(`📊 Order details: type=${orderType}, amount=${amount}, price=${pricePerToken}, chatId=${chatId}`);
       
-      await ctx.reply('⏳ Создание ордера... Подождите.');
+      await ctx.editMessageText('⏳ Создание ордера... Подождите.');
       
       let result;
       if (orderType === 'buy') {
@@ -1317,7 +1315,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
       
       console.log(`✅ Order created successfully: ${result._id}`);
       
-      const typeEmoji = orderType === 'buy' ? '📈' : '📉';
+      const typeEmoji = orderType === 'buy' ? '📈' : '.DataGridViewColumn';
       const typeText = orderType === 'buy' ? 'покупку' : 'продажу';
       const totalValue = amount * pricePerToken;
       
@@ -1336,7 +1334,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
         [Markup.button.callback('🔙 К P2P меню', 'p2p_menu')]
       ]);
       
-      await ctx.reply(message, { parse_mode: 'Markdown', ...keyboard });
+      await ctx.editMessageText(message, { parse_mode: 'Markdown', ...keyboard });
       
     } catch (error) {
       console.error('P2P order confirmation error:', error);
@@ -1348,7 +1346,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
         [Markup.button.callback('🔙 К P2P меню', 'p2p_menu')]
       ]);
       
-      await ctx.reply(errorMessage, { parse_mode: 'Markdown', ...keyboard });
+      await ctx.editMessageText(errorMessage, { parse_mode: 'Markdown', ...keyboard });
     }
   }
 
@@ -1378,11 +1376,11 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
         [Markup.button.callback('🔙 Назад к P2P', 'p2p_menu')]
       ]);
       
-      await ctx.reply(message, keyboard);
+      await ctx.editMessageText(message, keyboard);
       
     } catch (error) {
       console.error('Analytics error:', error);
-      await ctx.reply('❌ Ошибка загрузки аналитики. Попробуйте позже.');
+      await ctx.editMessageText('❌ Ошибка загрузки аналитики. Попробуйте позже.');
     }
   }
 
@@ -1405,11 +1403,11 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
         [Markup.button.callback('❌ Отмена', 'p2p_market_orders')]
       ]);
       
-      await ctx.reply(message, { parse_mode: 'Markdown', ...keyboard });
+      await ctx.editMessageText(message, { parse_mode: 'Markdown', ...keyboard });
       
     } catch (error) {
       console.error('User messaging error:', error);
-      await ctx.reply('❌ Ошибка инициализации сообщения пользователю.');
+      await ctx.editMessageText('❌ Ошибка инициализации сообщения пользователю.');
     }
   }
 
@@ -1420,7 +1418,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
       const targetUser = await User.findById(targetUserId);
       
       if (!targetUser) {
-        return await ctx.reply('❌ Пользователь не найден.');
+        return await ctx.editMessageText('❌ Пользователь не найден.');
       }
       
       const username = targetUser.username || targetUser.firstName || 'Пользователь';
@@ -1434,11 +1432,11 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
         [Markup.button.callback('❌ Отмена', 'p2p_market_orders')]
       ]);
       
-      await ctx.reply(message, { parse_mode: 'Markdown', ...keyboard });
+      await ctx.editMessageText(message, { parse_mode: 'Markdown', ...keyboard });
       
     } catch (error) {
       console.error('Create order with user error:', error);
-      await ctx.reply('❌ Ошибка создания ордера с пользователем.');
+      await ctx.editMessageText('❌ Ошибка создания ордера с пользователем.');
     }
   }
 
