@@ -1,15 +1,14 @@
 {
   "name": "ces-price-telegram-bot",
-  "version": "1.0.0",
-  "description": "Telegram bot for CES token price monitoring with real-time updates and improved message formatting",
-  "main": "index.js",
+  "version": "2.0.0",
+  "description": "Professional modular Telegram bot for CES token price monitoring with wallet functionality and real-time updates",
+  "main": "app.js",
   "scripts": {
-    "start": "node index.js",
-    "dev": "nodemon index.js",
-    "test-format": "node test-format.js",
-    "test-cmc": "node test-cmc.js",
-    "diagnose": "node diagnose.js",
-    "debug-ath": "node debug-ath.js"
+    "start": "node app.js",
+    "dev": "NODE_ENV=development node app.js",
+    "dev:win": "set NODE_ENV=development&& node app.js",
+    "test": "echo \"No tests specified\" && exit 0",
+    "lint": "echo \"No linting configured\" && exit 0"
   },
   "keywords": [
     "telegram",
@@ -18,7 +17,13 @@
     "ces",
     "price",
     "mongodb",
-    "nodejs"
+    "nodejs",
+    "polygon",
+    "wallet",
+    "blockchain",
+    "ethers",
+    "modular",
+    "professional"
   ],
   "author": "asselikhov",
   "license": "MIT",
@@ -37,5 +42,6 @@
   },
   "engines": {
     "node": ">=18.0.0"
-  }
+  },
+  "packageManager": "yarn@1.22.22"
 }

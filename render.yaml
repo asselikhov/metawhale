@@ -17,3 +17,9 @@ services:
         sync: false
       - key: WEBHOOK_URL
         sync: false
+      - key: WALLET_ENCRYPTION_KEY
+        sync: false
+      - key: CES_CONTRACT_ADDRESS
+        sync: false
+      - key: POLYGON_RPC_URL
+        sync: false
