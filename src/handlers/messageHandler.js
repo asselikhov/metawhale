@@ -781,7 +781,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
                      '📝 Отправьте сообщение в формате:\n' +
                      '`Адрес_кошелька Сумма`\n\n' +
                      '📝 **Пример:**\n' +
-                     '`0x742d35Cc6734C0532925a3b8D4321F...89 10.5`\n\n` +
+                     '`0x742d35Cc6734C0532925a3b8D4321F...89 10.5`\n\n' +
                      'ℹ️ Минимальная сумма: 0.001 CES';
       
       // Store state to handle next user message
@@ -828,10 +828,10 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
       const message = '💎 **Перевод POL токенов**\n\n' +
                      `💎 Доступно: **${maxTransfer} POL**\n` +
                      `💼 Всего: **${walletInfo.polBalance.toFixed(4)} POL**\n\n` +
-                     '📝 Отправьте сообщение в формате:\n' +
+                     '📝 Отправьте сообщениеение в формате:\n' +
                      '`Адрес_кошелька Сумма`\n\n' +
                      '📝 **Пример:**\n' +
-                     '`0x742d35Cc6734C0532925a3b8D4321F...89 0.1`\n\n` +
+                     '`0x742d35Cc6734C0532925a3b8D4321F...89 0.1`\n\n' +
                      'ℹ️ Минимальная сумма: 0.001 POL\n' +
                      '⚠️ 0.001 POL останется для комиссии';
       
@@ -1141,7 +1141,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
   // Get user level display for market orders (new format)
   getUserLevelDisplayNew(trustScore) {
     if (trustScore >= 1000) return { emoji: '🐋' };
-    if (trustScore >= 500) return { emoji: 'ewolf' };
+    if (trustScore >= 500) return { emoji: '🐺' };
     if (trustScore >= 200) return { emoji: '🦅' };
     if (trustScore >= 50) return { emoji: '🐿️' };
     return { emoji: '🐹' }; // For 0-49 trust score
