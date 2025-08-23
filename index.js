@@ -73,6 +73,92 @@ const API_CALL_INTERVAL = parseInt(process.env.API_CALL_INTERVAL) || 10000; // 1
 
 
 
+// Функция веб-скрапинга ATH с CoinMarketCap (альтернативный метод)
+async function scrapeATHFromWeb() {
+  try {
+    console.log('🌐 Попытка получить ATH через веб-скрапинг...');
+    
+    const response = await axios.get('https://coinmarketcap.com/currencies/whalebit/', {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.5'
+      },
+      timeout: 10000
+    });
+    
+    const html = response.data;
+    
+    // Приоритетные паттерны для поиска ATH (сортированы по надежности)
+    const athPatterns = [
+      {
+        pattern: /All-Time High[^$]*\$([0-9,]+\.?[0-9]*)/gi,
+        priority: 1,
+        name: 'All-Time High текст'
+      },
+      {
+        pattern: /All Time High[^$]*\$([0-9,]+\.?[0-9]*)/gi,
+        priority: 2,
+        name: 'All Time High текст'
+      },
+      {
+        pattern: /"allTimeHigh"[^}]*"price"[^0-9]*([0-9\.]+)/gi,
+        priority: 3,
+        name: 'JSON allTimeHigh'
+      },
+      {
+        pattern: /ATH[^$]*\$([0-9,]+\.?[0-9]*)/gi,
+        priority: 4,
+        name: 'ATH аббревиатура'
+      }
+    ];
+    
+    let candidateValues = [];
+    
+    for (const {pattern, priority, name} of athPatterns) {
+      let match;
+      pattern.lastIndex = 0; // Сброс регекса
+      
+      while ((match = pattern.exec(html)) !== null && candidateValues.length < 10) {
+        const athValue = parseFloat(match[1].replace(',', ''));
+        
+        // Фильтруем разумные значения ATH
+        if (athValue >= 1 && athValue <= 100) { // ATH для CES должен быть в этом диапазоне
+          candidateValues.push({
+            value: athValue,
+            priority: priority,
+            source: name,
+            context: match[0].substring(0, 80)
+          });
+          
+          console.log(`🔍 Кандидат ATH: $${athValue} (приоритет ${priority}, ${name})`);
+        }
+      }
+    }
+    
+    if (candidateValues.length > 0) {
+      // Сортируем по приоритету, затем по значению (максимальному)
+      candidateValues.sort((a, b) => {
+        if (a.priority !== b.priority) {
+          return a.priority - b.priority; // Низкий приоритет = лучше
+        }
+        return b.value - a.value; // Высокое значение = лучше
+      });
+      
+      const bestCandidate = candidateValues[0];
+      console.log(`✅ Лучший ATH: $${bestCandidate.value} (источник: ${bestCandidate.source})`);
+      return bestCandidate.value;
+    }
+    
+    console.log('❌ ATH не найден через веб-скрапинг');
+    return null;
+    
+  } catch (error) {
+    console.log('⚠️ Ошибка веб-скрапинга ATH:', error.message);
+    return null;
+  }
+}
+
 // Функция получения курса USD/RUB
 async function getUSDToRUBRate() {
   try {
@@ -249,19 +335,38 @@ async function getCESPrice() {
     // Получаем данные из CoinMarketCap
     const cmcData = await getCMCPrice();
     if (cmcData) {
-      // Получаем ATH из базы данных, так как CMC бесплатный план не предоставляет ATH
-      console.log('🔍 Получаем ATH из базы данных...');
+      // Получаем ATH из нескольких источников для максимальной точности
+      console.log('🔍 Получаем ATH из множественных источников...');
+      
+      // 1. ATH из базы данных
       const maxPriceRecord = await PriceHistory.findOne().sort({ price: -1 });
       const databaseATH = maxPriceRecord ? maxPriceRecord.price : cmcData.price;
+      console.log(`📊 ATH из базы данных: $${databaseATH.toFixed(2)}`);
       
-      // Определяем окончательный ATH (максимум из базы или текущая цена)
-      const finalATH = Math.max(databaseATH, cmcData.price);
+      // 2. Попытка получить ATH через веб-скрапинг
+      let webATH = null;
+      try {
+        webATH = await scrapeATHFromWeb();
+        if (webATH) {
+          console.log(`🌐 ATH из веб-скрапинга: $${webATH.toFixed(2)}`);
+        }
+      } catch (error) {
+        console.log('⚠️ Веб-скрапинг ATH недоступен:', error.message);
+      }
+      
+      // 3. Определяем финальный ATH (максимум из всех источников)
+      const athSources = [databaseATH, cmcData.price];
+      if (webATH && webATH > 0) {
+        athSources.push(webATH);
+      }
+      
+      const finalATH = Math.max(...athSources);
       
       if (cmcData.price >= finalATH) {
         console.log(`🏆 Новый ATH обнаружен! $${cmcData.price.toFixed(2)}`);
       }
       
-      console.log(`📊 ATH из базы данных: $${databaseATH.toFixed(2)}`);
+      console.log(`📊 Источники ATH: База=${databaseATH.toFixed(2)}, Веб=${webATH ? webATH.toFixed(2) : 'N/A'}`);
       console.log(`📊 Финальный ATH: $${finalATH.toFixed(2)}`);
       
       return {
@@ -271,7 +376,8 @@ async function getCESPrice() {
         changeRub24h: 0, // CMC не предоставляет данных в рублях
         marketCap: cmcData.marketCap,
         volume24h: cmcData.volume24h,
-        ath: finalATH, // ATH из базы данных с учетом текущей цены
+        ath: finalATH, // Лучший ATH из всех источников
+        athSource: webATH ? 'web+database' : 'database',
         source: 'coinmarketcap'
       };
     }
@@ -300,6 +406,7 @@ async function getCESPrice() {
         marketCap: lastPrice.marketCap || 0,
         volume24h: lastPrice.volume24h || 0,
         ath: lastPrice.ath || lastPrice.price,
+        athSource: 'database',
         source: 'database',
         cached: true
       };
@@ -330,12 +437,13 @@ async function sendPriceToUser(ctx) {
     
     // Индикатор источника данных
     const sourceEmoji = priceData.source === 'database' ? '🗄️' : '🄲🄼🄲';
+    const athSourceEmoji = priceData.athSource === 'web+database' ? '🌐' : (priceData.athSource === 'database' ? '🗄️' : '📊');
     
     // Новый формат сообщения согласно требованиям
     const message = `➖➖➖➖➖➖➖➖➖➖➖➖➖➖➖
 💰 Цена токена CES: $ ${priceData.price.toFixed(2)}${priceData.priceRub > 0 ? ` | ₽ ${priceData.priceRub.toFixed(2)}` : ' | ₽ 0.00'} ${sourceEmoji}
 ➖➖➖➖➖➖➖➖➖➖➖➖➖➖➖
-${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${formatNumber(priceData.volume24h)} • 🅐🅣🅗 ${athDisplay}`;
+${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${formatNumber(priceData.volume24h)} • 🅐🅣🅗 ${athDisplay} ${athSourceEmoji}`;
     
     // Отправляем только текстовое сообщение для максимальной скорости
     await ctx.reply(message);
