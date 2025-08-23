@@ -228,11 +228,14 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
     }
   }
 
-  // Handle P2P from text message
-  async handleP2PMenuText(ctx) {
+  // Handle P2P menu
+  async handleP2PMenu(ctx) {
     try {
       const chatId = ctx.chat.id.toString();
-      console.log(`🔄 Handling P2P menu text for user ${chatId}`);
+      console.log(`🔄 Handling P2P menu callback for user ${chatId}`);
+      
+      // Clear any existing session when entering P2P menu
+      this.clearUserSession(chatId);
       
       const walletInfo = await walletService.getUserWallet(chatId);
       
@@ -245,6 +248,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
           [Markup.button.callback('➕ Создать кошелек', 'create_wallet')]
         ]);
         
+        console.log(`📤 Sending wallet creation message to user ${chatId} (callback version)`);
         return await ctx.reply(message, keyboard);
       }
       
@@ -270,23 +274,37 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
         [Markup.button.callback('🏆 Топ трейдеров', 'p2p_top_traders'), Markup.button.callback('🧮 Аналитика', 'p2p_analytics')]
       ]);
       
+      console.log(`📤 Sending P2P menu to user ${chatId} (callback version)`);
+      console.log(`📝 Message: ${message}`);
+      console.log(`⌨ Keyboard: ${JSON.stringify(keyboard)}`);
+      
+      // Temporary: send text only without image to test if buttons appear
+      await ctx.reply(message, keyboard);
+      
+      // Uncomment this when we want to test image sending again
+      /*
       try {
         // Use absolute path for the image
         const path = require('path');
         const imagePath = path.join(__dirname, '../../p2plogo.png');
+        console.log(`🖼 Sending image from path: ${imagePath}`);
         await ctx.replyWithPhoto({ source: imagePath }, { caption: message, reply_markup: keyboard });
+        console.log(`✅ Image sent successfully to user ${chatId}`);
       } catch (photoError) {
-        console.error('Error sending P2P menu photo (text version):', photoError);
+        console.error('Error sending P2P menu photo:', photoError);
         // Fallback to sending text only if photo fails
         await ctx.reply(message, keyboard);
       }
+      */
       
     } catch (error) {
-      console.error('P2P menu text error:', error);
+      console.error('P2P menu error:', error);
       await ctx.reply('❌ Ошибка загрузки P2P меню. Попробуйте позже.');
     }
   }
-  async handlePersonalCabinet(ctx) {
+
+  // Handle user profile
+  async handleUserProfile(ctx) {
     try {
       const chatId = ctx.chat.id.toString();
       const walletInfo = await walletService.getUserWallet(chatId);
