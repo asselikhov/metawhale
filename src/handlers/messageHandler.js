@@ -278,24 +278,31 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
       console.log(`📝 Message: ${message}`);
       console.log(`⌨ Keyboard: ${JSON.stringify(keyboard)}`);
       
-      // Temporary: send text only without image to test if buttons appear
-      await ctx.reply(message, keyboard);
-      
-      // Uncomment this when we want to test image sending again
-      /*
+      // Try to send image with text and buttons
       try {
-        // Use absolute path for the image
+        // First check if file exists
+        const fs = require('fs');
         const path = require('path');
         const imagePath = path.join(__dirname, '../../p2plogo.png');
-        console.log(`🖼 Sending image from path: ${imagePath}`);
-        await ctx.replyWithPhoto({ source: imagePath }, { caption: message, reply_markup: keyboard });
-        console.log(`✅ Image sent successfully to user ${chatId}`);
+        
+        console.log(`🔍 Checking if image file exists: ${imagePath}`);
+        if (fs.existsSync(imagePath)) {
+          console.log(`✅ Image file exists: ${imagePath}`);
+          console.log(`🖼 Sending image from path: ${imagePath}`);
+          const result = await ctx.replyWithPhoto({ source: imagePath }, { caption: message, reply_markup: keyboard });
+          console.log(`✅ Image sent successfully to user ${chatId}`, result);
+        } else {
+          console.log(`❌ Image file does not exist: ${imagePath}`);
+          // Fallback to sending text only
+          console.log(`🔄 Fallback: sending text only to user ${chatId}`);
+          await ctx.reply(message, keyboard);
+        }
       } catch (photoError) {
         console.error('Error sending P2P menu photo:', photoError);
         // Fallback to sending text only if photo fails
+        console.log(`🔄 Fallback: sending text only to user ${chatId}`);
         await ctx.reply(message, keyboard);
       }
-      */
       
     } catch (error) {
       console.error('P2P menu error:', error);
