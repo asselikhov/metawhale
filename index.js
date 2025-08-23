@@ -73,6 +73,28 @@ const API_CALL_INTERVAL = parseInt(process.env.API_CALL_INTERVAL) || 10000; // 1
 
 
 
+// Функция получения курса USD/RUB
+async function getUSDToRUBRate() {
+  try {
+    // Используем бесплатный API для конвертации валют
+    const response = await axios.get('https://api.exchangerate-api.com/v4/latest/USD', {
+      timeout: 5000
+    });
+    
+    if (response.data && response.data.rates && response.data.rates.RUB) {
+      const rate = response.data.rates.RUB;
+      console.log(`💱 Курс USD/RUB: ${rate}`);
+      return rate;
+    }
+    
+    console.log('⚠️ Курс RUB не найден в ответе API');
+    return 100; // Fallback курс
+  } catch (error) {
+    console.log('⚠️ Ошибка получения курса USD/RUB:', error.message);
+    return 100; // Fallback курс ~100 рублей за доллар
+  }
+}
+
 // Функция получения данных ATH из CoinMarketCap
 async function getCMCPrice() {
   try {
@@ -111,13 +133,17 @@ async function getCMCPrice() {
           console.log(`💰 Цена: $${quote.USD.price?.toFixed(6)}`);
           console.log(`📈 Изменение 24ч: ${quote.USD.percent_change_24h?.toFixed(2)}%`);
           
+          // Получаем курс USD/RUB для конвертации
+          const usdToRubRate = await getUSDToRUBRate();
+          const priceRub = quote.USD.price * usdToRubRate;
+          
           return {
             price: quote.USD.price,
-            priceRub: 0, // Бесплатный план не поддерживает RUB
+            priceRub: priceRub,
             change24h: quote.USD.percent_change_24h,
             marketCap: quote.USD.market_cap,
             volume24h: quote.USD.volume_24h,
-            ath: quote.USD.ath || quote.USD.price,
+            ath: null, // ATH недоступен в бесплатном плане CMC
             source: 'coinmarketcap'
           };
         }
@@ -170,13 +196,17 @@ async function getCMCPrice() {
           const quote = cesData.quote;
           console.log('✅ Данные получены из CoinMarketCap (fallback)');
           
+          // Получаем курс USD/RUB для конвертации
+          const usdToRubRate = await getUSDToRUBRate();
+          const priceRub = quote.USD.price * usdToRubRate;
+          
           return {
             price: quote.USD.price,
-            priceRub: 0, // Бесплатный план не поддерживает RUB
+            priceRub: priceRub,
             change24h: quote.USD.percent_change_24h,
             marketCap: quote.USD.market_cap,
             volume24h: quote.USD.volume_24h,
-            ath: quote.USD.ath || quote.USD.price,
+            ath: null, // ATH недоступен в бесплатном плане CMC
             source: 'coinmarketcap'
           };
         }
@@ -219,11 +249,20 @@ async function getCESPrice() {
     // Получаем данные из CoinMarketCap
     const cmcData = await getCMCPrice();
     if (cmcData) {
-      // Используем ATH напрямую из CoinMarketCap, не сравниваем с базой данных
-      const finalATH = cmcData.ath || cmcData.price; // Используем ATH от CMC или текущую цену
+      // Получаем ATH из базы данных, так как CMC бесплатный план не предоставляет ATH
+      console.log('🔍 Получаем ATH из базы данных...');
+      const maxPriceRecord = await PriceHistory.findOne().sort({ price: -1 });
+      const databaseATH = maxPriceRecord ? maxPriceRecord.price : cmcData.price;
+      
+      // Определяем окончательный ATH (максимум из базы или текущая цена)
+      const finalATH = Math.max(databaseATH, cmcData.price);
+      
       if (cmcData.price >= finalATH) {
-        console.log(`🏆 Новый ATH через CoinMarketCap! $${cmcData.price.toFixed(2)}`);
+        console.log(`🏆 Новый ATH обнаружен! $${cmcData.price.toFixed(2)}`);
       }
+      
+      console.log(`📊 ATH из базы данных: $${databaseATH.toFixed(2)}`);
+      console.log(`📊 Финальный ATH: $${finalATH.toFixed(2)}`);
       
       return {
         price: cmcData.price,
@@ -232,7 +271,7 @@ async function getCESPrice() {
         changeRub24h: 0, // CMC не предоставляет данных в рублях
         marketCap: cmcData.marketCap,
         volume24h: cmcData.volume24h,
-        ath: finalATH, // ATH напрямую из CoinMarketCap
+        ath: finalATH, // ATH из базы данных с учетом текущей цены
         source: 'coinmarketcap'
       };
     }
@@ -245,9 +284,17 @@ async function getCESPrice() {
     const lastPrice = await PriceHistory.findOne().sort({ timestamp: -1 });
     if (lastPrice) {
       console.log('⚡ Используем последнюю сохраненную цену из базы данных');
+      
+      // Если нужно, конвертируем в рубли
+      let priceRub = lastPrice.priceRub || 0;
+      if (!priceRub && lastPrice.price) {
+        const usdToRubRate = await getUSDToRUBRate();
+        priceRub = lastPrice.price * usdToRubRate;
+      }
+      
       return {
         price: lastPrice.price,
-        priceRub: lastPrice.priceRub || 0,
+        priceRub: priceRub,
         change24h: lastPrice.change24h || 0,
         changeRub24h: lastPrice.changeRub24h || 0,
         marketCap: lastPrice.marketCap || 0,
@@ -286,7 +333,7 @@ async function sendPriceToUser(ctx) {
     
     // Новый формат сообщения согласно требованиям
     const message = `➖➖➖➖➖➖➖➖➖➖➖➖➖➖➖
-💰 Цена токена CES: $ ${priceData.price.toFixed(2)}${priceData.priceRub > 0 ? ` | ₽ ${priceData.priceRub.toFixed(2)}` : ''} ${sourceEmoji}
+💰 Цена токена CES: $ ${priceData.price.toFixed(2)}${priceData.priceRub > 0 ? ` | ₽ ${priceData.priceRub.toFixed(2)}` : ' | ₽ 0.00'} ${sourceEmoji}
 ➖➖➖➖➖➖➖➖➖➖➖➖➖➖➖
 ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${formatNumber(priceData.volume24h)} • 🅐🅣🅗 ${athDisplay}`;
     
