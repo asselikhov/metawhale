@@ -10,27 +10,39 @@ const { User, Wallet } = require('../database/models');
 
 class WalletService {
   constructor() {
-    this.encryptionKey = config.wallet.encryptionKey || crypto.randomBytes(32);
+    // Ensure we have a 32-byte key for AES-256
+    const keySource = config.wallet.encryptionKey || 'default-wallet-encryption-key-for-ces-bot';
+    this.encryptionKey = crypto.scryptSync(keySource, 'salt', 32);
     this.ivLength = config.constants.ivLength;
   }
 
   // Encrypt private key
   encryptPrivateKey(privateKey) {
     const iv = crypto.randomBytes(this.ivLength);
-    const cipher = crypto.createCipher('aes-256-cbc', this.encryptionKey);
+    const cipher = crypto.createCipheriv('aes-256-cbc', this.encryptionKey, iv);
+    
     let encrypted = cipher.update(privateKey, 'utf8', 'hex');
     encrypted += cipher.final('hex');
+    
     return iv.toString('hex') + ':' + encrypted;
   }
 
   // Decrypt private key
   decryptPrivateKey(encryptedData) {
     const parts = encryptedData.split(':');
+    
+    if (parts.length !== 2) {
+      throw new Error('Invalid encrypted data format');
+    }
+    
     const iv = Buffer.from(parts[0], 'hex');
     const encrypted = parts[1];
-    const decipher = crypto.createDecipher('aes-256-cbc', this.encryptionKey);
+    
+    const decipher = crypto.createDecipheriv('aes-256-cbc', this.encryptionKey, iv);
+    
     let decrypted = decipher.update(encrypted, 'hex', 'utf8');
     decrypted += decipher.final('utf8');
+    
     return decrypted;
   }
 
