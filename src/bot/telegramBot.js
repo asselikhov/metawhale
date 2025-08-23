@@ -55,17 +55,31 @@ class Bot {
     this.bot.action('wallet_details', messageHandler.handleWalletDetails.bind(messageHandler));
     this.bot.action('transfer_menu', messageHandler.handleTransferMenu.bind(messageHandler));
     this.bot.action('show_private_key', messageHandler.handleShowPrivateKey.bind(messageHandler));
+    this.bot.action('export_wallet', messageHandler.handleExportWallet.bind(messageHandler));
+    this.bot.action('delete_wallet', messageHandler.handleDeleteWallet.bind(messageHandler));
+    this.bot.action('confirm_delete_wallet', messageHandler.handleConfirmDeleteWallet.bind(messageHandler));
     this.bot.action('refresh_balance', messageHandler.handleRefreshBalance.bind(messageHandler));
     this.bot.action('back_to_menu', messageHandler.handleBackToMenu.bind(messageHandler));
     
-    // New P2P functionality handlers
+    // Token transfer handlers
     this.bot.action('send_ces_tokens', messageHandler.handleSendCESTokens.bind(messageHandler));
     this.bot.action('send_pol_tokens', messageHandler.handleSendPOLTokens.bind(messageHandler));
     this.bot.action('transaction_history', messageHandler.handleTransactionHistory.bind(messageHandler));
     
+    // P2P Exchange handlers
+    this.bot.action('p2p_buy_ces', messageHandler.handleP2PBuyCES.bind(messageHandler));
+    this.bot.action('p2p_sell_ces', messageHandler.handleP2PSellCES.bind(messageHandler));
+    this.bot.action('p2p_market_orders', messageHandler.handleP2PMarketOrders.bind(messageHandler));
+    this.bot.action('p2p_my_orders', messageHandler.handleP2PMyOrders.bind(messageHandler));
+    
     // Handle transfer confirmations (dynamic callbacks)
     this.bot.action(/^confirm_transfer_/, (ctx) => {
       return messageHandler.handleTransferConfirmation.call(messageHandler, ctx, ctx.callbackQuery.data);
+    });
+    
+    // Handle P2P order confirmations (dynamic callbacks)
+    this.bot.action(/^confirm_p2p_order_/, (ctx) => {
+      return messageHandler.handleP2POrderConfirmation.call(messageHandler, ctx, ctx.callbackQuery.data);
     });
   }
 

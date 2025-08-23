@@ -38,10 +38,41 @@ const transactionSchema = new mongoose.Schema({
   fromAddress: { type: String, required: true },
   toAddress: { type: String, required: true },
   amount: { type: Number, required: true },
-  tokenType: { type: String, default: 'CES' },
-  txHash: String,
-  status: { type: String, enum: ['pending', 'completed', 'failed'], default: 'pending' },
+  tokenType: { type: String, enum: ['CES', 'POL'], default: 'CES' },
   type: { type: String, enum: ['deposit', 'withdrawal', 'p2p'], required: true },
+  status: { type: String, enum: ['pending', 'completed', 'failed'], default: 'pending' },
+  txHash: String,
+  createdAt: { type: Date, default: Date.now },
+  completedAt: Date
+});
+
+// P2P Order Schema (for buying/selling CES with rubles)
+const p2pOrderSchema = new mongoose.Schema({
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  type: { type: String, enum: ['buy', 'sell'], required: true },
+  amount: { type: Number, required: true }, // Amount of CES tokens
+  pricePerToken: { type: Number, required: true }, // Price per CES token in rubles
+  totalValue: { type: Number, required: true }, // Total value in rubles
+  status: { type: String, enum: ['active', 'partial', 'completed', 'cancelled'], default: 'active' },
+  filledAmount: { type: Number, default: 0 },
+  remainingAmount: { type: Number, required: true },
+  createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now },
+  expiresAt: { type: Date, default: () => new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) } // 7 days
+});
+
+// P2P Trade Schema (for completed trades in rubles)
+const p2pTradeSchema = new mongoose.Schema({
+  buyOrderId: { type: mongoose.Schema.Types.ObjectId, ref: 'P2POrder', required: true },
+  sellOrderId: { type: mongoose.Schema.Types.ObjectId, ref: 'P2POrder', required: true },
+  buyerId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  sellerId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  amount: { type: Number, required: true }, // CES amount traded
+  pricePerToken: { type: Number, required: true }, // Price per CES token in rubles
+  totalValue: { type: Number, required: true }, // Total value in rubles
+  commission: { type: Number, required: true }, // 1% commission in rubles
+  status: { type: String, enum: ['pending', 'completed', 'failed'], default: 'pending' },
+  cesTransferTxHash: String, // Hash for CES token transfer
   createdAt: { type: Date, default: Date.now },
   completedAt: Date
 });
@@ -62,6 +93,8 @@ const priceHistorySchema = new mongoose.Schema({
 const User = mongoose.model('User', userSchema);
 const Wallet = mongoose.model('Wallet', walletSchema);
 const Transaction = mongoose.model('Transaction', transactionSchema);
+const P2POrder = mongoose.model('P2POrder', p2pOrderSchema);
+const P2PTrade = mongoose.model('P2PTrade', p2pTradeSchema);
 const PriceHistory = mongoose.model('PriceHistory', priceHistorySchema);
 
 // Database connection
@@ -90,6 +123,8 @@ module.exports = {
   User,
   Wallet,
   Transaction,
+  P2POrder,
+  P2PTrade,
   PriceHistory,
   connectDatabase,
   disconnectDatabase
