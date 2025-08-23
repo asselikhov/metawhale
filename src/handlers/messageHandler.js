@@ -95,7 +95,7 @@ class MessageHandler {
       const message = `➖➖➖➖➖➖➖➖➖➖➖➖➖➖➖
 💰 Цена токена CES: $ ${priceData.price.toFixed(2)} | ₽ ${priceData.priceRub.toFixed(2)}
 ➖➖➖➖➖➖➖➖➖➖➖➖➖➖➖
-${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${priceService.formatNumber(priceData.volume24h).replace(/(\d+\.\d)0*K/, '$1K')} • 🅐🅣🅗 ${athDisplay}`;
+${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${priceService.formatNumber(priceData.volume24h).replace(/(\d+\.\d)0*K/, '$1K')} • 🅐�🅣🅗 ${athDisplay}`;
       
       // Send text message for maximum speed
       await ctx.reply(message);
@@ -205,10 +205,10 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
         message += `Баланс CES: ${walletInfo.cesBalance.toFixed(4)} • $ ${cesTotalUsd} • ₽ ${cesTotalRub}\n`;
         message += `Баланс POL: ${walletInfo.polBalance.toFixed(4)} • $ ${polTotalUsd} • ₽ ${polTotalRub}\n`;
       
+        // Removed the refresh button as requested
         const keyboard = Markup.inlineKeyboard([
           [Markup.button.callback('💳 Кошелек', 'wallet_details')],
-          [Markup.button.callback('💸 Перевод', 'transfer_menu')],
-          [Markup.button.callback('🔄 Обновить', 'refresh_balance')]
+          [Markup.button.callback('💸 Перевод', 'transfer_menu')]
         ]);
       
         await ctx.reply(message, { parse_mode: 'Markdown', ...keyboard });
@@ -448,13 +448,14 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
       // Get private key for display
       const privateKey = await walletService.getUserPrivateKey(chatId);
       
-      const message = 'Кошелек\n\n' +
-                     `Адрес: \`${walletInfo.address}\`\n` +
+      // Format as requested
+      const message = '💳 КОШЕЛЕК\n\n' +
+                     `Адрес: \n\`${walletInfo.address}\`\n\n` +
                      `Приватный ключ: \`${privateKey}\`\n\n` +
                      `⚠️ Важно:\n` +
-                     `• Сохраните эту информацию в безопасном месте\n` +
-                     `• Никому не передавайте приватный ключ\n` +
-                     `• Используйте для импорта в другие кошельки`;
+                     `Сохраните эту информацию в безопасном месте\n` +
+                     `Никому не передавайте приватный ключ\n` +
+                     `Используйте для импорта в другие кошельки`;
       
       // Simplified keyboard with only back button
       const keyboard = Markup.inlineKeyboard([
@@ -472,12 +473,12 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
   // Handle transfer menu
   async handleTransferMenu(ctx) {
     try {
-      const message = '💸 Перевод';
+      const message = '💸 ПЕРЕВОД';
       
       const keyboard = Markup.inlineKeyboard([
         [Markup.button.callback('💸 Перевести CES', 'send_ces_tokens')],
         [Markup.button.callback('💎 Перевести POL', 'send_pol_tokens')],
-        [Markup.button.callback('📊 История переводов', 'transaction_history')],
+        [Markup.button.callback('📊 История', 'transaction_history')],
         [Markup.button.callback('🔙 Назад к кабинету', 'personal_cabinet')]
       ]);
       
