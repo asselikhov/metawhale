@@ -95,7 +95,10 @@ class MessageHandler {
       const message = `➖➖➖➖➖➖➖➖➖➖➖➖➖➖➖
 💰 Цена токена CES: $ ${priceData.price.toFixed(2)} | ₽ ${priceData.priceRub.toFixed(2)}
 ➖➖➖➖➖➖➖➖➖➖➖➖➖➖➖
-${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${priceService.formatNumber(priceData.volume24h).replace(/(\d+\.\d)0*K/, '$1K')} • 🅐��� ${athDisplay}`;
+${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${priceService.formatNumber(priceData.volume24h).replace(/(\d+\.\d{2})K/, (match) => {
+        const num = parseFloat(match.replace('K', ''));
+        return num.toFixed(1) + 'K';
+      })} • 🅐🅣🅗 ${athDisplay}`;
       
       // Send text message for maximum speed
       await ctx.reply(message);
@@ -609,7 +612,6 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
                      activitySection;
       
       const keyboard = Markup.inlineKeyboard([
-        [Markup.button.callback('🔄 Обновить', 'p2p_my_profile')],
         [Markup.button.callback('🔙 Назад к P2P', 'p2p_menu')]
       ]);
       
@@ -1004,7 +1006,6 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
                        `💡 Пополните баланс CES`;
         
         const keyboard = Markup.inlineKeyboard([
-          [Markup.button.callback('🔄 Обновить баланс', 'refresh_balance')],
           [Markup.button.callback('🔙 Назад', 'p2p_menu')]
         ]);
         
@@ -1076,7 +1077,6 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
       }
       
       const keyboard = Markup.inlineKeyboard([
-        [Markup.button.callback('🔄 Обновить', 'p2p_market_orders')],
         [Markup.button.callback('🔙 Назад', 'p2p_menu')]
       ]);
       
@@ -1128,8 +1128,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
       }
       
       const keyboard = Markup.inlineKeyboard([
-        [Markup.button.callback('🔄 Обновить', 'p2p_top_traders')],
-        [Markup.button.callback('🔙 Назад к P2P', 'p2p_menu')]
+        [Markup.button.callback('🔙 Назад', 'p2p_top_traders')]
       ]);
       
       await ctx.reply(message, keyboard);
@@ -1167,7 +1166,6 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
       }
       
       const keyboard = Markup.inlineKeyboard([
-        [Markup.button.callback('🔄 Обновить', 'p2p_my_orders')],
         [Markup.button.callback('🔙 Назад', 'p2p_menu')]
       ]);
       
@@ -1333,7 +1331,6 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
                      `Активные трейдеры: ${marketStats30d.users.uniqueTraders || 0}`;
       
       const keyboard = Markup.inlineKeyboard([
-        [Markup.button.callback('🔄 Обновить', 'p2p_analytics')],
         [Markup.button.callback('🔙 Назад', 'p2p_menu')]
       ]);
       
