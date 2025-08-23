@@ -1,4 +1,5 @@
 const { Telegraf } = require('telegraf');
+const { Telegraf } = require('telegraf');
 const mongoose = require('mongoose');
 const cron = require('node-cron');
 const axios = require('axios');
@@ -540,6 +541,67 @@ function setupSelfPing() {
 
 // Запуск самопинга через 1 минуту после старта
 setTimeout(setupSelfPing, 60000);
+
+// Функция отправки цены в группу
+async function sendPriceToGroup() {
+  const TARGET_GROUP_ID = '-1001632981391';
+  
+  try {
+    console.log('📅 Отправка запланированного сообщения с ценой CES в группу...');
+    
+    const priceData = await getCESPrice();
+    
+    // Сохраняем данные в базу
+    if (!priceData.cached) {
+      await new PriceHistory(priceData).save();
+      console.log(`💾 Данные о цене сохранены: $${priceData.price.toFixed(2)} | ATH: $${priceData.ath.toFixed(2)}`);
+    }
+    
+    // Определяем эмодзи для изменения цены
+    const changeEmoji = priceData.change24h >= 0 ? '🔺' : '🔻';
+    const changeSign = priceData.change24h >= 0 ? '+' : '';
+    
+    // Проверяем, не является ли текущая цена ATH
+    const isNewATH = priceData.price >= priceData.ath;
+    const athDisplay = isNewATH ? `🏆 $ ${priceData.ath.toFixed(2)}` : `$ ${priceData.ath.toFixed(2)}`;
+    
+    // Индикатор источника данных (только для базы данных)
+    const sourceEmoji = priceData.source === 'database' ? '🗄️' : '';
+    
+    // Формат сообщения как в /price
+    const message = `➖➖➖➖➖➖➖➖➖➖➖➖➖➖➖
+💰 Цена токена CES: $ ${priceData.price.toFixed(2)}${priceData.priceRub > 0 ? ` | ₽ ${priceData.priceRub.toFixed(2)}` : ' | ₽ 0.00'}${sourceEmoji ? ` ${sourceEmoji}` : ''}
+➖➖➖➖➖➖➖➖➖➖➖➖➖➖➖
+${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${formatNumber(priceData.volume24h)} • 🅐🅣🅗 ${athDisplay}`;
+    
+    // Отправляем сообщение в группу
+    await bot.telegram.sendMessage(TARGET_GROUP_ID, message);
+    
+    console.log(`✅ Сообщение с ценой CES отправлено в группу ${TARGET_GROUP_ID}`);
+    
+  } catch (error) {
+    console.error('❌ Ошибка отправки запланированного сообщения:', error);
+    
+    // Попробуем отправить сообщение об ошибке в группу
+    try {
+      await bot.telegram.sendMessage(TARGET_GROUP_ID, '❌ Не удается получить цену CES в данный момент.');
+    } catch (sendError) {
+      console.error('❌ Ошибка отправки сообщения об ошибке:', sendError);
+    }
+  }
+}
+
+// Настройка запланированного сообщения в 19:00 по Москве
+cron.schedule('0 19 * * *', () => {
+  console.log('🕕 19:00 по Москве - отправляем цену CES в группу');
+  sendPriceToGroup();
+}, {
+  scheduled: true,
+  timezone: "Europe/Moscow"
+});
+
+console.log('⏰ Запланированное сообщение настроено на 19:00 по Москве');
+console.log('📱 Группа для отправки: -1001632981391');
 
 // Автообновление цен отключено для экономии API лимитов
 // Обновление цен происходит только по команде /price
