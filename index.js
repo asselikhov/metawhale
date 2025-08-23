@@ -73,7 +73,57 @@ const API_CALL_INTERVAL = parseInt(process.env.API_CALL_INTERVAL) || 10000; // 1
 
 
 
-// Функция получения цены CES из CoinGecko с обработкой лимитов
+// Функция получения данных ATH из CoinMarketCap
+async function getCMCPrice() {
+  try {
+    if (!process.env.CMC_API_KEY) {
+      console.log('⚠️ CMC API ключ не найден, пропускаем CoinMarketCap');
+      return null;
+    }
+
+    // Поиск по символу CES
+    const response = await axios.get(
+      'https://pro-api.coinmarketcap.com/v2/cryptocurrency/quotes/latest',
+      {
+        headers: {
+          'X-CMC_PRO_API_KEY': process.env.CMC_API_KEY,
+          'Accept': 'application/json'
+        },
+        params: {
+          symbol: 'CES',
+          convert: 'USD,RUB'
+        },
+        timeout: 5000
+      }
+    );
+
+    if (response.data && response.data.data && response.data.data.CES) {
+      const cesData = response.data.data.CES[0]; // Берем первый результат
+      const quote = cesData.quote;
+      
+      if (quote.USD) {
+        console.log('✅ Данные получены из CoinMarketCap');
+        return {
+          price: quote.USD.price,
+          priceRub: quote.RUB ? quote.RUB.price : 0,
+          change24h: quote.USD.percent_change_24h,
+          marketCap: quote.USD.market_cap,
+          volume24h: quote.USD.volume_24h,
+          ath: quote.USD.ath || quote.USD.price, // ATH из CMC или текущая цена
+          source: 'coinmarketcap'
+        };
+      }
+    }
+
+    console.log('⚠️ CES токен не найден в CoinMarketCap');
+    return null;
+  } catch (error) {
+    console.log('⚠️ Ошибка CoinMarketCap API:', error.message);
+    return null;
+  }
+}
+
+// Функция получения цены CES через CoinMarketCap
 async function getCESPrice() {
   try {
     // Проверяем интервал между запросами
@@ -88,115 +138,49 @@ async function getCESPrice() {
     
     lastApiCall = Date.now();
     
-    // Попытка получить данные по адресу контракта (сеть Polygon) с дополнительными параметрами
-    const contractResponse = await axios.get(
-      `${process.env.COINGECKO_API_URL}/simple/token_price/polygon-pos?contract_addresses=${process.env.CES_CONTRACT_ADDRESS}&vs_currencies=usd,rub&include_24hr_change=true&include_market_cap=true&include_24hr_vol=true&include_ath=true&include_ath_date=true`,
-      {
-        timeout: 8000, // Уменьшено с 10 до 8 секунд для ускорения
-        headers: {
-          'User-Agent': 'CES-Price-Bot/1.0'
-        }
-      }
-    );
-
-    const contractAddress = process.env.CES_CONTRACT_ADDRESS.toLowerCase();
-    
-    if (contractResponse.data[contractAddress]) {
-      const data = contractResponse.data[contractAddress];
+    // Получаем данные из CoinMarketCap
+    const cmcData = await getCMCPrice();
+    if (cmcData) {
+      // Проверяем ATH из базы данных и сравниваем
+      const maxPriceFromDB = await PriceHistory.findOne().sort({ price: -1 }).limit(1);
+      const dbATH = maxPriceFromDB ? maxPriceFromDB.price : cmcData.price;
       
-      // Получаем ATH из базы данных и сравниваем с API данными
-      let athValue = data.usd_ath;
-      
-      // Если API не предоставляет ATH, ищем максимальную цену в истории
-      if (!athValue) {
-        const maxPriceFromDB = await PriceHistory.findOne().sort({ price: -1 }).limit(1);
-        athValue = maxPriceFromDB ? maxPriceFromDB.price : data.usd;
-        console.log(`📈 ATH взят из базы данных: $${athValue.toFixed(2)}`);
-      }
-      
-      // Проверяем, не является ли текущая цена новым ATH
-      const finalATH = Math.max(athValue, data.usd);
-      if (data.usd > athValue) {
-        console.log(`🏆 Обнаружен новый ATH! Старый: $${athValue.toFixed(2)}, Новый: $${data.usd.toFixed(2)}`);
+      const finalATH = Math.max(cmcData.ath, dbATH, cmcData.price);
+      if (cmcData.price > (cmcData.ath || 0) || cmcData.price > dbATH) {
+        console.log(`🏆 Обнаружен новый ATH через CoinMarketCap! $${cmcData.price.toFixed(2)}`);
       }
       
       return {
-        price: data.usd,
-        priceRub: data.rub || 0,
-        change24h: data.usd_24h_change || 0,
-        changeRub24h: data.rub_24h_change || 0,
-        marketCap: data.usd_market_cap || 0,
-        volume24h: data.usd_24h_vol || 0,
-        ath: finalATH
+        price: cmcData.price,
+        priceRub: cmcData.priceRub,
+        change24h: cmcData.change24h,
+        changeRub24h: 0, // CMC не предоставляет данных в рублях
+        marketCap: cmcData.marketCap,
+        volume24h: cmcData.volume24h,
+        ath: finalATH,
+        source: 'coinmarketcap'
       };
     }
 
-    // Резервный вариант: поиск по различным возможным ID токена
-    const possibleIds = ['ces', 'cerestoken', 'ceres-protocol'];
-    
-    for (const tokenId of possibleIds) {
-      try {
-        const searchResponse = await axios.get(
-          `${process.env.COINGECKO_API_URL}/simple/price?ids=${tokenId}&vs_currencies=usd,rub&include_24hr_change=true&include_market_cap=true&include_24hr_vol=true&include_ath=true&include_ath_date=true`,
-          { timeout: 5000 }
-        );
-
-        if (searchResponse.data[tokenId]) {
-          const data = searchResponse.data[tokenId];
-          console.log(`✅ Найден токен по ID: ${tokenId}`);
-          
-          let athValue = data.usd_ath;
-          if (!athValue) {
-            const maxPriceFromDB = await PriceHistory.findOne().sort({ price: -1 }).limit(1);
-            athValue = maxPriceFromDB ? maxPriceFromDB.price : data.usd;
-          }
-          
-          // Проверяем новый ATH
-          const finalATH = Math.max(athValue, data.usd);
-          if (data.usd > athValue) {
-            console.log(`🏆 Новый ATH через ${tokenId}! $${data.usd.toFixed(2)}`);
-          }
-          
-          return {
-            price: data.usd,
-            priceRub: data.rub || 0,
-            change24h: data.usd_24h_change || 0,
-            changeRub24h: data.rub_24h_change || 0,
-            marketCap: data.usd_market_cap || 0,
-            volume24h: data.usd_24h_vol || 0,
-            ath: finalATH
-          };
-        }
-      } catch (err) {
-        console.log(`⚠️ Токен ${tokenId} не найден`);
-        continue;
-      }
-    }
-
-    throw new Error('Токен CES не найден во всех источниках');
+    throw new Error('Не удалось получить данные CES из CoinMarketCap');
   } catch (error) {
     console.error('Ошибка получения цены CES:', error.message);
     
-    // Обработка ошибки 429 (Too Many Requests)
-    if (error.response && error.response.status === 429) {
-      const retryAfter = parseInt(error.response.headers['retry-after']) || 60;
-      console.log(`⚠️ Превышен лимит запросов. Повтор через ${retryAfter} секунд`);
-      
-      // Возвращаем последнюю сохраненную цену из базы данных
-      const lastPrice = await PriceHistory.findOne().sort({ timestamp: -1 });
-      if (lastPrice) {
-        console.log('⚡ Используем последнюю сохраненную цену');
-        return {
-          price: lastPrice.price,
-          priceRub: lastPrice.priceRub || 0,
-          change24h: lastPrice.change24h || 0,
-          changeRub24h: lastPrice.changeRub24h || 0,
-          marketCap: lastPrice.marketCap || 0,
-          volume24h: lastPrice.volume24h || 0,
-          ath: lastPrice.ath || lastPrice.price,
-          cached: true
-        };
-      }
+    // Возвращаем последнюю сохраненную цену из базы данных
+    const lastPrice = await PriceHistory.findOne().sort({ timestamp: -1 });
+    if (lastPrice) {
+      console.log('⚡ Используем последнюю сохраненную цену из базы данных');
+      return {
+        price: lastPrice.price,
+        priceRub: lastPrice.priceRub || 0,
+        change24h: lastPrice.change24h || 0,
+        changeRub24h: lastPrice.changeRub24h || 0,
+        marketCap: lastPrice.marketCap || 0,
+        volume24h: lastPrice.volume24h || 0,
+        ath: lastPrice.ath || lastPrice.price,
+        source: 'database',
+        cached: true
+      };
     }
     
     throw error;
@@ -221,8 +205,11 @@ async function sendPriceToUser(ctx) {
     const isNewATH = priceData.price >= priceData.ath;
     const athDisplay = isNewATH ? `🏆 $ ${priceData.ath.toFixed(2)}` : `$ ${priceData.ath.toFixed(2)}`;
     
+    // Индикатор источника данных
+    const sourceEmoji = priceData.source === 'database' ? '🗄️' : '🄲🄼🄲';
+    
     // Новый формат сообщения
-    const message = `💰 Цена токена CES: $ ${priceData.price.toFixed(2)}${priceData.priceRub > 0 ? ` | ₽ ${priceData.priceRub.toFixed(2)}` : ''}
+    const message = `💰 Цена токена CES: $ ${priceData.price.toFixed(2)}${priceData.priceRub > 0 ? ` | ₽ ${priceData.priceRub.toFixed(2)}` : ''} ${sourceEmoji}
 ➖➖➖➖➖➖➖➖➖➖➖➖➖➖➖
 ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${formatNumber(priceData.volume24h)} • 🅐🅣🅗 ${athDisplay}`;
     

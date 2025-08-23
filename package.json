@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node index.js",
     "dev": "nodemon index.js",
-    "test-format": "node test-format.js"
+    "test-format": "node test-format.js",
+    "test-cmc": "node test-cmc.js"
   },
   "keywords": [
     "telegram",

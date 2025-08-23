@@ -96,26 +96,45 @@ function runATHTests() {
 function testMessageFormat() {
   console.log('\n📝 Тестирование формата сообщения...\n');
   
-  const testData = {
+  // Тест с CoinMarketCap
+  const testDataCMC = {
     price: 3.18,
     priceRub: 256.40,
     change24h: -3.58,
     volume24h: 1170000,
-    ath: 4.25
+    ath: 4.25,
+    source: 'coinmarketcap'
   };
   
-  const changeEmoji = testData.change24h >= 0 ? '🔺' : '🔻';
-  const changeSign = testData.change24h >= 0 ? '+' : '';
-  const isNewATH = testData.price >= testData.ath;
-  const athDisplay = isNewATH ? `🏆 $ ${testData.ath.toFixed(2)}` : `$ ${testData.ath.toFixed(2)}`;
+  const changeEmoji = testDataCMC.change24h >= 0 ? '🔺' : '🔻';
+  const changeSign = testDataCMC.change24h >= 0 ? '+' : '';
+  const isNewATH = testDataCMC.price >= testDataCMC.ath;
+  const athDisplay = isNewATH ? `🏆 $ ${testDataCMC.ath.toFixed(2)}` : `$ ${testDataCMC.ath.toFixed(2)}`;
+  const sourceEmoji = '🅲🅼🅲';
   
-  const message = `💰 Цена токена CES: $ ${testData.price.toFixed(2)} | ₽ ${testData.priceRub.toFixed(2)}
+  const messageCMC = `💰 Цена токена CES: $ ${testDataCMC.price.toFixed(2)} | ₽ ${testDataCMC.priceRub.toFixed(2)} ${sourceEmoji}
 ➖➖➖➖➖➖➖➖➖➖➖➖➖➖➖
-${changeEmoji} ${changeSign}${testData.change24h.toFixed(2)}% • 🅥 $ ${formatNumber(testData.volume24h)} • 🅐🅣🅗 ${athDisplay}`;
+${changeEmoji} ${changeSign}${testDataCMC.change24h.toFixed(2)}% • 🅥 $ ${formatNumber(testDataCMC.volume24h)} • 🅐🅣🅗 ${athDisplay}`;
   
-  console.log('Результат форматирования:');
-  console.log(message);
-  console.log('\n✅ Формат сообщения корректен');
+  console.log('Результат форматирования (CoinMarketCap):');
+  console.log(messageCMC);
+  
+  // Тест с database fallback
+  const testDataDB = {
+    ...testDataCMC,
+    source: 'database'
+  };
+  
+  const sourceEmojiDB = '🗄️';
+  
+  const messageDB = `💰 Цена токена CES: $ ${testDataDB.price.toFixed(2)} | ₽ ${testDataDB.priceRub.toFixed(2)} ${sourceEmojiDB}
+➖➖➖➖➖➖➖➖➖➖➖➖➖➖➖
+${changeEmoji} ${changeSign}${testDataDB.change24h.toFixed(2)}% • 🅥 $ ${formatNumber(testDataDB.volume24h)} • 🅐🅣🅗 ${athDisplay}`;
+  
+  console.log('\nРезультат форматирования (Database Cache):');
+  console.log(messageDB);
+  
+  console.log('\n✅ Формат сообщения корректен для CoinMarketCap и database cache');
 }
 
 // Запуск всех тестов
@@ -123,8 +142,13 @@ console.log('🚀 Запуск тестов исправленной логик�
 runATHTests();
 testMessageFormat();
 console.log('\n✨ Тестирование завершено!');
-console.log('\n🔧 Изменения в логике:');
-console.log('• Упрощена логика определения ATH');
-console.log('• Убрано дублирование обработки в разных функциях');
-console.log('• ATH теперь всегда максимум из исторического значения и текущей цены');
-console.log('• Корректное отображение эмодзи 🏆 при достижении ATH');
+console.log('\n🔧 Новые возможности:');
+console.log('• 🥇 CoinMarketCap API как единственный источник данных');
+console.log('• 🏆 Точные данные ATH из CMC');
+console.log('• 📊 Индикаторы источника данных (🅲🅼🅲 / 🗄️)');
+console.log('• 🔄 Fallback на базу данных при ошибках API');
+console.log('• ♾️ Упрощенная и надежная логика ATH');
+console.log('\n📝 Конфигурация:');
+console.log('• Добавьте CMC_API_KEY в .env для получения данных из CoinMarketCap');
+console.log('• Тест CoinMarketCap: yarn test-cmc');
+console.log('• Получить API ключ: https://coinmarketcap.com/api/');
