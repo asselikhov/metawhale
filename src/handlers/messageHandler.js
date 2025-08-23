@@ -271,7 +271,10 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
       ]);
       
       try {
-        await ctx.replyWithPhoto({ source: 'p2plogo.png' }, { caption: message, reply_markup: keyboard });
+        // Use absolute path for the image
+        const path = require('path');
+        const imagePath = path.join(__dirname, '../../p2plogo.png');
+        await ctx.replyWithPhoto({ source: imagePath }, { caption: message, reply_markup: keyboard });
       } catch (photoError) {
         console.error('Error sending P2P menu photo (text version):', photoError);
         // Fallback to sending text only if photo fails
@@ -581,7 +584,10 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
       ]);
       
       try {
-        await ctx.replyWithPhoto({ source: 'p2plogo.png' }, { caption: message, reply_markup: keyboard });
+        // Use absolute path for the image
+        const path = require('path');
+        const imagePath = path.join(__dirname, '../../p2plogo.png');
+        await ctx.replyWithPhoto({ source: imagePath }, { caption: message, reply_markup: keyboard });
       } catch (photoError) {
         console.error('Error sending P2P menu photo:', photoError);
         // Fallback to sending text only if photo fails
