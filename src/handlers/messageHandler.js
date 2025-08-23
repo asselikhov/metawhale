@@ -738,7 +738,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
                      '📝 Отправьте сообщение в формате:\n' +
                      '`Адрес_кошелька Сумма`\n\n' +
                      '📝 **Пример:**\n' +
-                     '`0x742d35Cc6734C0532925a3b8D4321F...89 0.1`\n\n` +
+                     '`0x742d35Cc6734C0532925a3b8D4321F...89 0.1`\n\n' +
                      'ℹ️ Минимальная сумма: 0.001 POL\n' +
                      '⚠️ 0.001 POL останется для комиссии';
       
@@ -1019,7 +1019,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
       }
       
       if (orders.sellOrders.length > 0) {
-        message += `.DataGridViewColumn **Заявки на продажу:**\n`;
+        message += `📉 **Заявки на продажу:**\n`;
         orders.sellOrders.slice(0, 5).forEach((order, index) => {
           const username = order.userId.username || order.userId.firstName || 'Пользователь';
           message += `${index + 1}. 💎 ${order.remainingAmount.toFixed(2)} CES по ₽${order.pricePerToken.toFixed(2)} (@${username})\n`;
@@ -1122,7 +1122,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
       console.log(`💰 Processing P2P order: ${amount} CES at ₽${pricePerToken} (total: ₽${totalValue.toFixed(2)}, commission: ₽${commission.toFixed(2)})`);
       
       // Show confirmation
-      const typeEmoji = orderType === 'buy' ? '📈' : '.DataGridViewColumn';
+      const typeEmoji = orderType === 'buy' ? '📈' : '📉';
       const typeText = orderType === 'buy' ? 'покупку' : 'продажу';
       
       const message = `💎 **Подтверждение ордера на ${typeText}** 💎\n\n` +
@@ -1179,7 +1179,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(2)}% • 🅥 $ ${pric
       
       console.log(`✅ Order created successfully: ${result._id}`);
       
-      const typeEmoji = orderType === 'buy' ? '📈' : '.DataGridViewColumn';
+      const typeEmoji = orderType === 'buy' ? '📈' : '📉';
       const typeText = orderType === 'buy' ? 'покупку' : 'продажу';
       const totalValue = amount * pricePerToken;
       
