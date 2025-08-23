@@ -3,7 +3,7 @@ services:
     name: ces-price-telegram-bot
     env: node
     plan: free
-    buildCommand: yarn install && mkdir -p ./chrome-cache && PUPPETEER_CACHE_DIR=./chrome-cache npx puppeteer browsers install chrome && ls -la ./chrome-cache/chrome/
+    buildCommand: yarn install
     startCommand: yarn start
     healthCheckPath: /health
     envVars:
@@ -20,12 +20,4 @@ services:
       - key: TIMEZONE
         value: "Europe/Moscow"
       - key: WEBHOOK_URL
-        value: "https://metawhale.onrender.com"
-      - key: NODE_ENV
-        value: "production"
-      - key: PUPPETEER_CACHE_DIR
-        value: "./chrome-cache"
-      - key: PUPPETEER_SKIP_CHROMIUM_DOWNLOAD
-        value: "false"
-      - key: PUPPETEER_EXECUTABLE_PATH
-        value: "./chrome-cache/chrome/linux-*/chrome-linux64/chrome"
+        sync: false
