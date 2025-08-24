@@ -286,6 +286,13 @@ class TelegramBot {
       return messageHandler.handleP2PMyOrders(ctx, page);
     });
     
+    // Handle no_action callbacks (for non-clickable buttons)
+    this.bot.action('no_action', (ctx) => {
+      // Silently acknowledge the callback without any action
+      console.log('Received no_action callback (non-clickable button clicked)');
+      return ctx.answerCbQuery();
+    });
+    
     // Handle user profile view for buy orders
     this.bot.action(/^buy_order_(.+)$/, (ctx) => {
       const userId = ctx.match[1];

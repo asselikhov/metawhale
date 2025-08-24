@@ -125,22 +125,33 @@ class P2POrdersHandler {
         await new Promise(resolve => setTimeout(resolve, 100));
       }
       
-      // Пагинация над кнопкой "Назад"
+      // Пагинация над кнопкой "Назад" - умная логика для кнопок с некликабельными крайними кнопками
       const navigationButtons = [];
       if (totalPages > 1) {
         const paginationButtons = [];
         
-        if (page > 1) {
-          paginationButtons.push(Markup.button.callback('⬅️', `p2p_buy_orders_page_${page - 1}`));
+        // На первой странице - некликабельная левая кнопка и кликабельная правая
+        if (page === 1 && totalPages > 1) {
+          paginationButtons.push(Markup.button.callback('⬅️', 'no_action')); // некликабельная
+          paginationButtons.push(Markup.button.callback(`${page}/${totalPages}`, 'p2p_buy_orders'));
+          paginationButtons.push(Markup.button.callback('➡️', `p2p_buy_orders_page_${page + 1}`));
         }
-        
-        paginationButtons.push(Markup.button.callback(`${page}/${totalPages}`, 'p2p_buy_orders'));
-        
-        if (page < totalPages) {
+        // На последней странице - кликабельная левая кнопка и некликабельная правая
+        else if (page === totalPages && totalPages > 1) {
+          paginationButtons.push(Markup.button.callback('⬅️', `p2p_buy_orders_page_${page - 1}`));
+          paginationButtons.push(Markup.button.callback(`${page}/${totalPages}`, 'p2p_buy_orders'));
+          paginationButtons.push(Markup.button.callback('➡️', 'no_action')); // некликабельная
+        }
+        // На средних страницах - обе кнопки кликабельные
+        else if (page > 1 && page < totalPages) {
+          paginationButtons.push(Markup.button.callback('⬅️', `p2p_buy_orders_page_${page - 1}`));
+          paginationButtons.push(Markup.button.callback(`${page}/${totalPages}`, 'p2p_buy_orders'));
           paginationButtons.push(Markup.button.callback('➡️', `p2p_buy_orders_page_${page + 1}`));
         }
         
-        navigationButtons.push(paginationButtons);
+        if (paginationButtons.length > 0) {
+          navigationButtons.push(paginationButtons);
+        }
       }
       
       // Кнопка "Назад" внизу
@@ -304,22 +315,24 @@ class P2POrdersHandler {
         await new Promise(resolve => setTimeout(resolve, 100));
       }
       
-      // Пагинация над кнопкой "Назад" - умная логика для кнопок
+      // Пагинация над кнопкой "Назад" - умная логика для кнопок с некликабельными крайними кнопками
       const navigationButtons = [];
       if (totalPages > 1) {
         const paginationButtons = [];
         
-        // На первой странице - только кнопка вперед
+        // На первой странице - некликабельная левая кнопка и кликабельная правая
         if (page === 1 && totalPages > 1) {
+          paginationButtons.push(Markup.button.callback('⬅️', 'no_action')); // некликабельная
           paginationButtons.push(Markup.button.callback(`${page}/${totalPages}`, 'p2p_sell_orders'));
           paginationButtons.push(Markup.button.callback('➡️', `p2p_sell_orders_page_${page + 1}`));
         }
-        // На последней странице - только кнопка назад
+        // На последней странице - кликабельная левая кнопка и некликабельная правая
         else if (page === totalPages && totalPages > 1) {
           paginationButtons.push(Markup.button.callback('⬅️', `p2p_sell_orders_page_${page - 1}`));
           paginationButtons.push(Markup.button.callback(`${page}/${totalPages}`, 'p2p_sell_orders'));
+          paginationButtons.push(Markup.button.callback('➡️', 'no_action')); // некликабельная
         }
-        // На средних страницах - обе кнопки
+        // На средних страницах - обе кнопки кликабельные
         else if (page > 1 && page < totalPages) {
           paginationButtons.push(Markup.button.callback('⬅️', `p2p_sell_orders_page_${page - 1}`));
           paginationButtons.push(Markup.button.callback(`${page}/${totalPages}`, 'p2p_sell_orders'));
@@ -503,22 +516,24 @@ class P2POrdersHandler {
         }
       }
       
-      // Пагинация над кнопкой "Назад" - умная логика для кнопок (как в рыночных ордерах)
+      // Пагинация над кнопкой "Назад" - умная логика для кнопок с некликабельными крайними кнопками
       const navigationButtons = [];
       if (totalPages > 1) {
         const paginationButtons = [];
         
-        // На первой странице - только кнопка вперед
+        // На первой странице - некликабельная левая кнопка и кликабельная правая
         if (page === 1 && totalPages > 1) {
+          paginationButtons.push(Markup.button.callback('⬅️', 'no_action')); // некликабельная
           paginationButtons.push(Markup.button.callback(`${page}/${totalPages}`, 'p2p_my_orders'));
           paginationButtons.push(Markup.button.callback('➡️', `p2p_my_orders_page_${page + 1}`));
         }
-        // На последней странице - только кнопка назад
+        // На последней странице - кликабельная левая кнопка и некликабельная правая
         else if (page === totalPages && totalPages > 1) {
           paginationButtons.push(Markup.button.callback('⬅️', `p2p_my_orders_page_${page - 1}`));
           paginationButtons.push(Markup.button.callback(`${page}/${totalPages}`, 'p2p_my_orders'));
+          paginationButtons.push(Markup.button.callback('➡️', 'no_action')); // некликабельная
         }
-        // На средних страницах - обе кнопки
+        // На средних страницах - обе кнопки кликабельные
         else if (page > 1 && page < totalPages) {
           paginationButtons.push(Markup.button.callback('⬅️', `p2p_my_orders_page_${page - 1}`));
           paginationButtons.push(Markup.button.callback(`${page}/${totalPages}`, 'p2p_my_orders'));
