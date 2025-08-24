@@ -113,7 +113,7 @@ class MessageHandler {
 ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${priceService.formatNumber(priceData.volume24h).replace(/(\d+\.\d{2})K/, (match) => {
         const num = parseFloat(match.replace('K', ''));
         return num.toFixed(1) + 'K';
-      })} • 🅐�_THRESH ${athDisplay}`;
+      })} • 🅐🅣🅗 ${athDisplay}`;
       
       // Edit the original message instead of sending new one
       await ctx.telegram.editMessageText(
@@ -392,7 +392,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
                      `Адрес: \n\`${walletInfo.address}\`\n\n` +
                      `Приватный ключ: \`${privateKey}\`\n\n` +
                      `⚠️ Важно:\n` +
-                     `Сохраните эту информацию в безопасном месте\n` +
+                     `Сохраните данные в безопасном месте\n` +
                      `Никому не передавайте приватный ключ\n` +
                      `Используйте для импорта в другие кошельки`;
       
@@ -569,9 +569,9 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
       
       // Keyboard with buttons
       const keyboard = Markup.inlineKeyboard([
-        [Markup.button.callback('📈 Купить CES', 'p2p_buy_ces'), Markup.button.callback('📉 Продать CES', 'p2p_sell_ces')],
+        [Markup.button.callback('📈 Купить CES', 'p2p_buy_ces'), Markup.button.callback('.DataGridViewColumn Продать CES', 'p2p_sell_ces')],
         [Markup.button.callback('📊 Рынок ордеров', 'p2p_market_orders'), Markup.button.callback('📋 Мои ордера', 'p2p_my_orders')],
-        [Markup.button.callback('🧮 Аналитика', 'p2p_analytics')]
+        [Markup.button.callback('🏆 Топ трейдеров', 'p2p_top_traders'), Markup.button.callback('🧮 Аналитика', 'p2p_analytics')]
       ]);
       
       console.log(`📤 Sending P2P menu text with buttons to user ${chatId}`);
