@@ -7,7 +7,7 @@ const { Markup } = require('telegraf');
 const priceService = require('../services/priceService');
 const walletService = require('../services/walletService');
 const p2pService = require('../services/p2pService');
-const { User, PriceHistory, P2PTrade } = require('../database/models');
+const { User, PriceHistory, P2PTrade, isDatabaseConnected } = require('../database/models');
 
 // Simple session storage for user states
 const userSessions = new Map();
@@ -16,43 +16,58 @@ class MessageHandler {
   // Get or create user session
   getUserSession(chatId) {
     if (!userSessions.has(chatId)) {
+      console.log(`🆕 Creating new session for user ${chatId}`);
       userSessions.set(chatId, {});
+    } else {
+      console.log(`🔄 Using existing session for user ${chatId}`);
     }
     return userSessions.get(chatId);
   }
 
   // Clear user session
   clearUserSession(chatId) {
+    console.log(`🗑 Clearing session for user ${chatId}`);
     userSessions.delete(chatId);
   }
 
   // Set session data
   setSessionData(chatId, key, value) {
     const session = this.getUserSession(chatId);
+    console.log(`💾 Setting session data for user ${chatId}: ${key} = ${JSON.stringify(value)}`);
     session[key] = value;
   }
 
   // Get session data
   getSessionData(chatId, key) {
     const session = this.getUserSession(chatId);
-    return session[key];
+    const value = session[key];
+    console.log(`🔍 Getting session data for user ${chatId}: ${key} = ${JSON.stringify(value)}`);
+    return value;
   }
   // Handle /start command
   async handleStart(ctx) {
     try {
       const chatId = ctx.chat.id.toString();
+      console.log(`🚀 Handling /start command for user ${chatId}`);
       
-      // Register or update user in database
-      const user = await User.findOneAndUpdate(
-        { chatId },
-        {
-          username: ctx.from.username,
-          firstName: ctx.from.first_name,
-          lastName: ctx.from.last_name,
-          isActive: true
-        },
-        { upsert: true, new: true }
-      );
+      // Register or update user in database (if available)
+      let user = null;
+      if (isDatabaseConnected()) {
+        try {
+          user = await User.findOneAndUpdate(
+            { chatId },
+            {
+              username: ctx.from.username,
+              firstName: ctx.from.first_name,
+              lastName: ctx.from.last_name,
+              isActive: true
+            },
+            { upsert: true, new: true }
+          );
+        } catch (dbError) {
+          console.error('Database error during user registration:', dbError);
+        }
+      }
       
       const welcomeMessage = 'Добро пожаловать в Rustling Grass 🌾 assistant !';
       
@@ -61,11 +76,17 @@ class MessageHandler {
         ['👤 Личный кабинет', '🔄 P2P Биржа']
       ]).resize();
       
+      console.log(`📤 Sending welcome message to user ${chatId}`);
       await ctx.reply(welcomeMessage, mainMenu);
+      console.log(`✅ Welcome message sent successfully to user ${chatId}`);
       
     } catch (error) {
       console.error('Start command error:', error);
-      await ctx.reply('Произошла ошибка при запуске. Попробуйте еще раз.');
+      try {
+        await ctx.reply('Произошла ошибка при запуске. Попробуйте еще раз.');
+      } catch (replyError) {
+        console.error('Failed to send error message:', replyError);
+      }
     }
   }
 
@@ -80,7 +101,11 @@ class MessageHandler {
       
     } catch (error) {
       console.error('Error sending price to user:', error);
-      await ctx.reply('❌ Не удается получить цену CES в данный момент. Попробуйте позже.');
+      try {
+        await ctx.reply('❌ Не удается получить цену CES в данный момент. Попробуйте позже.');
+      } catch (replyError) {
+        console.error('Failed to send error message:', replyError);
+      }
     }
   }
 
@@ -89,10 +114,14 @@ class MessageHandler {
     try {
       const priceData = await priceService.getCESPrice();
       
-      // Save data to database (only when calling /price)
-      if (!priceData.cached) {
-        await new PriceHistory(priceData).save();
-        console.log(`💾 Price data saved: $${priceData.price.toFixed(2)} | ATH: $${priceData.ath.toFixed(2)}`);
+      // Save data to database (only when calling /price and if database is available)
+      if (isDatabaseConnected() && !priceData.cached) {
+        try {
+          await new PriceHistory(priceData).save();
+          console.log(`💾 Price data saved: $${priceData.price.toFixed(2)} | ATH: $${priceData.ath.toFixed(2)}`);
+        } catch (dbError) {
+          console.error('Database error during price saving:', dbError);
+        }
       }
       
       // Determine emoji for price change
@@ -136,7 +165,11 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
       } catch (editError) {
         console.error('Error editing message:', editError);
         // If editing fails, send a new message
-        await ctx.reply('❌ Не удается получить цену CES в данный момент. Попробуйте позже.');
+        try {
+          await ctx.reply('❌ Не удается получить цену CES в данный момент. Попробуйте позже.');
+        } catch (replyError) {
+          console.error('Failed to send error message:', replyError);
+        }
       }
     }
   }
@@ -204,7 +237,11 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
       
     } catch (error) {
       console.error('Text message handler error:', error);
-      await ctx.reply('❌ Произошла ошибка. Попробуйте еще раз.');
+      try {
+        await ctx.reply('❌ Произошла ошибка. Попробуйте еще раз.');
+      } catch (replyError) {
+        console.error('Failed to send error message:', replyError);
+      }
     }
   }
 
@@ -214,7 +251,21 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
       const chatId = ctx.chat.id.toString();
       console.log(`🏠 Processing Personal Cabinet request for user ${chatId}`);
       
-      const walletInfo = await walletService.getUserWallet(chatId);
+      let walletInfo = null;
+      if (isDatabaseConnected()) {
+        try {
+          walletInfo = await walletService.getUserWallet(chatId);
+        } catch (dbError) {
+          console.error('Database error during wallet retrieval:', dbError);
+        }
+      }
+      
+      // If database is not available or user not found, create a mock wallet info
+      if (!walletInfo) {
+        walletInfo = {
+          hasWallet: false
+        };
+      }
       
       if (!walletInfo) {
         console.log(`❌ User ${chatId} not found`);
@@ -270,7 +321,11 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
       
     } catch (error) {
       console.error('Error showing personal cabinet:', error);
-      await ctx.reply('❌ Ошибка загрузки личного кабинета. Попробуйте позже.');
+      try {
+        await ctx.reply('❌ Ошибка загрузки личного кабинета. Попробуйте позже.');
+      } catch (replyError) {
+        console.error('Failed to send error message:', replyError);
+      }
     }
   }
 

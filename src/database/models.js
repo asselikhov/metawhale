@@ -8,35 +8,52 @@ const config = require('../config/configuration');
 // Configure mongoose connection with optimized settings
 mongoose.set('strictQuery', false);
 
+// Variable to track connection status
+let isConnected = false;
+
 // Connect to MongoDB with optimized settings
-mongoose.connect(config.database.mongoUri, config.database.options)
-  .then(() => {
+async function connectDatabase() {
+  try {
+    await mongoose.connect(config.database.mongoUri, config.database.options);
+    isConnected = true;
     console.log('✅ Connected to MongoDB successfully');
-  })
-  .catch((error) => {
+  } catch (error) {
     console.error('❌ MongoDB connection error:', error);
-    process.exit(1);
-  });
+    isConnected = false;
+    // Don't exit the process, allow the bot to run without database
+    console.log('⚠️  Bot will continue running without database connection');
+  }
+}
 
 // Add connection event handlers
 mongoose.connection.on('connected', () => {
   console.log('💾 Mongoose connected to MongoDB');
+  isConnected = true;
 });
 
 mongoose.connection.on('error', (err) => {
   console.error('💾 Mongoose connection error:', err);
+  isConnected = false;
 });
 
 mongoose.connection.on('disconnected', () => {
   console.log('💾 Mongoose disconnected from MongoDB');
+  isConnected = false;
 });
 
 // Handle graceful shutdown
-process.on('SIGINT', async () => {
-  await mongoose.connection.close();
-  console.log('💾 Mongoose connection closed through app termination');
-  process.exit(0);
-});
+async function disconnectDatabase() {
+  if (isConnected) {
+    await mongoose.connection.close();
+    console.log('💾 Mongoose connection closed through app termination');
+    isConnected = false;
+  }
+}
+
+// Check if database is connected
+function isDatabaseConnected() {
+  return isConnected;
+}
 
 // User Schema
 const userSchema = new mongoose.Schema({
@@ -198,107 +215,71 @@ const p2pTradeSchema = new mongoose.Schema({
   },
   escrowStatus: {
     type: String,
-    enum: ['none', 'locked', 'released', 'refunded'],
-    default: 'none'
+    enum: ['locked', 'released', 'returned', 'disputed'],
+    default: 'locked'
   },
-  paymentMethod: { type: String, enum: ['bank_transfer', 'sbp', 'qiwi', 'yoomoney'], required: true },
-  paymentDetails: {
-    sellerInstructions: String, // Seller's payment instructions
-    buyerProof: String, // Buyer's payment proof
-    transactionId: String // Payment transaction ID
-  },
+  paymentMethod: { type: String, enum: ['bank_transfer', 'sbp', 'qiwi', 'yoomoney'] },
+  buyerPaymentConfirmed: { type: Boolean, default: false },
+  sellerPaymentConfirmed: { type: Boolean, default: false },
+  buyerReleaseConfirmed: { type: Boolean, default: false },
+  sellerReleaseConfirmed: { type: Boolean, default: false },
+  disputeReason: String,
+  disputeOpenedAt: Date,
+  disputeResolvedAt: Date,
+  disputeResolvedBy: String,
   timeTracking: {
     createdAt: { type: Date, default: Date.now },
     escrowLockedAt: Date,
-    paymentMadeAt: Date,
     paymentConfirmedAt: Date,
+    escrowReleasedAt: Date,
     completedAt: Date,
-    expiresAt: { type: Date, default: () => new Date(Date.now() + 30 * 60 * 1000) } // 30 minutes default
+    expiresAt: Date, // Auto-cancel after 30 minutes if no action
+    buyerConfirmedAt: Date,
+    sellerConfirmedAt: Date
   },
-  cesTransferTxHash: String, // Hash for CES token transfer
-  disputeReason: String,
-  disputeMessages: [{
-    userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  // Communication between buyer and seller
+  messages: [{
+    senderId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     message: String,
-    timestamp: { type: Date, default: Date.now },
-    attachments: [String] // File URLs for evidence
-  }],
-  moderatorId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-  createdAt: { type: Date, default: Date.now },
-  completedAt: Date
+    timestamp: { type: Date, default: Date.now }
+  }]
 });
 
 // Add indexes for faster queries
-p2pTradeSchema.index({ buyerId: 1 });
-p2pTradeSchema.index({ sellerId: 1 });
+p2pTradeSchema.index({ buyerId: 1, status: 1 });
+p2pTradeSchema.index({ sellerId: 1, status: 1 });
 p2pTradeSchema.index({ status: 1 });
 p2pTradeSchema.index({ createdAt: -1 });
-
-// Escrow Transaction Schema
-const escrowTransactionSchema = new mongoose.Schema({
-  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-  tradeId: { type: mongoose.Schema.Types.ObjectId, ref: 'P2PTrade' },
-  type: { type: String, enum: ['lock', 'release', 'refund'], required: true },
-  tokenType: { type: String, enum: ['CES', 'POL'], required: true },
-  amount: { type: Number, required: true },
-  status: { type: String, enum: ['pending', 'completed', 'failed'], default: 'pending' },
-  txHash: String,
-  reason: String, // Reason for the transaction
-  createdAt: { type: Date, default: Date.now },
-  completedAt: Date
-});
 
 // Price History Schema
 const priceHistorySchema = new mongoose.Schema({
   price: { type: Number, required: true },
-  timestamp: { type: Date, default: Date.now },
-  change24h: Number,
-  marketCap: Number,
-  volume24h: Number,
-  priceRub: Number,
-  changeRub24h: Number,
-  ath: Number
+  priceRub: { type: Number, required: true },
+  change24h: { type: Number, required: true },
+  volume24h: { type: Number, required: true },
+  ath: { type: Number, required: true },
+  timestamp: { type: Date, default: Date.now }
 });
 
-// Create Models
-const User = mongoose.model('User', userSchema);
-const Wallet = mongoose.model('Wallet', walletSchema);
-const Transaction = mongoose.model('Transaction', transactionSchema);
-const P2POrder = mongoose.model('P2POrder', p2pOrderSchema);
-const P2PTrade = mongoose.model('P2PTrade', p2pTradeSchema);
-const EscrowTransaction = mongoose.model('EscrowTransaction', escrowTransactionSchema);
-const PriceHistory = mongoose.model('PriceHistory', priceHistorySchema);
+// Add indexes for faster queries
+priceHistorySchema.index({ timestamp: -1 });
 
-// Database connection
-async function connectDatabase() {
-  try {
-    await mongoose.connect(config.database.mongoUri);
-    console.log('✅ Connected to MongoDB');
-    return true;
-  } catch (error) {
-    console.error('❌ MongoDB connection error:', error);
-    throw error;
-  }
-}
-
-// Graceful shutdown
-async function disconnectDatabase() {
-  try {
-    await mongoose.connection.close();
-    console.log('✅ MongoDB connection closed');
-  } catch (error) {
-    console.error('❌ Error closing MongoDB connection:', error);
-  }
-}
+// Models
+const User = mongoose.models.User || mongoose.model('User', userSchema);
+const Wallet = mongoose.models.Wallet || mongoose.model('Wallet', walletSchema);
+const Transaction = mongoose.models.Transaction || mongoose.model('Transaction', transactionSchema);
+const P2POrder = mongoose.models.P2POrder || mongoose.model('P2POrder', p2pOrderSchema);
+const P2PTrade = mongoose.models.P2PTrade || mongoose.model('P2PTrade', p2pTradeSchema);
+const PriceHistory = mongoose.models.PriceHistory || mongoose.model('PriceHistory', priceHistorySchema);
 
 module.exports = {
+  connectDatabase,
+  disconnectDatabase,
+  isDatabaseConnected,
   User,
   Wallet,
   Transaction,
   P2POrder,
   P2PTrade,
-  EscrowTransaction,
-  PriceHistory,
-  connectDatabase,
-  disconnectDatabase
+  PriceHistory
 };
