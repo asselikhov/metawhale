@@ -230,8 +230,8 @@ class P2PService {
             }
             
             // Check user verification compatibility
-            const buyUserTrust = buyOrder.userId.trustScore || 100;
-            const sellUserTrust = sellOrder.userId.trustScore || 100;
+            const buyUserTrust = buyOrder.userId.trustScore || 0;
+            const sellUserTrust = sellOrder.userId.trustScore || 0;
             
             // Calculate trade amount (minimum of remaining amounts)
             const tradeAmount = Math.min(buyOrder.remainingAmount, sellOrder.remainingAmount);

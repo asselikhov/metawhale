@@ -1065,7 +1065,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
       
       const priceData = await p2pService.getMarketPriceSuggestion();
       
-      const message = `.DataGridViewColumn ПРОДАЖА CES ТОКЕНОВ\n` +
+      const message = `📉 ПРОДАЖА CES ТОКЕНОВ\n` +
                      `➖➖➖➖➖➖➖➖➖➖➖\n` +
                      `Ваш баланс: ${walletInfo.cesBalance.toFixed(4)} CES\n\n` +
                      `Текущая рыночная цена:\n` +
@@ -1097,48 +1097,88 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
   // Handle market orders display
   async handleP2PMarketOrders(ctx) {
     try {
+      // Show selection menu for buy/sell orders
+      const message = `📊 РЫНОК ОРДЕРОВ\n` +
+                     `➖➖➖➖➖➖➖➖➖➖➖\n` +
+                     `Выберите тип ордеров для просмотра:`;
+
+      const keyboard = Markup.inlineKeyboard([
+        [Markup.button.callback('📈 Заявки на покупку', 'p2p_buy_orders')],
+        [Markup.button.callback('📉 Заявки на продажу', 'p2p_sell_orders')],
+        [Markup.button.callback('🔙 Назад', 'p2p_menu')]
+      ]);
+
+      await ctx.reply(message, keyboard);
+
+    } catch (error) {
+      console.error('Market orders error:', error);
+      await ctx.reply('❌ Ошибка загрузки ордеров.');
+    }
+  }
+
+  // Handle buy orders display
+  async handleP2PBuyOrders(ctx) {
+    try {
       const orders = await p2pService.getMarketOrders(10);
       
-      let message = `📊 РЫНОК ОРДЕРОВ\n` +
+      let message = `📈 ЗАЯВКИ НА ПОКУПКУ\n` +
                    `➖➖➖➖➖➖➖➖➖➖➖\n`;
       
       if (orders.buyOrders.length > 0) {
-        message += `📈 Заявки на покупку:\n`;
-        orders.buyOrders.slice(0, 5).forEach((order, index) => {
+        orders.buyOrders.slice(0, 10).forEach((order, index) => {
           const username = order.userId.username || order.userId.firstName || 'Пользователь';
           const trustScore = order.userId.trustScore || 0;
           const userLevel = this.getUserLevelDisplayNew(trustScore);
           
-          message += `${index + 1}. ${order.remainingAmount.toFixed(2)} CES по ₽${order.pricePerToken.toFixed(2)} (@${username}) ${userLevel.emoji}\n`;
+          message += `${index + 1}. ${order.remainingAmount.toFixed(2)} CES по ₽ ${order.pricePerToken.toFixed(2)}\n` +
+                    `@${username} ${trustScore}/1000 ${userLevel.emoji}\n\n`;
         });
-        message += `\n`;
-      }
-      
-      if (orders.sellOrders.length > 0) {
-        message += `📉 Заявки на продажу:
-`;
-        orders.sellOrders.slice(0, 5).forEach((order, index) => {
-          const username = order.userId.username || order.userId.firstName || 'Пользователь';
-          const trustScore = order.userId.trustScore || 0;
-          const userLevel = this.getUserLevelDisplayNew(trustScore);
-          
-          message += `${index + 1}. ${order.remainingAmount.toFixed(2)} CES по ₽${order.pricePerToken.toFixed(2)} (@${username}) ${userLevel.emoji}\n`;
-        });
-      }
-      
-      if (orders.buyOrders.length === 0 && orders.sellOrders.length === 0) {
-        message += `⚠️ Активных ордеров пока нет\n\n💡 Создайте первый ордер на покупку или продажу!`;
+      } else {
+        message += `⚠️ Активных ордеров на покупку пока нет\n\n💡 Создайте первый ордер на покупку!`;
       }
       
       const keyboard = Markup.inlineKeyboard([
-        [Markup.button.callback('🔙 Назад', 'p2p_menu')]
+        [Markup.button.callback('🔙 Назад', 'p2p_market_orders')]
       ]);
       
       await ctx.reply(message, keyboard);
       
     } catch (error) {
-      console.error('Market orders error:', error);
-      await ctx.reply('❌ Ошибка загрузки ордеров.');
+      console.error('Buy orders error:', error);
+      await ctx.reply('❌ Ошибка загрузки ордеров на покупку.');
+    }
+  }
+
+  // Handle sell orders display
+  async handleP2PSellOrders(ctx) {
+    try {
+      const orders = await p2pService.getMarketOrders(10);
+      
+      let message = `📉 ЗАЯВКИ НА ПРОДАЖУ\n` +
+                   `➖➖➖➖➖➖➖➖➖➖➖\n`;
+      
+      if (orders.sellOrders.length > 0) {
+        orders.sellOrders.slice(0, 10).forEach((order, index) => {
+          const username = order.userId.username || order.userId.firstName || 'Пользователь';
+          const trustScore = order.userId.trustScore || 0;
+          const userLevel = this.getUserLevelDisplayNew(trustScore);
+          
+          message += `${index + 1}. ${order.remainingAmount.toFixed(2)} CES по ₽ ${order.pricePerToken.toFixed(2)}\n` +
+                    `@${username} ${trustScore}/1000 ${userLevel.emoji}\n\n`;
+        });
+      } else {
+        message += `⚠️ Активных ордеров на продажу пока нет\n\n💡 Создайте первый ордер на продажу!`;
+      }
+      
+      const keyboard = Markup.inlineKeyboard([
+        [Markup.button.callback('🔙 Назад', 'p2p_market_orders')]
+      ]);
+      
+      await ctx.reply(message, keyboard);
+      
+    } catch (error) {
+      console.error('Sell orders error:', error);
+      await ctx.reply('❌ Ошибка загрузки ордеров на продажу.');
     }
   }
 
@@ -1216,9 +1256,9 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
                         order.status === 'completed' ? 'Исполнен' : 'Отменен';
           
           message += `${index + 1}. ${orderType}\n` +
-                    `💰 ${order.amount.toFixed(2)} CES по ₽${order.pricePerToken.toFixed(2)}\n` +
-                    `📊 Статус: ${status}\n` +
-                    `📅 ${order.createdAt.toLocaleString('ru-RU')}\n\n`;
+                    `${order.amount.toFixed(2)} CES по ₽ ${order.pricePerToken.toFixed(2)}\n` +
+                    `Статус: ${status}\n` +
+                    `${order.createdAt.toLocaleString('ru-RU')}\n\n`;
         });
       }
       
@@ -1277,14 +1317,15 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
       const typeEmoji = orderType === 'buy' ? '📈' : '📉';
       const typeText = orderType === 'buy' ? 'покупку' : 'продажу';
       
-      const message = `💎 **Подтверждение ордера на ${typeText}** 💎\n\n` +
-                     `💰 Количество: **${amount} CES**\n` +
-                     `💵 Цена за токен: **₽${pricePerToken.toFixed(2)}**\n` +
-                     `💸 Общая сумма: **₽${totalValue.toFixed(2)}**\n` +
-                     ` Bakan Комиссия: **₽${commission.toFixed(2)} (1%)**\n\n` +
-                     `🛡️ *Безопасность:*\n` +
-                     `🔒 Все сделки защищены эскроу-системой\n\n` +
-                     `❗ Подтвердить создание ордера?`;
+      const message = `${typeEmoji} Подтверждение ордера на ${typeText}\n` +
+                     `➖➖➖➖➖➖➖➖➖➖➖\n` +
+                     `Количество: ${amount} CES\n` +
+                     `Цена за токен: ₽${pricePerToken.toFixed(2)}\n` +
+                     `Общая сумма: ₽${totalValue.toFixed(2)}\n` +
+                     `Комиссия: ₽${commission.toFixed(2)} (1%)\n\n` +
+                     `🛡️ Безопасность:\n` +
+                     `Все сделки защищены эскроу-системой\n\n` +
+                     `⚠️ Подтвердить создание ордера?`;
       
       const keyboard = Markup.inlineKeyboard([
         [Markup.button.callback('✅ Подтвердить', `confirm_p2p_order_${orderType}_${amount}_${pricePerToken}`)],
@@ -1335,15 +1376,13 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
       const typeText = orderType === 'buy' ? 'покупку' : 'продажу';
       const totalValue = amount * pricePerToken;
       
-      const message = `🎉 **Ордер на ${typeText} создан!** 🎉\n\n` +
-                     `💎 Количество: **${amount} CES**\n` +
-                     `💵 Цена: **₽${pricePerToken.toFixed(2)} за токен**\n` +
-                     `💸 Общая сумма: **₽${totalValue.toFixed(2)}**\n\n` +
-                     `🔍 *Что дальше:*\n` +
-                     `✅ Ордер автоматически исполнится при появлении подходящего предложения!\n` +
-                     `📊 Следите за статусом в разделе "Мои ордера"\n\n` +
-                     `🛡️ *Безопасность:*\n` +
-                     `🔒 Все сделки защищены эскроу-системой`;
+      const message = `${typeEmoji} Ордер на ${typeText} создан!\n` +
+                     `➖➖➖➖➖➖➖➖➖➖➖\n` +
+                     `Количество: ${amount} CES\n` +
+                     `Цена за токен: ₽${pricePerToken.toFixed(2)}\n` +
+                     `Общая сумма: ₽${totalValue.toFixed(2)}\n\n` +
+                     `🛡️ Безопасность:\n` +
+                     `Все сделки защищены эскроу-системой`;
 
       const keyboard = Markup.inlineKeyboard([
         [Markup.button.callback('📋 Мои ордера', 'p2p_my_orders')],
