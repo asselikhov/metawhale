@@ -113,7 +113,7 @@ class MessageHandler {
 ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${priceService.formatNumber(priceData.volume24h).replace(/(\d+\.\d{2})K/, (match) => {
         const num = parseFloat(match.replace('K', ''));
         return num.toFixed(1) + 'K';
-      })} • 🅐� ТеH ${athDisplay}`;
+      })} • 🅐🅣🅗 ${athDisplay}`;
       
       // Edit the original message instead of sending new one
       await ctx.telegram.editMessageText(
@@ -216,7 +216,8 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
       }
       
       // Header as requested
-      let message = '👤 ЛИЧНЫЙ КАБИНЕТ\n\n';
+      let message = '👤 ЛИЧНЫЙ КАБИНЕТ\n' +
+                   '➖➖➖➖➖➖➖➖➖➖➖\n';
       
       if (walletInfo.hasWallet) {
         // Get current price data for both tokens
@@ -275,7 +276,8 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
         return await ctx.reply('❌ Пользователь не найден. Выполните /start');
       }
       
-      let message = 'Личный кабинет\n\n';
+      let message = '👤 ЛИЧНЫЙ КАБИНЕТ\n' +
+                   '➖➖➖➖➖➖➖➖➖➖➖\n';
       
       if (walletInfo.hasWallet) {
         // Get current price data for both tokens
@@ -296,7 +298,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
         const polTotalRub = (walletInfo.polBalance * polTokenPriceRub).toFixed(2);
         
         message += `Баланс CES: ${walletInfo.cesBalance.toFixed(4)} • $ ${cesTotalUsd} • ₽ ${cesTotalRub}\n`;
-        message += `Баланс POL: ${walletInfo.polBalance.toFixed(4)} • $ ${polTotalUsd} • ₽ ${polTotalRub}`;
+        message += `Баланс POL: ${walletInfo.polBalance.toFixed(4)} • $ ${polTotalUsd} • ₽ ${polTotalRub}\n`;
         
         const keyboard = Markup.inlineKeyboard([
           [Markup.button.callback('💳 Кошелек', 'wallet_details')],
@@ -556,8 +558,10 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
       const profileDetails = await reputationService.getUserProfileDetails(user._id);
       const userLevel = this.getUserLevelDisplayNew(reputation.trustScore);
       
-      // Prepare message text
-      const message = `Рейтинг: ${reputation.trustScore}/1000 ${userLevel.emoji}\n` +
+      // Prepare message text in the exact format requested
+      const message = `P2P БИРЖА\n` +
+                     `➖➖➖➖➖➖➖➖➖➖➖\n` +
+                     `Рейтинг: ${reputation.trustScore}/1000 ${userLevel.emoji}\n` +
                      `Объем сделок: ${(profileDetails.totalTradeVolume || 0).toLocaleString('ru-RU')} ₽\n` +
                      `Завершенные сделки: ${reputation.completionRate}%\n` +
                      `Спорные сделки: ${reputation.disputeRate}%\n` +
@@ -1221,7 +1225,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
       const parts = orderData.trim().split(/\s+/);
       
       if (parts.length !== 2) {
-        return await ctx.reply(`⚠️ Неверный формат. \nИспользуйте: количество цена_за_токен\n\nПример: 10 250.50 или 10 250,50`, {
+        return await ctx.reply(`⚠️ Неверный формат. \n💡 Используйте: количество цена_за_токен\n\nПример: 10 250.50 или 10 250,50`, {
           parse_mode: 'Markdown'
         });
       }
@@ -1421,7 +1425,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
       
       const keyboard = Markup.inlineKeyboard([
         [Markup.button.callback('📈 Купить CES', `create_buy_order_with_${targetUserId}`)],
-        [Markup.button.callback('📉 Продать CES', `create_sell_order_with_${targetUserId}`)],
+        [Markup.button.callback('.DataGridViewColumn Продать CES', `create_sell_order_with_${targetUserId}`)],
         [Markup.button.callback('❌ Отмена', 'p2p_market_orders')]
       ]);
       
