@@ -1556,7 +1556,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
       
       // Check if this is pagination (edit mode) or initial display
       const sessionData = this.getSessionData(chatId, 'buyOrdersMessages');
-      const isEditMode = sessionData && page > 1;
+      const isEditMode = sessionData && sessionData.headerMessageId;
       
       // Отправляем заголовок
       let headerMessage = `📈 ОРДЕРА НА ПОКУПКУ\n` +
@@ -1736,7 +1736,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
       
       // Check if this is pagination (edit mode) or initial display
       const sessionData = this.getSessionData(chatId, 'sellOrdersMessages');
-      const isEditMode = sessionData && page > 1;
+      const isEditMode = sessionData && sessionData.headerMessageId;
       
       // Отправляем заголовок
       let headerMessage = `📉 ОРДЕРА НА ПРОДАЖУ\n` +
@@ -1853,6 +1853,9 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
       
       let navigationMessageId;
       
+      // Navigation message with page number instead of static text
+      const navigationText = totalPages > 1 ? `Страница ${page} из ${totalPages}` : 'Навигация';
+      
       // Edit navigation message if exists
       if (isEditMode && sessionData.navigationMessageId) {
         try {
@@ -1860,18 +1863,18 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
             ctx.chat.id,
             sessionData.navigationMessageId,
             null,
-            'Навигация:',
+            navigationText,
             navigationKeyboard
           );
           navigationMessageId = sessionData.navigationMessageId;
         } catch (error) {
           console.log('Could not edit navigation message, sending new one');
-          const navMsg = await ctx.reply('Навигация:', navigationKeyboard);
+          const navMsg = await ctx.reply(navigationText, navigationKeyboard);
           navigationMessageId = navMsg.message_id;
         }
       } else {
         // Send new navigation message
-        const navMsg = await ctx.reply('Навигация:', navigationKeyboard);
+        const navMsg = await ctx.reply(navigationText, navigationKeyboard);
         navigationMessageId = navMsg.message_id;
       }
       
