@@ -45,8 +45,8 @@ class P2POrdersHandler {
       
       let headerMessageId;
       
-      if (isEditMode && sessionData.headerMessageId) {
-        // Edit existing header message
+      if (isEditMode) {
+        // Always edit existing header message during pagination
         try {
           await ctx.telegram.editMessageText(
             ctx.chat.id,
@@ -56,12 +56,11 @@ class P2POrdersHandler {
           );
           headerMessageId = sessionData.headerMessageId;
         } catch (error) {
-          console.log('Could not edit header message, sending new one');
-          const headerMsg = await ctx.reply(headerMessage);
-          headerMessageId = headerMsg.message_id;
+          console.log('Could not edit header message, using existing ID');
+          headerMessageId = sessionData.headerMessageId;
         }
       } else {
-        // Send new header message
+        // Send new header message only on initial display
         const headerMsg = await ctx.reply(headerMessage);
         headerMessageId = headerMsg.message_id;
       }
@@ -235,8 +234,8 @@ class P2POrdersHandler {
       
       let headerMessageId;
       
-      if (isEditMode && sessionData.headerMessageId) {
-        // Edit existing header message
+      if (isEditMode) {
+        // Always edit existing header message during pagination
         try {
           await ctx.telegram.editMessageText(
             ctx.chat.id,
@@ -246,12 +245,11 @@ class P2POrdersHandler {
           );
           headerMessageId = sessionData.headerMessageId;
         } catch (error) {
-          console.log('Could not edit header message, sending new one');
-          const headerMsg = await ctx.reply(headerMessage);
-          headerMessageId = headerMsg.message_id;
+          console.log('Could not edit header message, using existing ID');
+          headerMessageId = sessionData.headerMessageId;
         }
       } else {
-        // Send new header message
+        // Send new header message only on initial display
         const headerMsg = await ctx.reply(headerMessage);
         headerMessageId = headerMsg.message_id;
       }
@@ -409,8 +407,8 @@ class P2POrdersHandler {
       
       let headerMessageId;
       
-      if (isEditMode && sessionData.headerMessageId) {
-        // Edit existing header message
+      if (isEditMode) {
+        // Always edit existing header message during pagination
         try {
           await ctx.telegram.editMessageText(
             ctx.chat.id,
@@ -420,12 +418,11 @@ class P2POrdersHandler {
           );
           headerMessageId = sessionData.headerMessageId;
         } catch (error) {
-          console.log('Could not edit header message, sending new one');
-          const headerMsg = await ctx.reply(headerMessage);
-          headerMessageId = headerMsg.message_id;
+          console.log('Could not edit header message, using existing ID');
+          headerMessageId = sessionData.headerMessageId;
         }
       } else {
-        // Send new header message
+        // Send new header message only on initial display
         const headerMsg = await ctx.reply(headerMessage);
         headerMessageId = headerMsg.message_id;
       }
