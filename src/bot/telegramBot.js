@@ -4,7 +4,7 @@ const config = require('../config/configuration');
 
 class TelegramBot {
   constructor() {
-    this.bot = new Telegraf(config.telegram.token);
+    this.bot = new Telegraf(config.telegram.botToken);
     this.setupHandlers();
   }
 
@@ -13,7 +13,7 @@ class TelegramBot {
   }
 
   async setWebhook() {
-    const webhookUrl = `${config.server.webhookUrl}/webhook/${config.telegram.token}`;
+    const webhookUrl = `${config.server.webhookUrl}/webhook/${config.telegram.botToken}`;
     try {
       await this.bot.telegram.setWebhook(webhookUrl);
       console.log(`✅ Webhook set to: ${webhookUrl}`);
