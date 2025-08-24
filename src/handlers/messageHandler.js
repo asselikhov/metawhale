@@ -1051,12 +1051,18 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
         `👤 Пользователь: @${recipient.username || recipient.firstName || 'Неизвестный'}` :
         '👤 Внешний кошелек';
       
-      const tokenEmoji = tokenType === 'POL' ? '💎' : '💰';
-      const message = `${tokenEmoji} **Подтверждение перевода**\n\n` +
-                     `${tokenEmoji} Сумма: **${amount} ${tokenType}**\n` +
-                     `📫 Кому: \`${toAddress}\`\n` +
-                     `${recipientInfo}\n\n` +
-                     '❗ Перевод нельзя отменить!';
+      const message = `🔒 Подтверждение перевода
+` +
+                     `➖➖➖➖➖➖➖➖➖➖➖
+` +
+                     `Сумма: ${amount} ${tokenType}
+` +
+                     `Кому: ${toAddress}
+` +
+                     `${recipientInfo}
+
+` +
+                     '⚠️ Перевод нельзя отменить!';
       
       // Store transfer data in session to avoid callback data length limits
       this.setSessionData(chatId, 'pendingTransfer', {
@@ -1071,7 +1077,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
         [Markup.button.callback('❌ Отмена', 'transfer_menu')]
       ]);
       
-      await ctx.reply(message, { parse_mode: 'Markdown', ...keyboard });
+      await ctx.reply(message, keyboard);
       
     } catch (error) {
       console.error('Error processing transfer command:', error);
@@ -1113,42 +1119,48 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
       this.setSessionData(chatId, 'pendingTransfer', null);
       
       if (result.success) {
-        const tokenEmoji = tokenType === 'POL' ? '💎' : '💰';
-        const message = `✅ **Перевод успешен!**\n\n` +
-                       `${tokenEmoji} Отправлено: **${amount} ${tokenType}**\n` +
-                       `📫 Кому: \`${toAddress}\`\n` +
-                       `🔗 Hash: \`${result.txHash}\`\n\n` +
-                       '🔍 Транзакция подтверждена в блокчейне!';
+        const message = `✅ Перевод успешен!
+` +
+                       `➖➖➖➖➖➖➖➖➖➖➖
+` +
+                       `Отправлено: ${amount} ${tokenType}
+` +
+                       `Кому: ${toAddress}
+` +
+                       `Hash: ${result.txHash}
+
+` +
+                       '⚠️ Транзакция подтверждена в блокчейне!';
         
         const keyboard = Markup.inlineKeyboard([
           [Markup.button.callback(`💸 Перевести еще ${tokenType}`, tokenType === 'POL' ? 'send_pol_tokens' : 'send_ces_tokens')],
           [Markup.button.callback('🔙 Назад', 'transfer_menu')]
         ]);
         
-        await ctx.reply(message, { parse_mode: 'Markdown', ...keyboard });
+        await ctx.reply(message, keyboard);
       } else {
         // Handle case where result is not successful but no exception was thrown
-        const errorMessage = '❌ **Ошибка перевода**\n\n' +
+        const errorMessage = '❌ Ошибка перевода\n\n' +
                             'ℹ️ Перевод не был выполнен. Попробуйте позже.';
         
         const keyboard = Markup.inlineKeyboard([
           [Markup.button.callback('🔙 Назад', 'transfer_menu')]
         ]);
         
-        await ctx.reply(errorMessage, { parse_mode: 'Markdown', ...keyboard });
+        await ctx.reply(errorMessage, keyboard);
       }
       
     } catch (error) {
       console.error('Transfer confirmation error:', error);
       
-      const errorMessage = '❌ **Ошибка перевода**\n\n' +
+      const errorMessage = '❌ Ошибка перевода\n\n' +
                           `ℹ️ ${error.message}`;
       
       const keyboard = Markup.inlineKeyboard([
         [Markup.button.callback('🔙 Назад', 'transfer_menu')]
       ]);
       
-      await ctx.reply(errorMessage, { parse_mode: 'Markdown', ...keyboard });
+      await ctx.reply(errorMessage, keyboard);
     }
   }
 
