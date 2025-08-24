@@ -148,6 +148,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
       const chatId = ctx.chat.id.toString();
       
       console.log(`📝 Processing text message from ${chatId}: "${text}"`);
+      console.log(`📝 Message object:`, JSON.stringify(ctx.message, null, 2));
       
       // Check if user is in transfer mode
       const awaitingTransfer = this.getSessionData(chatId, 'awaitingTransfer');
@@ -175,10 +176,12 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
       }
       
       if (text.includes('Личный кабинет')) {
+        console.log(`🏠 Handling Personal Cabinet request from ${chatId}`);
         return await this.handlePersonalCabinetText(ctx);
       }
       
       if (text.includes('P2P Биржа') || text.includes('🔄 P2P')) {
+        console.log(`🔄 Handling P2P Menu request from ${chatId}`);
         return await this.handleP2PMenu(ctx);
       }
       
@@ -209,9 +212,12 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
   async handlePersonalCabinetText(ctx) {
     try {
       const chatId = ctx.chat.id.toString();
+      console.log(`🏠 Processing Personal Cabinet request for user ${chatId}`);
+      
       const walletInfo = await walletService.getUserWallet(chatId);
       
       if (!walletInfo) {
+        console.log(`❌ User ${chatId} not found`);
         return await ctx.reply('❌ Пользователь не найден. Выполните /start');
       }
       
@@ -220,6 +226,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
                    '➖➖➖➖➖➖➖➖➖➖➖\n';
       
       if (walletInfo.hasWallet) {
+        console.log(`💼 User ${chatId} has wallet, showing wallet info`);
         // Get current price data for both tokens
         const [cesData, polData] = await Promise.all([
           priceService.getCESPrice(),
@@ -250,6 +257,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
         await ctx.reply(message, { parse_mode: 'Markdown', ...keyboard });
       
       } else {
+        console.log(`⚠️ User ${chatId} has no wallet, showing wallet creation prompt`);
         message += '⚠️ Кошелек не создан\n\n';
         message += '💡 Создайте кошелек для хранения токенов CES и POL';
       
