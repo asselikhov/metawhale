@@ -1419,7 +1419,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
       const offset = (page - 1) * limit;
       const result = await p2pService.getMarketOrders(limit, offset);
       
-      let message = `📈 ЗАЯВКИ НА ПОКУПКУ\n` +
+      let message = `📈 ОРДЕРА НА ПОКУПКУ\n` +
                    `➖➖➖➖➖➖➖➖➖➖➖\n`;
       
       const keyboardButtons = [];
@@ -1438,12 +1438,15 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
           const completedDeals = reputation ? reputation.totalTrades : 0;
           const userLevel = this.getUserLevelDisplayNew(reputation ? reputation.trustScore : 0);
           
-          // Get min and max trade amounts if available
+          // Calculate limits in rubles based on price and amounts
           const minAmount = order.minTradeAmount || 1;
           const maxAmount = order.maxTradeAmount || order.remainingAmount;
+          const minRubles = (minAmount * order.pricePerToken).toFixed(2);
+          const maxRubles = (maxAmount * order.pricePerToken).toFixed(2);
           
           message += `${index + 1 + (page - 1) * limit}. ₽ ${order.pricePerToken.toFixed(2)} / CES @${username} ${completedDeals}/1000 ${userLevel.emoji}\n` +
-                    `Лимит: ${minAmount.toFixed(2)} - ${maxAmount.toFixed(2)} CES\n` +
+                    `Количество: ${order.remainingAmount.toFixed(0)} CES\n` +
+                    `Лимиты: ${minRubles} - ${maxRubles} ₽\n` +
                     `[Продать](callback_data:buy_order_${order.userId._id})\n\n`;
         }
         
@@ -1491,25 +1494,36 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
       const offset = (page - 1) * limit;
       const result = await p2pService.getMarketOrders(limit, offset);
       
-      let message = `📉 ЗАЯВКИ НА ПРОДАЖУ\n` +
+      let message = `📉 ОРДЕРА НА ПРОДАЖУ\n` +
                    `➖➖➖➖➖➖➖➖➖➖➖\n`;
       
       const keyboardButtons = [];
       
       if (result.sellOrders.length > 0) {
-        result.sellOrders.forEach((order, index) => {
+        // Get reputation data for all users at once for better performance
+        const reputationService = require('../services/reputationService');
+        
+        for (let i = 0; i < result.sellOrders.length; i++) {
+          const order = result.sellOrders[i];
+          const index = i;
           const username = order.userId.username || order.userId.firstName || 'Пользователь';
-          const trustScore = order.userId.trustScore !== undefined ? order.userId.trustScore : 0;
-          const userLevel = this.getUserLevelDisplayNew(trustScore);
           
-          // Get min and max trade amounts if available
+          // Get actual completed deals count instead of trust score
+          const reputation = await reputationService.getUserReputation(order.userId._id);
+          const completedDeals = reputation ? reputation.totalTrades : 0;
+          const userLevel = this.getUserLevelDisplayNew(reputation ? reputation.trustScore : 0);
+          
+          // Calculate limits in rubles based on price and amounts
           const minAmount = order.minTradeAmount || 1;
           const maxAmount = order.maxTradeAmount || order.remainingAmount;
+          const minRubles = (minAmount * order.pricePerToken).toFixed(2);
+          const maxRubles = (maxAmount * order.pricePerToken).toFixed(2);
           
-          message += `${index + 1 + (page - 1) * limit}. ₽ ${order.pricePerToken.toFixed(2)} / CES @${username} ${trustScore}/1000 ${userLevel.emoji}\n` +
-                    `Лимит: ${minAmount.toFixed(2)} - ${maxAmount.toFixed(2)} CES\n` +
-                    `[Продать](callback_data:sell_order_${order.userId._id})\n\n`;
-        });
+          message += `${index + 1 + (page - 1) * limit}. ₽ ${order.pricePerToken.toFixed(2)} / CES @${username} ${completedDeals}/1000 ${userLevel.emoji}\n` +
+                    `Количество: ${order.remainingAmount.toFixed(2)} CES\n` +
+                    `Лимиты: ${minRubles} - ${maxRubles} ₽\n` +
+                    `[Купить](callback_data:sell_order_${order.userId._id})\n\n`;
+        }
         
         // Add pagination controls
         const totalPages = Math.ceil(result.sellOrdersCount / limit);
