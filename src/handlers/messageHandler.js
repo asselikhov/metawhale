@@ -561,6 +561,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
       const userLevel = this.getUserLevelDisplayNew(reputation.trustScore);
       
       // Prepare message text in the exact format requested
+      // Adding extra spacing to ensure text width matches button width
       const message = `🔄 P2P БИРЖА\n` +
                      `➖➖➖➖➖➖➖➖➖➖➖\n` +
                      `Рейтинг: ${reputation.trustScore}/1000 ${userLevel.emoji}\n` +
@@ -568,8 +569,9 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
                      `Завершенные сделки: ${reputation.completionRate}%\n` +
                      `Спорные сделки: ${reputation.disputeRate}%\n` +
                      `Всего сделок: ${reputation.totalTrades}\n\n` +
-                     `⚡️ Быстро | 🔒 Безопасно | 📊 Прозрачно`;
-
+                     `⚡️ Быстро | 🔒 Безопасно | 📊 Прозрачно\n` +
+                     `                         `;  // Extra spaces to match button width
+      
       // Keyboard with buttons
       const keyboard = Markup.inlineKeyboard([
         [Markup.button.callback('📈 Купить CES', 'p2p_buy_ces'), Markup.button.callback('📉 Продать CES', 'p2p_sell_ces')],
