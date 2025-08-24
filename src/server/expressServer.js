@@ -23,9 +23,9 @@ class Server {
     // Request logging
     this.app.use((req, res, next) => {
       console.log(`${new Date().toISOString()} ${req.method} ${req.path}`);
-      // Log request body for webhook requests
-      if (req.path.includes('/webhook')) {
-        console.log(`Webhook request body:`, JSON.stringify(req.body, null, 2));
+      // Log request body for webhook requests (but avoid circular references)
+      if (req.path.includes('/webhook') && req.body) {
+        console.log(`Webhook request body keys:`, Object.keys(req.body));
       }
       next();
     });

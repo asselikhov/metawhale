@@ -65,29 +65,29 @@ class TelegramBot {
   setupHandlers() {
     // Commands
     this.bot.start((ctx) => {
-      console.log('📥 Received /start command:', JSON.stringify(ctx.update, null, 2));
+      console.log('📥 Received /start command');
       return messageHandler.handleStart.call(messageHandler, ctx);
     });
     
     this.bot.command('price', (ctx) => {
-      console.log('📥 Received /price command:', JSON.stringify(ctx.update, null, 2));
+      console.log('📥 Received /price command');
       return messageHandler.handlePrice.call(messageHandler, ctx);
     });
 
     // Text messages (for regular keyboard buttons)
     this.bot.on('text', (ctx) => {
-      console.log('📥 Received text message:', JSON.stringify(ctx.update, null, 2));
+      console.log('📥 Received text message:', ctx.message.text);
       return messageHandler.handleTextMessage.call(messageHandler, ctx);
     });
 
     // Callback handlers
     this.bot.action('personal_cabinet', (ctx) => {
-      console.log('📥 Received personal_cabinet callback:', JSON.stringify(ctx.update, null, 2));
+      console.log('📥 Received personal_cabinet callback');
       return messageHandler.handlePersonalCabinetText.call(messageHandler, ctx);
     });
     
     this.bot.action('p2p_menu', (ctx) => {
-      console.log('📥 Received p2p_menu callback:', JSON.stringify(ctx.update, null, 2));
+      console.log('📥 Received p2p_menu callback');
       return messageHandler.handleP2PMenu.call(messageHandler, ctx);
     });
     
@@ -293,7 +293,6 @@ class TelegramBot {
     // Error handling for the bot
     this.bot.catch((err, ctx) => {
       console.error(`❌ Telegram bot error for ${ctx.updateType}:`, err);
-      console.error('Full context:', JSON.stringify(ctx.update, null, 2));
       try {
         ctx.reply('❌ Произошла ошибка. Попробуйте еще раз.');
       } catch (replyError) {
