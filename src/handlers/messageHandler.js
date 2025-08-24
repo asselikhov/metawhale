@@ -1444,10 +1444,12 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
           const minRubles = (minAmount * order.pricePerToken).toFixed(2);
           const maxRubles = (maxAmount * order.pricePerToken).toFixed(2);
           
-          message += `${index + 1 + (page - 1) * limit}. ₽ ${order.pricePerToken.toFixed(2)} / CES @${username} ${completedDeals}/1000 ${userLevel.emoji}\n` +
-                    `Количество: ${order.remainingAmount.toFixed(0)} CES\n` +
-                    `Лимиты: ${minRubles} - ${maxRubles} ₽\n` +
-                    `[Купить](callback_data:sell_order_${order.userId._id})\n\n`;
+          message += `₽ ${order.pricePerToken.toFixed(2)} / CES | @${username} ${completedDeals}/1000 ${userLevel.emoji}\n` +
+                    `Количество: ${order.remainingAmount.toFixed(2)} CES\n` +
+                    `Лимиты: ${minRubles} - ${maxRubles} ₽\n\n`;
+          
+          // Add buy button for each order
+          keyboardButtons.push([Markup.button.callback('🟩 Купить', `buy_details_${order.userId._id}_${order._id}`)]);
         }
         
         // Add pagination controls
@@ -1479,7 +1481,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
       
       const keyboard = Markup.inlineKeyboard(keyboardButtons);
       
-      await ctx.reply(message, { parse_mode: 'Markdown', ...keyboard });
+      await ctx.reply(message, keyboard);
       
     } catch (error) {
       console.error('Buy orders error:', error);
@@ -1519,10 +1521,12 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
           const minRubles = (minAmount * order.pricePerToken).toFixed(2);
           const maxRubles = (maxAmount * order.pricePerToken).toFixed(2);
           
-          message += `${index + 1 + (page - 1) * limit}. ₽ ${order.pricePerToken.toFixed(2)} / CES @${username} ${completedDeals}/1000 ${userLevel.emoji}\n` +
+          message += `₽ ${order.pricePerToken.toFixed(2)} / CES @${username} ${completedDeals}/1000 ${userLevel.emoji}\n` +
                     `Количество: ${order.remainingAmount.toFixed(2)} CES\n` +
-                    `Лимиты: ${minRubles} - ${maxRubles} ₽\n` +
-                    `[Продать](callback_data:buy_order_${order.userId._id})\n\n`;
+                    `Лимиты: ${minRubles} - ${maxRubles} ₽\n\n`;
+          
+          // Add sell button for each order
+          keyboardButtons.push([Markup.button.callback('🟥 Продать', `sell_details_${order.userId._id}_${order._id}`)]);
         }
         
         // Add pagination controls
@@ -1554,7 +1558,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
       
       const keyboard = Markup.inlineKeyboard(keyboardButtons);
       
-      await ctx.reply(message, { parse_mode: 'Markdown', ...keyboard });
+      await ctx.reply(message, keyboard);
       
     } catch (error) {
       console.error('Sell orders error:', error);
@@ -1578,6 +1582,84 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
     if (trustScore >= 200) return { emoji: '🦅' };
     if (trustScore >= 50) return { emoji: '🐿️' };
     return { emoji: '🐹' }; // For 0-49 trust score
+  }
+
+  // Handle buy order details display
+  async handleBuyOrderDetails(ctx, userId, orderId) {
+    try {
+      const reputationService = require('../services/reputationService');
+      const { User } = require('../database/models');
+      
+      const user = await User.findById(userId);
+      if (!user) {
+        return await ctx.reply('❌ Пользователь не найден.');
+      }
+      
+      const reputation = await reputationService.getUserReputation(userId);
+      const completedDeals = reputation ? reputation.totalTrades : 0;
+      const userLevel = this.getUserLevelDisplayNew(reputation ? reputation.trustScore : 0);
+      
+      // Get 30-day statistics (mock data for now)
+      const ordersLast30Days = 85;
+      const completionRate = 94;
+      const avgTransferTime = 1;
+      
+      const username = user.username || user.firstName || 'Пользователь';
+      
+      const message = `Рейтинг: ${completedDeals}/1000 ${userLevel.emoji}\n` +
+                     `Исполненные ордера за 30 дней: ${ordersLast30Days} Ордера\n` +
+                     `Процент исполнения за 30 дней: ${completionRate}%\n` +
+                     `Среднее время перевода: ${avgTransferTime} мин.`;
+      
+      const keyboard = Markup.inlineKeyboard([
+        [Markup.button.callback('🔙 Назад', 'p2p_buy_orders')]
+      ]);
+      
+      await ctx.reply(message, keyboard);
+      
+    } catch (error) {
+      console.error('Buy order details error:', error);
+      await ctx.reply('❌ Ошибка загрузки данных.');
+    }
+  }
+
+  // Handle sell order details display
+  async handleSellOrderDetails(ctx, userId, orderId) {
+    try {
+      const reputationService = require('../services/reputationService');
+      const { User } = require('../database/models');
+      
+      const user = await User.findById(userId);
+      if (!user) {
+        return await ctx.reply('❌ Пользователь не найден.');
+      }
+      
+      const reputation = await reputationService.getUserReputation(userId);
+      const completedDeals = reputation ? reputation.totalTrades : 0;
+      const userLevel = this.getUserLevelDisplayNew(reputation ? reputation.trustScore : 0);
+      
+      // Get 30-day statistics (mock data for now)
+      const ordersLast30Days = 85;
+      const completionRate = 94;
+      const avgPaymentTime = 5;
+      
+      const username = user.username || user.firstName || 'Пользователь';
+      
+      const message = `Рейтинг: ${completedDeals}/1000 ${userLevel.emoji}\n` +
+                     `Исполненные ордера за 30 дней: ${ordersLast30Days} Ордера\n` +
+                     `Процент исполнения за 30 дней: ${completionRate}%\n` +
+                     `Среднее время оплаты: ${avgPaymentTime} мин.`;
+      
+      const keyboard = Markup.inlineKeyboard([
+        [Markup.button.callback('🔙 Назад', 'p2p_sell_orders')]
+      ]);
+      
+      await ctx.reply(message, keyboard);
+      
+    } catch (error) {
+      console.error('Sell order details error:', error);
+      await ctx.reply('❌ Ошибка загрузки данных.');
+    }
   }
 
   // Handle top traders display

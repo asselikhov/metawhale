@@ -297,6 +297,22 @@ class TelegramBot {
       return messageHandler.handleEnterAmount.call(messageHandler, ctx, userId);
     });
     
+    // Handle buy order details (dynamic callbacks)
+    this.bot.action(/^buy_details_(.+)_(.+)$/, (ctx) => {
+      const userId = ctx.match[1];
+      const orderId = ctx.match[2];
+      console.log('Received buy_details callback:', userId, orderId);
+      return messageHandler.handleBuyOrderDetails.call(messageHandler, ctx, userId, orderId);
+    });
+    
+    // Handle sell order details (dynamic callbacks)
+    this.bot.action(/^sell_details_(.+)_(.+)$/, (ctx) => {
+      const userId = ctx.match[1];
+      const orderId = ctx.match[2];
+      console.log('Received sell_details callback:', userId, orderId);
+      return messageHandler.handleSellOrderDetails.call(messageHandler, ctx, userId, orderId);
+    });
+    
     // Error handling for the bot
     this.bot.catch((err, ctx) => {
       console.error(`❌ Telegram bot error for ${ctx.updateType}:`, err);
