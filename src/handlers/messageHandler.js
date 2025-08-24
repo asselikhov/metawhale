@@ -1106,6 +1106,16 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
         ]);
         
         await ctx.reply(message, { parse_mode: 'Markdown', ...keyboard });
+      } else {
+        // Handle case where result is not successful but no exception was thrown
+        const errorMessage = '❌ **Ошибка перевода**\n\n' +
+                            'ℹ️ Перевод не был выполнен. Попробуйте позже.';
+        
+        const keyboard = Markup.inlineKeyboard([
+          [Markup.button.callback('🔙 Назад', 'transfer_menu')]
+        ]);
+        
+        await ctx.reply(errorMessage, { parse_mode: 'Markdown', ...keyboard });
       }
       
     } catch (error) {

@@ -347,9 +347,18 @@ class WalletService {
       
       // Execute blockchain transaction (native transfer)
       try {
+        // Estimate gas and set appropriate gas limit
+        const gasEstimate = await provider.estimateGas({
+          to: toAddress,
+          value: transferAmount,
+          from: fromUser.walletAddress
+        });
+        
         const tx = await wallet.sendTransaction({
           to: toAddress,
-          value: transferAmount
+          value: transferAmount,
+          gasLimit: gasEstimate * 120n / 100n, // Add 20% buffer
+          gasPrice: await provider.getFeeData().then(feeData => feeData.gasPrice)
         });
         
         console.log(`⏳ POL Transaction sent to blockchain: ${tx.hash}`);
@@ -382,11 +391,15 @@ class WalletService {
         
       } catch (blockchainError) {
         // Mark transaction as failed
-        transaction.status = 'failed';
-        await transaction.save();
+        try {
+          transaction.status = 'failed';
+          await transaction.save();
+        } catch (saveError) {
+          console.error('Failed to save transaction status:', saveError);
+        }
         
         console.error('POL Blockchain transaction error:', blockchainError);
-        throw new Error(`Ошибка выполнения транзакции: ${blockchainError.message}`);
+        throw new Error(`Ошибка выполнения транзакции: ${blockchainError.message || blockchainError}`);
       }
       
     } catch (error) {
@@ -463,6 +476,7 @@ class WalletService {
         fromAddress: fromUser.walletAddress,
         toAddress: toAddress,
         amount: amount,
+        tokenType: 'CES',
         type: 'p2p',
         status: 'pending'
       });
@@ -473,7 +487,12 @@ class WalletService {
       
       // Execute blockchain transaction
       try {
-        const tx = await contract.transfer(toAddress, transferAmount);
+        // Estimate gas and set appropriate gas limit for ERC-20 transfer
+        const gasEstimate = await contract.transfer.estimateGas(toAddress, transferAmount);
+        
+        const tx = await contract.transfer(toAddress, transferAmount, {
+          gasLimit: gasEstimate * 120n / 100n, // Add 20% buffer
+        });
         
         console.log(`⏳ Transaction sent to blockchain: ${tx.hash}`);
         
@@ -505,11 +524,15 @@ class WalletService {
         
       } catch (blockchainError) {
         // Mark transaction as failed
-        transaction.status = 'failed';
-        await transaction.save();
+        try {
+          transaction.status = 'failed';
+          await transaction.save();
+        } catch (saveError) {
+          console.error('Failed to save transaction status:', saveError);
+        }
         
         console.error('Blockchain transaction error:', blockchainError);
-        throw new Error(`Ошибка выполнения транзакции: ${blockchainError.message}`);
+        throw new Error(`Ошибка выполнения транзакции: ${blockchainError.message || blockchainError}`);
       }
       
     } catch (error) {
