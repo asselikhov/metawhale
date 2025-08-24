@@ -9,7 +9,12 @@ class TelegramBot {
       throw new Error('TELEGRAM_BOT_TOKEN is not defined in environment variables');
     }
     
-    this.bot = new Telegraf(config.telegram.botToken);
+    // Create Telegraf instance with proper webhook domain
+    this.bot = new Telegraf(config.telegram.botToken, {
+      telegram: {
+        webhookReply: true
+      }
+    });
     this.setupHandlers();
   }
 
@@ -23,7 +28,9 @@ class TelegramBot {
       throw new Error('WEBHOOK_URL is not defined in environment variables');
     }
     
-    const webhookUrl = `${config.telegram.webhookUrl}${config.telegram.webhookPath}/${config.telegram.botToken}`;
+    // The webhook URL should NOT include the bot token for Telegraf
+    // Telegraf automatically handles the token
+    const webhookUrl = `${config.telegram.webhookUrl}${config.telegram.webhookPath}`;
     try {
       await this.bot.telegram.setWebhook(webhookUrl);
       console.log(`✅ Webhook set to: ${webhookUrl}`);
@@ -58,29 +65,29 @@ class TelegramBot {
   setupHandlers() {
     // Commands
     this.bot.start((ctx) => {
-      console.log('Received /start command');
+      console.log('📥 Received /start command:', JSON.stringify(ctx.update, null, 2));
       return messageHandler.handleStart.call(messageHandler, ctx);
     });
     
     this.bot.command('price', (ctx) => {
-      console.log('Received /price command');
+      console.log('📥 Received /price command:', JSON.stringify(ctx.update, null, 2));
       return messageHandler.handlePrice.call(messageHandler, ctx);
     });
 
     // Text messages (for regular keyboard buttons)
     this.bot.on('text', (ctx) => {
-      console.log('Received text message:', ctx.message.text);
+      console.log('📥 Received text message:', JSON.stringify(ctx.update, null, 2));
       return messageHandler.handleTextMessage.call(messageHandler, ctx);
     });
 
     // Callback handlers
     this.bot.action('personal_cabinet', (ctx) => {
-      console.log('Received personal_cabinet callback');
+      console.log('📥 Received personal_cabinet callback:', JSON.stringify(ctx.update, null, 2));
       return messageHandler.handlePersonalCabinetText.call(messageHandler, ctx);
     });
     
     this.bot.action('p2p_menu', (ctx) => {
-      console.log('Received p2p_menu callback');
+      console.log('📥 Received p2p_menu callback:', JSON.stringify(ctx.update, null, 2));
       return messageHandler.handleP2PMenu.call(messageHandler, ctx);
     });
     
@@ -286,6 +293,7 @@ class TelegramBot {
     // Error handling for the bot
     this.bot.catch((err, ctx) => {
       console.error(`❌ Telegram bot error for ${ctx.updateType}:`, err);
+      console.error('Full context:', JSON.stringify(ctx.update, null, 2));
       try {
         ctx.reply('❌ Произошла ошибка. Попробуйте еще раз.');
       } catch (replyError) {

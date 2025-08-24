@@ -23,6 +23,10 @@ class Server {
     // Request logging
     this.app.use((req, res, next) => {
       console.log(`${new Date().toISOString()} ${req.method} ${req.path}`);
+      // Log request body for webhook requests
+      if (req.path.includes('/webhook')) {
+        console.log(`Webhook request body:`, JSON.stringify(req.body, null, 2));
+      }
       next();
     });
   }
@@ -72,6 +76,16 @@ class Server {
 
   // Setup webhook for bot
   setupWebhook(bot) {
+    // Add logging middleware for webhook requests
+    this.app.use(config.telegram.webhookPath, (req, res, next) => {
+      console.log(`📥 Webhook request received at ${new Date().toISOString()}`);
+      console.log(`Method: ${req.method}, Path: ${req.path}`);
+      if (req.body) {
+        console.log(`Body:`, JSON.stringify(req.body, null, 2));
+      }
+      next();
+    });
+    
     this.app.use(bot.webhookCallback(config.telegram.webhookPath));
     console.log(`🔗 Webhook configured at ${config.telegram.webhookPath}`);
   }

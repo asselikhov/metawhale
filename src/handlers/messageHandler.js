@@ -47,6 +47,8 @@ class MessageHandler {
   // Handle /start command
   async handleStart(ctx) {
     try {
+      console.log('🚀 handleStart called with context:', JSON.stringify(ctx, null, 2));
+      
       const chatId = ctx.chat.id.toString();
       console.log(`🚀 Handling /start command for user ${chatId}`);
       
@@ -64,12 +66,14 @@ class MessageHandler {
             },
             { upsert: true, new: true }
           );
+          console.log(`👤 User registered/updated in database:`, user);
         } catch (dbError) {
           console.error('Database error during user registration:', dbError);
         }
       }
       
       const welcomeMessage = 'Добро пожаловать в Rustling Grass 🌾 assistant !';
+      console.log(`💬 Welcome message: ${welcomeMessage}`);
       
       // Main menu with regular keyboard buttons (only 2 buttons as requested)
       const mainMenu = Markup.keyboard([
@@ -77,8 +81,10 @@ class MessageHandler {
       ]).resize();
       
       console.log(`📤 Sending welcome message to user ${chatId}`);
-      await ctx.reply(welcomeMessage, mainMenu);
-      console.log(`✅ Welcome message sent successfully to user ${chatId}`);
+      console.log(`⌨ Keyboard markup:`, JSON.stringify(mainMenu, null, 2));
+      
+      const result = await ctx.reply(welcomeMessage, mainMenu);
+      console.log(`✅ Welcome message sent successfully to user ${chatId}`, result);
       
     } catch (error) {
       console.error('Start command error:', error);
@@ -93,8 +99,11 @@ class MessageHandler {
   // Handle price command and button with immediate response
   async handlePrice(ctx) {
     try {
+      console.log('💰 handlePrice called with context:', JSON.stringify(ctx, null, 2));
+      
       // Send immediate acknowledgment
       const sentMessage = await ctx.reply('⏳ Получаем актуальную цену...');
+      console.log('💰 Price command acknowledgment sent:', sentMessage);
       
       // Process price data in background and update the message
       this.processPriceData(ctx, sentMessage);
@@ -177,6 +186,8 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
   // Handle text messages from regular keyboard buttons
   async handleTextMessage(ctx) {
     try {
+      console.log('📝 handleTextMessage called with context:', JSON.stringify(ctx, null, 2));
+      
       const text = ctx.message.text;
       const chatId = ctx.chat.id.toString();
       
