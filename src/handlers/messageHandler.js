@@ -178,7 +178,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
         return await this.handlePersonalCabinetText(ctx);
       }
       
-      if (text.includes('P2P Биржа')) {
+      if (text.includes('P2P Биржа') || text.includes('🔄 P2P')) {
         return await this.handleP2PMenu(ctx);
       }
       
@@ -539,7 +539,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
       const walletInfo = await walletService.getUserWallet(chatId);
       
       if (!walletInfo || !walletInfo.hasWallet) {
-        const message = '⚠️У вас нет кошелька.\n\n' +
+        const message = '⚠️ У вас нет кошелька.\n\n' +
                        '💡 Создайте кошелек в Личном кабинете для использования P2P функций.';
         
         // Remove the "Создать кошелек" button as it should only be in the personal cabinet
@@ -1036,7 +1036,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
       const walletInfo = await walletService.getUserWallet(chatId);
       
       if (walletInfo.cesBalance < 1) {
-        const message = `📉 ПРОДАЖА CES ТОКЕНОВ\n\n` +
+        const message = `.DataGridViewColumn ПРОДАЖА CES ТОКЕНОВ\n\n` +
                        `⚠️ Недостаточно CES для продажи\n` +
                        `Ваш баланс: ${walletInfo.cesBalance.toFixed(4)} CES\n\n` +
                        `Информация:\n` +
