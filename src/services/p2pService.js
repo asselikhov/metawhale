@@ -526,19 +526,27 @@ class P2PService {
     }
   }
 
-  // Get user's P2P orders
-  async getUserOrders(chatId, limit = 10) {
+  // Get user's P2P orders with pagination
+  async getUserOrders(chatId, limit = 10, offset = 0) {
     try {
       const user = await User.findOne({ chatId });
       if (!user) {
         throw new Error('Пользователь не найден');
       }
       
-      const orders = await P2POrder.find({ userId: user._id })
-        .sort({ createdAt: -1 })
-        .limit(limit);
+      const [orders, totalCount] = await Promise.all([
+        P2POrder.find({ userId: user._id })
+          .sort({ createdAt: -1 }) // Most recent first
+          .skip(offset)
+          .limit(limit),
+        
+        P2POrder.countDocuments({ userId: user._id })
+      ]);
       
-      return orders;
+      return {
+        orders,
+        totalCount
+      };
       
     } catch (error) {
       console.error('Error getting user orders:', error);

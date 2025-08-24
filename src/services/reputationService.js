@@ -3,7 +3,7 @@
  * Advanced user reputation and rating system for P2P trading
  */
 
-const { User, P2PTrade } = require('../database/models');
+const { User, P2PTrade, P2POrder } = require('../database/models');
 
 class ReputationService {
   constructor() {
@@ -353,10 +353,10 @@ class ReputationService {
       if (!user) {
         return {
           rating: '0/1000 🐹',
-          ordersLast30Days: 85,
-          completionRateLast30Days: 94,
-          avgTransferTime: 1,
-          avgPaymentTime: 5
+          ordersLast30Days: 0,
+          completionRateLast30Days: 0,
+          avgTransferTime: 0,
+          avgPaymentTime: 0
         };
       }
 
@@ -368,23 +368,91 @@ class ReputationService {
       // Get user level emoji
       const userLevel = this.getUserLevelDisplay(trustScore);
       
-      // Return standardized format
+      // Calculate real statistics from last 30 days
+      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+      
+      // Get all P2P trades (both orders and completed trades) for last 30 days
+      const [ordersLast30Days, tradesLast30Days] = await Promise.all([
+        // Count orders created in last 30 days (from P2POrder model)
+        P2POrder.countDocuments({
+          userId: userId,
+          createdAt: { $gte: thirtyDaysAgo }
+        }),
+        
+        // Get trades from last 30 days
+        P2PTrade.find({
+          $or: [{ buyerId: userId }, { sellerId: userId }],
+          createdAt: { $gte: thirtyDaysAgo }
+        })
+      ]);
+      
+      // Calculate completion rate for last 30 days
+      const totalTradesLast30Days = tradesLast30Days.length;
+      const completedTradesLast30Days = tradesLast30Days.filter(t => t.status === 'completed').length;
+      const cancelledTradesLast30Days = tradesLast30Days.filter(t => t.status === 'cancelled').length;
+      
+      // Completion rate = completed trades / (total trades - cancellations) * 100
+      // Cancellations don't count against completion rate as per user's specification
+      const eligibleTrades = totalTradesLast30Days - cancelledTradesLast30Days;
+      const completionRateLast30Days = eligibleTrades > 0 ? Math.round((completedTradesLast30Days / eligibleTrades) * 100) : 0;
+      
+      // Calculate average transfer time (for buy orders - how long seller takes to send)
+      const buyTrades = tradesLast30Days.filter(t => 
+        t.buyerId.toString() === userId.toString() && t.status === 'completed'
+      );
+      
+      let avgTransferTime = 0;
+      if (buyTrades.length > 0) {
+        const transferTimes = buyTrades
+          .filter(t => t.timeTracking?.paymentConfirmedAt && t.timeTracking?.escrowReleasedAt)
+          .map(t => {
+            const paymentTime = new Date(t.timeTracking.paymentConfirmedAt);
+            const releaseTime = new Date(t.timeTracking.escrowReleasedAt);
+            return Math.round((releaseTime - paymentTime) / (1000 * 60)); // minutes
+          });
+        
+        if (transferTimes.length > 0) {
+          avgTransferTime = Math.round(transferTimes.reduce((sum, time) => sum + time, 0) / transferTimes.length);
+        }
+      }
+      
+      // Calculate average payment time (for sell orders - how long buyer takes to pay)
+      const sellTrades = tradesLast30Days.filter(t => 
+        t.sellerId.toString() === userId.toString() && t.status === 'completed'
+      );
+      
+      let avgPaymentTime = 0;
+      if (sellTrades.length > 0) {
+        const paymentTimes = sellTrades
+          .filter(t => t.timeTracking?.createdAt && t.timeTracking?.paymentConfirmedAt)
+          .map(t => {
+            const createdTime = new Date(t.timeTracking.createdAt);
+            const paymentTime = new Date(t.timeTracking.paymentConfirmedAt);
+            return Math.round((paymentTime - createdTime) / (1000 * 60)); // minutes
+          });
+        
+        if (paymentTimes.length > 0) {
+          avgPaymentTime = Math.round(paymentTimes.reduce((sum, time) => sum + time, 0) / paymentTimes.length);
+        }
+      }
+      
+      // Return real calculated statistics
       return {
         rating: `${completedDeals}/1000 ${userLevel.emoji}`,
-        ordersLast30Days: 85,  // Mock data - would be calculated from actual trades
-        completionRateLast30Days: 94,  // Mock data - would be calculated from last 30 days
-        avgTransferTime: 1,  // Mock data - for buy orders (average transfer time)
-        avgPaymentTime: 5    // Mock data - for sell orders (average payment time)
+        ordersLast30Days: ordersLast30Days,
+        completionRateLast30Days: completionRateLast30Days,
+        avgTransferTime: avgTransferTime,
+        avgPaymentTime: avgPaymentTime
       };
     } catch (error) {
       console.error('Error getting standardized user stats:', error);
-      // Return default values on error
+      // Return zero values on error (not mock data)
       return {
         rating: '0/1000 🐹',
-        ordersLast30Days: 85,
-        completionRateLast30Days: 94,
-        avgTransferTime: 1,
-        avgPaymentTime: 5
+        ordersLast30Days: 0,
+        completionRateLast30Days: 0,
+        avgTransferTime: 0,
+        avgPaymentTime: 0
       };
     }
   }

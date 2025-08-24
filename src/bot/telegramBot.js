@@ -276,6 +276,13 @@ class TelegramBot {
       return messageHandler.handleP2PSellOrders.call(messageHandler, ctx, page);
     });
     
+    // Handle pagination for my orders
+    this.bot.action(/^p2p_my_orders_page_(\d+)$/, (ctx) => {
+      const page = parseInt(ctx.match[1]);
+      console.log('Received p2p_my_orders_page callback:', page);
+      return messageHandler.handleP2PMyOrders.call(messageHandler, ctx, page);
+    });
+    
     // Handle user profile view for buy orders
     this.bot.action(/^buy_order_(.+)$/, (ctx) => {
       const userId = ctx.match[1];

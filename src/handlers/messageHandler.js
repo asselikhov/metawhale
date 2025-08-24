@@ -1410,7 +1410,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
   // Handle buy orders display with pagination (each order in separate message)
   async handleP2PBuyOrders(ctx, page = 1) {
     try {
-      const limit = 10; // Показываем по 10 ордеров на странице
+      const limit = 5; // Показываем по 5 ордеров на странице
       const offset = (page - 1) * limit;
       const result = await p2pService.getMarketOrders(limit, offset);
       
@@ -1491,12 +1491,29 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
         await new Promise(resolve => setTimeout(resolve, 100));
       }
       
-      // Отправляем кнопку "Назад" отдельным сообщением в самом конце
-      const backKeyboard = Markup.inlineKeyboard([
-        [Markup.button.callback('🔙 Назад', 'p2p_market_orders')]
-      ]);
+      // Пагинация над кнопкой "Назад"
+      const navigationButtons = [];
+      if (totalPages > 1) {
+        const paginationButtons = [];
+        
+        if (page > 1) {
+          paginationButtons.push(Markup.button.callback('⬅️ Назад', `p2p_buy_orders_page_${page - 1}`));
+        }
+        
+        paginationButtons.push(Markup.button.callback(`${page}/${totalPages}`, 'p2p_buy_orders'));
+        
+        if (page < totalPages) {
+          paginationButtons.push(Markup.button.callback('Вперед ➡️', `p2p_buy_orders_page_${page + 1}`));
+        }
+        
+        navigationButtons.push(paginationButtons);
+      }
       
-      await ctx.reply('◀️ Навигация:', backKeyboard);
+      // Кнопка "Назад" внизу
+      navigationButtons.push([Markup.button.callback('🔙 Назад', 'p2p_market_orders')]);
+      
+      const navigationKeyboard = Markup.inlineKeyboard(navigationButtons);
+      await ctx.reply('Навигация:', navigationKeyboard);
       
     } catch (error) {
       console.error('Buy orders error:', error);
@@ -1507,11 +1524,11 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
   // Handle sell orders display with pagination (each order in separate message)
   async handleP2PSellOrders(ctx, page = 1) {
     try {
-      const limit = 10; // Показываем по 10 ордеров на странице
+      const limit = 5; // Показываем по 5 ордеров на странице
       const offset = (page - 1) * limit;
       const result = await p2pService.getMarketOrders(limit, offset);
       
-      if (result.buyOrders.length === 0) {
+      if (result.sellOrders.length === 0) {
         const message = `📉 ОРДЕРА НА ПРОДАЖУ\n` +
                        `➖➖➖➖➖➖➖➖➖➖➖\n` +
                        `⚠️ Активных ордеров на продажу пока нет\n\n` +
@@ -1528,7 +1545,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
       let headerMessage = `📉 ОРДЕРА НА ПРОДАЖУ\n` +
                          `➖➖➖➖➖➖➖➖➖➖➖\n`;
       
-      const totalPages = Math.ceil(result.buyOrdersCount / limit);
+      const totalPages = Math.ceil(result.sellOrdersCount / limit);
       if (totalPages > 1) {
         headerMessage += `Страница ${page} из ${totalPages}\n\n`;
       }
@@ -1558,8 +1575,8 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
       // Отправляем каждый ордер отдельным сообщением
       const reputationService = require('../services/reputationService');
       
-      for (let i = 0; i < result.buyOrders.length; i++) {
-        const order = result.buyOrders[i];
+      for (let i = 0; i < result.sellOrders.length; i++) {
+        const order = result.sellOrders[i];
         const username = order.userId.username || order.userId.firstName || 'Пользователь';
         
         // Get standardized user statistics
@@ -1588,12 +1605,29 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
         await new Promise(resolve => setTimeout(resolve, 100));
       }
       
-      // Отправляем кнопку "Назад" отдельным сообщением в самом конце
-      const backKeyboard = Markup.inlineKeyboard([
-        [Markup.button.callback('🔙 Назад', 'p2p_market_orders')]
-      ]);
+      // Пагинация над кнопкой "Назад"
+      const navigationButtons = [];
+      if (totalPages > 1) {
+        const paginationButtons = [];
+        
+        if (page > 1) {
+          paginationButtons.push(Markup.button.callback('⬅️ Назад', `p2p_sell_orders_page_${page - 1}`));
+        }
+        
+        paginationButtons.push(Markup.button.callback(`${page}/${totalPages}`, 'p2p_sell_orders'));
+        
+        if (page < totalPages) {
+          paginationButtons.push(Markup.button.callback('Вперед ➡️', `p2p_sell_orders_page_${page + 1}`));
+        }
+        
+        navigationButtons.push(paginationButtons);
+      }
       
-      await ctx.reply('◀️ Навигация:', backKeyboard);
+      // Кнопка "Назад" внизу
+      navigationButtons.push([Markup.button.callback('🔙 Назад', 'p2p_market_orders')]);
+      
+      const navigationKeyboard = Markup.inlineKeyboard(navigationButtons);
+      await ctx.reply('Навигация:', navigationKeyboard);
       
     } catch (error) {
       console.error('Sell orders error:', error);
@@ -1716,29 +1750,41 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
     }
   }
 
-  // Handle user's orders
-  async handleP2PMyOrders(ctx) {
+  // Handle user's orders with pagination
+  async handleP2PMyOrders(ctx, page = 1) {
     try {
       const chatId = ctx.chat.id.toString();
-      const orders = await p2pService.getUserOrders(chatId, 10);
+      const limit = 5; // Показываем по 5 ордеров на странице
+      const offset = (page - 1) * limit;
+      const result = await p2pService.getUserOrders(chatId, limit, offset);
       
       let message = `📋 МОИ ОРДЕРА\n` +
                    `➖➖➖➖➖➖➖➖➖➖➖\n`;
       
+      const totalPages = Math.ceil(result.totalCount / limit);
+      if (totalPages > 1) {
+        message += `Страница ${page} из ${totalPages}\n\n`;
+      }
+      
       const keyboardButtons = [];
       
-      if (orders.length === 0) {
-        message += `⚠️ У вас пока нет активных ордеров\n\n` +
-                  `💡 Создайте ордер на покупку или продажу CES !`;
+      if (result.orders.length === 0) {
+        if (page === 1) {
+          message += `⚠️ У вас пока нет активных ордеров\n\n` +
+                    `💡 Создайте ордер на покупку или продажу CES !`;
+        } else {
+          message += `⚠️ На этой странице нет ордеров`;
+        }
       } else {
         // Display orders if any exist
-        orders.forEach((order, index) => {
+        result.orders.forEach((order, index) => {
+          const orderNumber = offset + index + 1;
           const orderType = order.type === 'buy' ? '📈 Покупка' : '📉 Продажа';
           const status = order.status === 'active' ? 'Активен' : 
                         order.status === 'partial' ? 'Частично исполнен' : 
                         order.status === 'completed' ? 'Исполнен' : 'Отменен';
           
-          message += `${index + 1}. ${orderType}\n` +
+          message += `${orderNumber}. ${orderType}\n` +
                     `${order.amount.toFixed(2)} CES по ₽ ${order.pricePerToken.toFixed(2)}\n` +
                     `Статус: ${status}\n` +
                     `${order.createdAt.toLocaleString('ru-RU')}\n`;
@@ -1753,10 +1799,31 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
         });
       }
       
-      // Add back button
-      keyboardButtons.push([Markup.button.callback('🔙 Назад', 'p2p_menu')]);
+      // Пагинация над кнопкой "Назад"
+      const navigationButtons = [];
+      if (totalPages > 1) {
+        const paginationButtons = [];
+        
+        if (page > 1) {
+          paginationButtons.push(Markup.button.callback('⬅️ Назад', `p2p_my_orders_page_${page - 1}`));
+        }
+        
+        paginationButtons.push(Markup.button.callback(`${page}/${totalPages}`, 'p2p_my_orders'));
+        
+        if (page < totalPages) {
+          paginationButtons.push(Markup.button.callback('Вперед ➡️', `p2p_my_orders_page_${page + 1}`));
+        }
+        
+        navigationButtons.push(paginationButtons);
+      }
       
-      const keyboard = Markup.inlineKeyboard(keyboardButtons);
+      // Add cancel buttons for orders
+      navigationButtons.push(...keyboardButtons);
+      
+      // Кнопка "Назад" внизу
+      navigationButtons.push([Markup.button.callback('🔙 Назад', 'p2p_menu')]);
+      
+      const keyboard = Markup.inlineKeyboard(navigationButtons);
       
       await ctx.reply(message, keyboard);
       
