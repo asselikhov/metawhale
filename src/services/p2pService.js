@@ -473,7 +473,7 @@ class P2PService {
           status: 'active',
           remainingAmount: { $gt: 0 }
         })
-        .sort({ pricePerToken: 1, createdAt: 1 }) // Sort by price (lowest first), then by time
+        .sort({ pricePerToken: -1, createdAt: 1 }) // Sort by price (highest first), then by time
         .skip(offset)
         .limit(limit)
         .populate({
@@ -486,7 +486,7 @@ class P2PService {
           status: 'active',
           remainingAmount: { $gt: 0 }
         })
-        .sort({ pricePerToken: -1, createdAt: 1 }) // Sort by price (highest first), then by time
+        .sort({ pricePerToken: 1, createdAt: 1 }) // Sort by price (lowest first), then by time
         .skip(offset)
         .limit(limit)
         .populate({
