@@ -20,7 +20,7 @@ class P2PService {
   }
 
   // Create a buy order (user wants to buy CES for rubles)
-  async createBuyOrder(chatId, amount, pricePerToken) {
+  async createBuyOrder(chatId, amount, pricePerToken, minTradeAmount = 1, maxTradeAmount = null) {
     try {
       console.log(`Creating buy order: ${amount} CES at ₽${pricePerToken} per token (chatId: ${chatId})`);
       
@@ -41,6 +41,27 @@ class P2PService {
         throw new Error('Количество и цена должны быть больше 0');
       }
       
+      // Validate min/max trade amounts
+      if (minTradeAmount <= 0) {
+        throw new Error('Минимальная сумма должна быть больше 0');
+      }
+      
+      if (maxTradeAmount && maxTradeAmount <= 0) {
+        throw new Error('Максимальная сумма должна быть больше 0');
+      }
+      
+      if (minTradeAmount > amount) {
+        throw new Error('Минимальная сумма не может быть больше общего количества');
+      }
+      
+      if (maxTradeAmount && maxTradeAmount > amount) {
+        throw new Error('Максимальная сумма не может быть больше общего количества');
+      }
+      
+      if (minTradeAmount > (maxTradeAmount || amount)) {
+        throw new Error('Минимальная сумма не может быть больше максимальной');
+      }
+      
       const totalValue = amount * pricePerToken;
       console.log(`Total order value: ₽${totalValue.toFixed(2)}`);
       
@@ -59,6 +80,15 @@ class P2PService {
         existingOrder.remainingAmount += amount;
         existingOrder.totalValue = existingOrder.amount * pricePerToken;
         existingOrder.updatedAt = new Date();
+        
+        // Update min/max trade amounts if provided
+        if (minTradeAmount) {
+          existingOrder.minTradeAmount = minTradeAmount;
+        }
+        if (maxTradeAmount) {
+          existingOrder.maxTradeAmount = maxTradeAmount;
+        }
+        
         await existingOrder.save();
         
         console.log(`Updated existing buy order: ${existingOrder._id}`);
@@ -73,7 +103,9 @@ class P2PService {
         amount: amount,
         pricePerToken: pricePerToken,
         totalValue: totalValue,
-        remainingAmount: amount
+        remainingAmount: amount,
+        minTradeAmount: minTradeAmount,
+        maxTradeAmount: maxTradeAmount || amount
       });
       
       await buyOrder.save();
@@ -93,7 +125,7 @@ class P2PService {
   }
 
   // Create a sell order (user wants to sell CES for rubles)
-  async createSellOrder(chatId, amount, pricePerToken, paymentMethods = ['bank_transfer']) {
+  async createSellOrder(chatId, amount, pricePerToken, paymentMethods = ['bank_transfer'], minTradeAmount = 1, maxTradeAmount = null) {
     try {
       console.log(`Creating sell order: ${amount} CES at ₽${pricePerToken} per token (chatId: ${chatId})`);
       
@@ -112,6 +144,27 @@ class P2PService {
       if (amount <= 0 || pricePerToken <= 0) {
         console.log(`Invalid input: amount=${amount}, price=${pricePerToken}`);
         throw new Error('Количество и цена должны быть больше 0');
+      }
+      
+      // Validate min/max trade amounts
+      if (minTradeAmount <= 0) {
+        throw new Error('Минимальная сумма должна быть больше 0');
+      }
+      
+      if (maxTradeAmount && maxTradeAmount <= 0) {
+        throw new Error('Максимальная сумма должна быть больше 0');
+      }
+      
+      if (minTradeAmount > amount) {
+        throw new Error('Минимальная сумма не может быть больше общего количества');
+      }
+      
+      if (maxTradeAmount && maxTradeAmount > amount) {
+        throw new Error('Максимальная сумма не может быть больше общего количества');
+      }
+      
+      if (minTradeAmount > (maxTradeAmount || amount)) {
+        throw new Error('Минимальная сумма не может быть больше максимальной');
       }
       
       if (amount < this.minOrderAmount || amount > this.maxOrderAmount) {
@@ -149,6 +202,15 @@ class P2PService {
         existingOrder.totalValue = existingOrder.amount * pricePerToken;
         existingOrder.updatedAt = new Date();
         existingOrder.escrowLocked = true;
+        
+        // Update min/max trade amounts if provided
+        if (minTradeAmount) {
+          existingOrder.minTradeAmount = minTradeAmount;
+        }
+        if (maxTradeAmount) {
+          existingOrder.maxTradeAmount = maxTradeAmount;
+        }
+        
         await existingOrder.save();
         
         console.log(`Updated existing sell order: ${existingOrder._id}`);
@@ -171,7 +233,9 @@ class P2PService {
         escrowLocked: true,
         escrowAmount: amount,
         paymentMethods: paymentMethods,
-        tradeTimeLimit: this.defaultTradeTimeout
+        tradeTimeLimit: this.defaultTradeTimeout,
+        minTradeAmount: minTradeAmount,
+        maxTradeAmount: maxTradeAmount || amount
       });
       
       await sellOrder.save();
@@ -398,8 +462,8 @@ class P2PService {
     }
   }
 
-  // Get market orders for display
-  async getMarketOrders(limit = 10) {
+  // Get market orders for display with pagination
+  async getMarketOrders(limit = 20, offset = 0) {
     try {
       // Get active buy and sell orders with populated user data
       // Limit the fields we retrieve for better performance
@@ -410,6 +474,7 @@ class P2PService {
           remainingAmount: { $gt: 0 }
         })
         .sort({ pricePerToken: -1, createdAt: 1 }) // Sort by price (highest first), then by time
+        .skip(offset)
         .limit(limit)
         .populate({
           path: 'userId',
@@ -422,6 +487,7 @@ class P2PService {
           remainingAmount: { $gt: 0 }
         })
         .sort({ pricePerToken: 1, createdAt: 1 }) // Sort by price (lowest first), then by time
+        .skip(offset)
         .limit(limit)
         .populate({
           path: 'userId',
@@ -429,15 +495,33 @@ class P2PService {
         })
       ]);
       
+      // Get total count for pagination
+      const [buyOrdersCount, sellOrdersCount] = await Promise.all([
+        P2POrder.countDocuments({ 
+          type: 'buy', 
+          status: 'active',
+          remainingAmount: { $gt: 0 }
+        }),
+        P2POrder.countDocuments({ 
+          type: 'sell', 
+          status: 'active',
+          remainingAmount: { $gt: 0 }
+        })
+      ]);
+      
       return {
         buyOrders,
-        sellOrders
+        sellOrders,
+        buyOrdersCount,
+        sellOrdersCount
       };
     } catch (error) {
       console.error('Error getting market orders:', error);
       return {
         buyOrders: [],
-        sellOrders: []
+        sellOrders: [],
+        buyOrdersCount: 0,
+        sellOrdersCount: 0
       };
     }
   }

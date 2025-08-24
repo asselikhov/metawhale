@@ -44,7 +44,9 @@ describe('P2P Orders Min/Max Display', function() {
             trustScore: 900
           }
         }
-      ]
+      ],
+      buyOrdersCount: 1,
+      sellOrdersCount: 1
     };
 
     // Stub p2pService.getMarketOrders
@@ -57,7 +59,7 @@ describe('P2P Orders Min/Max Display', function() {
   });
 
   it('should display buy orders with min/max amounts', async function() {
-    await messageHandler.handleP2PBuyOrders(ctx);
+    await messageHandler.handleP2PBuyOrders(ctx, 1);
     
     // Check that reply was called
     expect(ctx.reply.calledOnce).to.be.true;
@@ -65,13 +67,12 @@ describe('P2P Orders Min/Max Display', function() {
     // Check that message contains order information with min/max amounts
     const replyArgs = ctx.reply.firstCall.args;
     expect(replyArgs[0]).to.include('ЗАЯВКИ НА ПОКУПКУ');
-    expect(replyArgs[0]).to.include('100.00 CES по ₽ 10.00');
-    expect(replyArgs[0]).to.include('@testuser1 800/1000');
-    expect(replyArgs[0]).to.include('Мин: 5.00 CES | Макс: 50.00 CES');
+    expect(replyArgs[0]).to.include('₽ 10.00 / CES @testuser1 800/1000');
+    expect(replyArgs[0]).to.include('Лимит: 5.00 - 50.00 CES');
   });
 
   it('should display sell orders with min/max amounts', async function() {
-    await messageHandler.handleP2PSellOrders(ctx);
+    await messageHandler.handleP2PSellOrders(ctx, 1);
     
     // Check that reply was called
     expect(ctx.reply.calledOnce).to.be.true;
@@ -79,21 +80,22 @@ describe('P2P Orders Min/Max Display', function() {
     // Check that message contains order information with min/max amounts
     const replyArgs = ctx.reply.firstCall.args;
     expect(replyArgs[0]).to.include('ЗАЯВКИ НА ПРОДАЖУ');
-    expect(replyArgs[0]).to.include('50.00 CES по ₽ 12.00');
-    expect(replyArgs[0]).to.include('@testuser2 900/1000');
-    expect(replyArgs[0]).to.include('Мин: 2.00 CES | Макс: 30.00 CES');
+    expect(replyArgs[0]).to.include('₽ 12.00 / CES @testuser2 900/1000');
+    expect(replyArgs[0]).to.include('Лимит: 2.00 - 30.00 CES');
   });
 
   it('should display default min amount when minTradeAmount is not set', async function() {
     // Modify mock data to remove minTradeAmount
     mockOrders.buyOrders[0].minTradeAmount = undefined;
+    // Set maxTradeAmount to remainingAmount when minTradeAmount is not set
+    mockOrders.buyOrders[0].maxTradeAmount = mockOrders.buyOrders[0].remainingAmount;
     p2pService.getMarketOrders.restore();
     sinon.stub(p2pService, 'getMarketOrders').resolves(mockOrders);
     
-    await messageHandler.handleP2PBuyOrders(ctx);
+    await messageHandler.handleP2PBuyOrders(ctx, 1);
     
     // Check that message contains default min amount
     const replyArgs = ctx.reply.firstCall.args;
-    expect(replyArgs[0]).to.include('Мин: 1.00 CES');
+    expect(replyArgs[0]).to.include('Лимит: 1.00 - 100.00 CES');
   });
 });

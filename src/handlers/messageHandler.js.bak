@@ -7,7 +7,7 @@ const { Markup } = require('telegraf');
 const priceService = require('../services/priceService');
 const walletService = require('../services/walletService');
 const p2pService = require('../services/p2pService');
-const { User, PriceHistory, P2PTrade } = require('../database/models');
+const { User, PriceHistory } = require('../database/models');
 
 // Simple session storage for user states
 const userSessions = new Map();
@@ -782,6 +782,20 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
       await ctx.reply('❌ Ошибка загрузки профиля пользователя.');
     }
   }
+      console.error('Back to menu error:', error);
+      // Fallback: send new message if editing fails
+      try {
+        const mainMenu = Markup.keyboard([
+          ['👤 Личный кабинет', '🔄 P2P']
+        ]).resize();
+        
+        await ctx.reply('🌾 Главное меню', mainMenu);
+      } catch (fallbackError) {
+        console.error('Fallback menu error:', fallbackError);
+        await ctx.reply('❌ Ошибка загрузки главного меню');
+      }
+    }
+  }
 
   // Refresh balance
   async handleRefreshBalance(ctx) {
@@ -1321,7 +1335,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
           
           message += `${index + 1 + (page - 1) * limit}. ₽ ${order.pricePerToken.toFixed(2)} / CES @${username} ${trustScore}/1000 ${userLevel.emoji}\n` +
                     `Лимит: ${minAmount.toFixed(2)} - ${maxAmount.toFixed(2)} CES\n` +
-                    `[Купить](callback_data:buy_order_${order.userId._id})\n\n`;
+                    `[Купить](callback_data:buy_order_${order.userId._id}) <- Ссылка на заявку покупателя\n\n`;
         });
         
         // Add pagination controls
@@ -1385,7 +1399,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
           
           message += `${index + 1 + (page - 1) * limit}. ₽ ${order.pricePerToken.toFixed(2)} / CES @${username} ${trustScore}/1000 ${userLevel.emoji}\n` +
                     `Лимит: ${minAmount.toFixed(2)} - ${maxAmount.toFixed(2)} CES\n` +
-                    `[Продать](callback_data:sell_order_${order.userId._id})\n\n`;
+                    `[Продать](callback_data:sell_order_${order.userId._id}) <- Ссылка на заявку продавца\n\n`;
         });
         
         // Add pagination controls
@@ -1424,7 +1438,6 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
       await ctx.reply('❌ Ошибка загрузки ордеров на продажу.');
     }
   }
-
   // Get user level display for market orders
   getUserLevelDisplay(trustScore) {
     if (trustScore >= 900) return { emoji: '🏆', level: 5 };
@@ -1788,6 +1801,34 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
     } catch (error) {
       console.error('User messaging error:', error);
       await ctx.reply('❌ Ошибка инициализации сообщения пользователю.');
+    }
+  }
+
+  // Handle create order with user
+  async handleCreateOrderWithUser(ctx, targetUserId) {
+    try {
+      const chatId = ctx.chat.id.toString();
+      const targetUser = await User.findById(targetUserId);
+      
+      if (!targetUser) {
+        return await ctx.reply('❌ Пользователь не найден.');
+      }
+      
+      const username = targetUser.username || targetUser.firstName || 'Пользователь';
+      
+      const message = `📝 *Создание ордера с пользователем @${username}*\n\n` +
+                     'Выберите тип ордера:';
+      
+      const keyboard = Markup.inlineKeyboard([
+        [Markup.button.callback('📈 Купить CES', `create_buy_order_with_${targetUserId}`)],
+        [Markup.button.callback('📉 Продать CES', `create_sell_order_with_${targetUserId}`)],
+        [Markup.button.callback('❌ Отмена', 'p2p_market_orders')]
+      ]);
+      
+      await ctx.reply(message, { parse_mode: 'Markdown', ...keyboard });
+    } catch (error) {
+      console.error('Create order with user error:', error);
+      await ctx.reply('❌ Ошибка создания ордера с пользователем.');
     }
   }
 
