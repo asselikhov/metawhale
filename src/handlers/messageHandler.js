@@ -58,7 +58,7 @@ class MessageHandler {
       
       // Main menu with regular keyboard buttons (only 2 buttons as requested)
       const mainMenu = Markup.keyboard([
-        ['👤 Личный кабинет', '🔄 P2P']
+        ['👤 Личный кабинет', '🔄 P2P Биржа']
       ]).resize();
       
       await ctx.reply(welcomeMessage, mainMenu);
@@ -113,7 +113,7 @@ class MessageHandler {
 ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${priceService.formatNumber(priceData.volume24h).replace(/(\d+\.\d{2})K/, (match) => {
         const num = parseFloat(match.replace('K', ''));
         return num.toFixed(1) + 'K';
-      })} • 🅐🅣🅗 ${athDisplay}`;
+      })} • 🅐�_THRESH ${athDisplay}`;
       
       // Edit the original message instead of sending new one
       await ctx.telegram.editMessageText(
@@ -178,7 +178,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
         return await this.handlePersonalCabinetText(ctx);
       }
       
-      if (text.includes('P2P')) {
+      if (text.includes('P2P Биржа')) {
         return await this.handleP2PMenu(ctx);
       }
       
@@ -559,7 +559,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
       const userLevel = this.getUserLevelDisplayNew(reputation.trustScore);
       
       // Prepare message text in the exact format requested
-      const message = `P2P БИРЖА\n` +
+      const message = `🔄 P2P БИРЖА\n` +
                      `➖➖➖➖➖➖➖➖➖➖➖\n` +
                      `Рейтинг: ${reputation.trustScore}/1000 ${userLevel.emoji}\n` +
                      `Объем сделок: ${(profileDetails.totalTradeVolume || 0).toLocaleString('ru-RU')} ₽\n` +
@@ -571,7 +571,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
       const keyboard = Markup.inlineKeyboard([
         [Markup.button.callback('📈 Купить CES', 'p2p_buy_ces'), Markup.button.callback('📉 Продать CES', 'p2p_sell_ces')],
         [Markup.button.callback('📊 Рынок ордеров', 'p2p_market_orders'), Markup.button.callback('📋 Мои ордера', 'p2p_my_orders')],
-        [Markup.button.callback('🏆 Топ трейдеров', 'p2p_top_traders'), Markup.button.callback('🧮 Аналитика', 'p2p_analytics')]
+        [Markup.button.callback('🧮 Аналитика', 'p2p_analytics')]
       ]);
       
       console.log(`📤 Sending P2P menu text with buttons to user ${chatId}`);
@@ -1053,7 +1053,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
       
       const priceData = await p2pService.getMarketPriceSuggestion();
       
-      const message = `📉 ПРОДАЖА CES ТОКЕНОВ\n\n` +
+      const message = `.DataGridViewColumn ПРОДАЖА CES ТОКЕНОВ\n\n` +
                      `Ваш баланс: ${walletInfo.cesBalance.toFixed(4)} CES\n\n` +
                      `Текущая рыночная цена:\n` +
                      `💰 ${priceData.currentPrice.toFixed(2)} ₽ за 1 CES\n\n` +
@@ -1101,7 +1101,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
       }
       
       if (orders.sellOrders.length > 0) {
-        message += `📉 Заявки на продажу:\n`;
+        message += `.DataGridViewColumn Заявки на продажу:\n`;
         orders.sellOrders.slice(0, 5).forEach((order, index) => {
           const username = order.userId.username || order.userId.firstName || 'Пользователь';
           const trustScore = order.userId.trustScore || 0;
@@ -1190,7 +1190,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
         message += `⚠️ У вас пока нет активных ордеров\n\n💡 Создайте ордер на покупку или продажу CES !`;
       } else {
         orders.forEach((order, index) => {
-          const typeEmoji = order.type === 'buy' ? '📈' : '📉';
+          const typeEmoji = order.type === 'buy' ? '📈' : '.DataGridViewColumn';
           const typeText = order.type === 'buy' ? 'Покупка' : 'Продажа';
           const statusText = order.status === 'active' ? 'Активен' : 
                            order.status === 'partial' ? 'Частично исполнен' : 
@@ -1256,7 +1256,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
       console.log(`💰 Processing P2P order: ${amount} CES at ₽${pricePerToken} (total: ₽${totalValue.toFixed(2)}, commission: ₽${commission.toFixed(2)})`);
       
       // Show confirmation
-      const typeEmoji = orderType === 'buy' ? '📈' : '📉';
+      const typeEmoji = orderType === 'buy' ? '📈' : '.DataGridViewColumn';
       const typeText = orderType === 'buy' ? 'покупку' : 'продажу';
       
       const message = `💎 **Подтверждение ордера на ${typeText}** 💎\n\n` +
@@ -1307,13 +1307,13 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
         console.log(`📈 Creating buy order...`);
         result = await p2pService.createBuyOrder(chatId, amount, pricePerToken);
       } else {
-        console.log(`📉 Creating sell order...`);
+        console.log(`.DataGridViewColumn Creating sell order...`);
         result = await p2pService.createSellOrder(chatId, amount, pricePerToken);
       }
       
       console.log(`✅ Order created successfully: ${result._id}`);
       
-      const typeEmoji = orderType === 'buy' ? '📈' : '📉';
+      const typeEmoji = orderType === 'buy' ? '📈' : '.DataGridViewColumn';
       const typeText = orderType === 'buy' ? 'покупку' : 'продажу';
       const totalValue = amount * pricePerToken;
       
