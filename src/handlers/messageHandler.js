@@ -1720,24 +1720,35 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
       console.log(`🔄 Processing P2P order confirmation: ${orderParams}`);
       
       const parts = orderParams.split('_');
-      if (parts.length < 5) {
+      if (parts.length < 6) { // Need at least confirm,p2p,order,type,amount,price
         console.log(`❌ Invalid order parameters: ${orderParams}`);
         throw new Error('Invalid order parameters');
       }
       
-      const [, , , orderType, amountStr, priceStr, minAmountStr, maxAmountStr] = parts;
+      // Extract parameters correctly
+      // Format: confirm_p2p_order_{type}_{amount}_{price}_{minAmount}_{maxAmount}[_{targetUserId}]
+      const orderType = parts[3];
+      const amountStr = parts[4];
+      const priceStr = parts[5];
+      const minAmountStr = parts.length > 6 ? parts[6] : '1';
+      const maxAmountStr = parts.length > 7 ? parts[7] : amountStr;
+      
       const amount = parseFloat(amountStr);
       const pricePerToken = parseFloat(priceStr);
-      const minAmount = parseFloat(minAmountStr || 1);
-      const maxAmount = parseFloat(maxAmountStr || amount);
+      const minAmount = parseFloat(minAmountStr);
+      const maxAmount = parseFloat(maxAmountStr);
       const chatId = ctx.chat.id.toString();
       
       // Check if this is a direct order with a specific user
       let targetUserId = null;
-      // Adjust index based on whether we have min/max amounts
-      const userIdIndex = parts.length >= 9 ? 8 : (parts.length >= 7 ? 6 : -1);
-      if (userIdIndex > 0) {
-        targetUserId = parts[userIdIndex];
+      // If we have more parts, the last one might be the targetUserId
+      if (parts.length > 8) {
+        targetUserId = parts[8];
+      } else if (parts.length === 8) {
+        // Check if the 8th part is a valid user ID (not a number)
+        if (isNaN(parseFloat(parts[7]))) {
+          targetUserId = parts[7];
+        }
       }
       
       console.log(`📊 Order details: type=${orderType}, amount=${amount}, price=${pricePerToken}, min=${minAmount}, max=${maxAmount}, chatId=${chatId}, targetUserId=${targetUserId}`);
@@ -1796,13 +1807,15 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
     } catch (error) {
       console.error('P2P order confirmation error:', error);
       
-      const errorMessage = `❌ **Ошибка создания ордера**\n\nℹ️ ${error.message}`;
+      // Sanitize error message to avoid Markdown parsing issues
+      const sanitizedMessage = error.message.replace(/[_*[\]()~`>#+\-=|{}.!]/g, '\\$&');
+      const errorMessage = `❌ Ошибка создания ордера\n\nℹ️ ${sanitizedMessage}`;
       
       const keyboard = Markup.inlineKeyboard([
         [Markup.button.callback('🔙 К P2P меню', 'p2p_menu')]
       ]);
       
-      await ctx.reply(errorMessage, { parse_mode: 'Markdown', ...keyboard });
+      await ctx.reply(errorMessage, keyboard);
     }
   }
 
