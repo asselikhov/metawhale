@@ -1,3 +1,40 @@
+const { Telegraf } = require('telegraf');
+const messageHandler = require('../handlers/messageHandler');
+const config = require('../config/configuration');
+
+class TelegramBot {
+  constructor() {
+    this.bot = new Telegraf(config.telegram.token);
+    this.setupHandlers();
+  }
+
+  getInstance() {
+    return this.bot;
+  }
+
+  async setWebhook() {
+    const webhookUrl = `${config.server.webhookUrl}/webhook/${config.telegram.token}`;
+    try {
+      await this.bot.telegram.setWebhook(webhookUrl);
+      console.log(`✅ Webhook set to: ${webhookUrl}`);
+    } catch (error) {
+      console.error('❌ Failed to set webhook:', error);
+      throw error;
+    }
+  }
+
+  async startPolling() {
+    console.log('🔄 Starting bot in polling mode...');
+    await this.bot.launch({ dropPendingUpdates: true });
+    console.log('✅ Bot started in polling mode');
+  }
+
+  async stop(signal = 'manual') {
+    console.log(`⛔ Stopping bot (${signal})...`);
+    await this.bot.stop(signal);
+    console.log('✅ Bot stopped');
+  }
+
 // Setup command and callback handlers
   setupHandlers() {
     // Commands
@@ -108,3 +145,6 @@
       return messageHandler.handleP2PUserProfile.call(messageHandler, ctx, userId);
     });
   }
+}
+
+module.exports = new TelegramBot();
