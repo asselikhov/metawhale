@@ -290,6 +290,13 @@ class TelegramBot {
       return messageHandler.handleP2PUserProfile.call(messageHandler, ctx, userId);
     });
     
+    // Handle enter amount for P2P trading (dynamic callbacks)
+    this.bot.action(/^enter_amount_(.+)$/, (ctx) => {
+      const userId = ctx.match[1];
+      console.log('Received enter_amount callback:', userId);
+      return messageHandler.handleEnterAmount.call(messageHandler, ctx, userId);
+    });
+    
     // Error handling for the bot
     this.bot.catch((err, ctx) => {
       console.error(`❌ Telegram bot error for ${ctx.updateType}:`, err);

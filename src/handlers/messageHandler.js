@@ -833,19 +833,19 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
       const avgResponseTime = '5'; // Placeholder - in a real implementation this would be calculated
       
       const username = targetUser.username || targetUser.firstName || 'Пользователь';
+      const userLevel = this.getUserLevelDisplayNew(profileDetails.trustScore);
       
-      const message = `👤 Профиль пользователя: @${username}\n` +
-                   `➖➖➖➖➖➖➖➖➖➖➖\n` +
-                   `📊 Рейтинг: ${profileDetails.trustScore}/1000 ${profileDetails.userLevel.emoji}\n` +
-                   `✅ Исполненные ордера за 30 дней: ${completedTrades}\n` +
-                   `📈 Процент исполнения за 30 дней: ${completionRate}%\n` +
-                   `⏱️ Среднее время перевода: ${avgResponseTime} мин\n\n` +
-                   `Выберите действие:`;
+      const message = `Условия мейкера:\n\n` +
+                   `Сведения от транзакции:\n` +
+                   `Имя продавца: @${username}\n` +
+                   `Рейтинг: ${completedTrades}/1000 ${userLevel.emoji}\n` +
+                   `Исполненные ордера за дней: ${completedTrades} Ордера\n` +
+                   `Процент исполнения за 30 дней: ${completionRate}%\n` +
+                   `Среднее время оплаты: ${avgResponseTime} мин.`;
       
       const keyboard = Markup.inlineKeyboard([
-        [Markup.button.callback('💬 Написать', `message_user_${targetUserId}`)],
-        [Markup.button.callback('🔄 Создать ордер', `create_order_with_${targetUserId}`)],
-        [Markup.button.callback('🔙 Назад', 'p2p_market_orders')]
+        [Markup.button.callback('Введите сумму', `enter_amount_${targetUserId}`)],
+        [Markup.button.callback('Назад', 'p2p_buy_orders')]
       ]);
       
       await ctx.reply(message, { parse_mode: 'Markdown', ...keyboard });
@@ -1425,19 +1425,27 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
       const keyboardButtons = [];
       
       if (result.buyOrders.length > 0) {
-        result.buyOrders.forEach((order, index) => {
+        // Get reputation data for all users at once for better performance
+        const reputationService = require('../services/reputationService');
+        
+        for (let i = 0; i < result.buyOrders.length; i++) {
+          const order = result.buyOrders[i];
+          const index = i;
           const username = order.userId.username || order.userId.firstName || 'Пользователь';
-          const trustScore = order.userId.trustScore !== undefined ? order.userId.trustScore : 0;
-          const userLevel = this.getUserLevelDisplayNew(trustScore);
+          
+          // Get actual completed deals count instead of trust score
+          const reputation = await reputationService.getUserReputation(order.userId._id);
+          const completedDeals = reputation ? reputation.totalTrades : 0;
+          const userLevel = this.getUserLevelDisplayNew(reputation ? reputation.trustScore : 0);
           
           // Get min and max trade amounts if available
           const minAmount = order.minTradeAmount || 1;
           const maxAmount = order.maxTradeAmount || order.remainingAmount;
           
-          message += `${index + 1 + (page - 1) * limit}. ₽ ${order.pricePerToken.toFixed(2)} / CES @${username} ${trustScore}/1000 ${userLevel.emoji}\n` +
+          message += `${index + 1 + (page - 1) * limit}. ₽ ${order.pricePerToken.toFixed(2)} / CES @${username} ${completedDeals}/1000 ${userLevel.emoji}\n` +
                     `Лимит: ${minAmount.toFixed(2)} - ${maxAmount.toFixed(2)} CES\n` +
-                    `[Купить](callback_data:buy_order_${order.userId._id})\n\n`;
-        });
+                    `[Продать](callback_data:buy_order_${order.userId._id})\n\n`;
+        }
         
         // Add pagination controls
         const totalPages = Math.ceil(result.buyOrdersCount / limit);
@@ -2016,6 +2024,43 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
       ]);
       
       await ctx.reply(errorMessage, { parse_mode: 'Markdown', ...keyboard });
+    }
+  }
+
+  // Handle enter amount for P2P trading
+  async handleEnterAmount(ctx, targetUserId) {
+    try {
+      const chatId = ctx.chat.id.toString();
+      const targetUser = await User.findById(targetUserId);
+      
+      if (!targetUser) {
+        return await ctx.reply('❌ Пользователь не найден.');
+      }
+      
+      const username = targetUser.username || targetUser.firstName || 'Пользователь';
+      
+      const message = `💸 ПОКУПКА CES у @${username}\n` +
+                     `➖➖➖➖➖➖➖➖➖➖➖\n` +
+                     `Введите сумму для покупки:\n\n` +
+                     `📝 Отправьте сообщение в формате:\n` +
+                     `Количество Цена_за_токен\n\n` +
+                     `📝 Пример:\n` +
+                     `10 250.50`;
+      
+      // Store target user ID in session for P2P trade
+      this.setSessionData(chatId, 'awaitingP2POrder', true);
+      this.setSessionData(chatId, 'p2pOrderType', 'buy');
+      this.setSessionData(chatId, 'targetUserId', targetUserId);
+      
+      const keyboard = Markup.inlineKeyboard([
+        [Markup.button.callback('❌ Отмена', 'p2p_buy_orders')]
+      ]);
+      
+      await ctx.reply(message, keyboard);
+      
+    } catch (error) {
+      console.error('Enter amount error:', error);
+      await ctx.reply('❌ Ошибка ввода суммы.');
     }
   }
 }
