@@ -9,7 +9,7 @@ const config = {
   // Telegram Bot Configuration
   telegram: {
     botToken: process.env.TELEGRAM_BOT_TOKEN,
-    webhookUrl: process.env.WEBHOOK_URL || 'https://metawhale.onrender.com',
+    webhookUrl: process.env.WEBHOOK_URL || 'https://your-app-name.onrender.com',
     webhookPath: '/webhook',
     apiCallInterval: parseInt(process.env.API_CALL_INTERVAL) || 2000 // Reduced from 3000 to 2000ms
   },

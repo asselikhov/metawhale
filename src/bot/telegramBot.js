@@ -13,7 +13,12 @@ class TelegramBot {
   }
 
   async setWebhook() {
-    const webhookUrl = `${config.server.webhookUrl}/webhook/${config.telegram.botToken}`;
+    // Проверяем, что webhookUrl определен
+    if (!config.telegram.webhookUrl || config.telegram.webhookUrl === 'undefined') {
+      throw new Error('WEBHOOK_URL is not defined in environment variables');
+    }
+    
+    const webhookUrl = `${config.telegram.webhookUrl}${config.telegram.webhookPath}/${config.telegram.botToken}`;
     try {
       await this.bot.telegram.setWebhook(webhookUrl);
       console.log(`✅ Webhook set to: ${webhookUrl}`);
