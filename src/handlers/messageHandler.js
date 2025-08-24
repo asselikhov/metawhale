@@ -1399,8 +1399,8 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
                      `Выберите тип ордеров для просмотра:`;
 
       const keyboard = Markup.inlineKeyboard([
-        [Markup.button.callback('📈 Заявки на покупку', 'p2p_buy_orders')],
-        [Markup.button.callback('📉 Заявки на продажу', 'p2p_sell_orders')],
+        [Markup.button.callback('📈 Ордера на покупку', 'p2p_buy_orders')],
+        [Markup.button.callback('📉 Ордера на продажу', 'p2p_sell_orders')],
         [Markup.button.callback('🔙 Назад', 'p2p_menu')]
       ]);
 
@@ -1424,12 +1424,12 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
       
       const keyboardButtons = [];
       
-      if (result.buyOrders.length > 0) {
+      if (result.sellOrders.length > 0) {
         // Get reputation data for all users at once for better performance
         const reputationService = require('../services/reputationService');
         
-        for (let i = 0; i < result.buyOrders.length; i++) {
-          const order = result.buyOrders[i];
+        for (let i = 0; i < result.sellOrders.length; i++) {
+          const order = result.sellOrders[i];
           const index = i;
           const username = order.userId.username || order.userId.firstName || 'Пользователь';
           
@@ -1447,11 +1447,11 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
           message += `${index + 1 + (page - 1) * limit}. ₽ ${order.pricePerToken.toFixed(2)} / CES @${username} ${completedDeals}/1000 ${userLevel.emoji}\n` +
                     `Количество: ${order.remainingAmount.toFixed(0)} CES\n` +
                     `Лимиты: ${minRubles} - ${maxRubles} ₽\n` +
-                    `[Продать](callback_data:buy_order_${order.userId._id})\n\n`;
+                    `[Купить](callback_data:sell_order_${order.userId._id})\n\n`;
         }
         
         // Add pagination controls
-        const totalPages = Math.ceil(result.buyOrdersCount / limit);
+        const totalPages = Math.ceil(result.sellOrdersCount / limit);
         if (totalPages > 1) {
           const paginationButtons = [];
           
@@ -1499,12 +1499,12 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
       
       const keyboardButtons = [];
       
-      if (result.sellOrders.length > 0) {
+      if (result.buyOrders.length > 0) {
         // Get reputation data for all users at once for better performance
         const reputationService = require('../services/reputationService');
         
-        for (let i = 0; i < result.sellOrders.length; i++) {
-          const order = result.sellOrders[i];
+        for (let i = 0; i < result.buyOrders.length; i++) {
+          const order = result.buyOrders[i];
           const index = i;
           const username = order.userId.username || order.userId.firstName || 'Пользователь';
           
@@ -1522,11 +1522,11 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
           message += `${index + 1 + (page - 1) * limit}. ₽ ${order.pricePerToken.toFixed(2)} / CES @${username} ${completedDeals}/1000 ${userLevel.emoji}\n` +
                     `Количество: ${order.remainingAmount.toFixed(2)} CES\n` +
                     `Лимиты: ${minRubles} - ${maxRubles} ₽\n` +
-                    `[Купить](callback_data:sell_order_${order.userId._id})\n\n`;
+                    `[Продать](callback_data:buy_order_${order.userId._id})\n\n`;
         }
         
         // Add pagination controls
-        const totalPages = Math.ceil(result.sellOrdersCount / limit);
+        const totalPages = Math.ceil(result.buyOrdersCount / limit);
         if (totalPages > 1) {
           const paginationButtons = [];
           
