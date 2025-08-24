@@ -208,16 +208,16 @@ class TelegramBot {
       return messageHandler.handleP2PTopTraders.call(messageHandler, ctx);
     });
     
-    // Handle transfer confirmations (dynamic callbacks)
-    this.bot.action(/^confirm_transfer_/, (ctx) => {
-      console.log('Received confirm_transfer callback:', ctx.callbackQuery.data);
-      return messageHandler.handleTransferConfirmation.call(messageHandler, ctx, ctx.callbackQuery.data);
+    // Handle transfer confirmations
+    this.bot.action('confirm_transfer', (ctx) => {
+      console.log('Received confirm_transfer callback');
+      return messageHandler.handleTransferConfirmation.call(messageHandler, ctx);
     });
     
-    // Handle P2P order confirmations (dynamic callbacks)
-    this.bot.action(/^confirm_p2p_order_/, (ctx) => {
-      console.log('Received confirm_p2p_order callback:', ctx.callbackQuery.data);
-      return messageHandler.handleP2POrderConfirmation.call(messageHandler, ctx, ctx.callbackQuery.data);
+    // Handle P2P order confirmations
+    this.bot.action('confirm_p2p_order', (ctx) => {
+      console.log('Received confirm_p2p_order callback');
+      return messageHandler.handleP2POrderConfirmation.call(messageHandler, ctx);
     });
     
     // Handle user messaging (dynamic callbacks)

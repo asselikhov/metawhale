@@ -1058,9 +1058,17 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
                      `${recipientInfo}\n\n` +
                      '❗ Перевод нельзя отменить!';
       
+      // Store transfer data in session to avoid callback data length limits
+      this.setSessionData(chatId, 'pendingTransfer', {
+        tokenType,
+        toAddress,
+        amount,
+        timestamp: Date.now()
+      });
+      
       const keyboard = Markup.inlineKeyboard([
-        [Markup.button.callback('✅ Подтвердить', `confirm_transfer_${tokenType}_${toAddress}_${amount}`)],
-        [Markup.button.callback('❌ Отмена', 'p2p_menu')]
+        [Markup.button.callback('✅ Подтвердить', 'confirm_transfer')],
+        [Markup.button.callback('❌ Отмена', 'transfer_menu')]
       ]);
       
       await ctx.reply(message, { parse_mode: 'Markdown', ...keyboard });
@@ -1072,16 +1080,25 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
   }
 
   // Handle transfer confirmation
-  async handleTransferConfirmation(ctx, transferParams) {
+  async handleTransferConfirmation(ctx) {
     try {
-      const parts = transferParams.split('_');
-      if (parts.length < 4) {
-        throw new Error('Invalid transfer parameters');
+      const chatId = ctx.chat.id.toString();
+      
+      // Get transfer data from session
+      const pendingTransfer = this.getSessionData(chatId, 'pendingTransfer');
+      
+      if (!pendingTransfer || !pendingTransfer.tokenType || !pendingTransfer.toAddress || !pendingTransfer.amount) {
+        throw new Error('Данные перевода не найдены. Попробуйте снова.');
       }
       
-      const [, , tokenType, toAddress, amountStr] = parts;
-      const amount = parseFloat(amountStr);
-      const chatId = ctx.chat.id.toString();
+      // Check if transfer data is not too old (30 minutes)
+      const transferAge = Date.now() - (pendingTransfer.timestamp || 0);
+      if (transferAge > 30 * 60 * 1000) {
+        this.setSessionData(chatId, 'pendingTransfer', null);
+        throw new Error('Данные перевода устарели. Попробуйте снова.');
+      }
+      
+      const { tokenType, toAddress, amount } = pendingTransfer;
       
       await ctx.reply('⏳ Обработка перевода... Подождите.');
       
@@ -1091,6 +1108,9 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
       } else {
         result = await walletService.sendCESTokens(chatId, toAddress, amount);
       }
+      
+      // Clear pending transfer data
+      this.setSessionData(chatId, 'pendingTransfer', null);
       
       if (result.success) {
         const tokenEmoji = tokenType === 'POL' ? '💎' : '💰';
@@ -1710,8 +1730,19 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
         }
       }
       
+      // Store P2P order data in session to avoid callback data length limits
+      this.setSessionData(chatId, 'pendingP2POrder', {
+        orderType,
+        amount,
+        pricePerToken,
+        minAmount,
+        maxAmount,
+        targetUserId,
+        timestamp: Date.now()
+      });
+      
       const keyboard = Markup.inlineKeyboard([
-        [Markup.button.callback('✅ Подтвердить', `confirm_p2p_order_${orderType}_${amount}_${pricePerToken}_${minAmount}_${maxAmount}${targetUserId ? `_${targetUserId}` : ''}`)],
+        [Markup.button.callback('✅ Подтвердить', 'confirm_p2p_order')],
         [Markup.button.callback('❌ Отмена', 'p2p_menu')]
       ]);
       
@@ -1725,41 +1756,26 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
   }
 
   // Handle P2P order confirmation
-  async handleP2POrderConfirmation(ctx, orderParams) {
+  async handleP2POrderConfirmation(ctx) {
     try {
-      console.log(`🔄 Processing P2P order confirmation: ${orderParams}`);
-      
-      const parts = orderParams.split('_');
-      if (parts.length < 6) { // Need at least confirm,p2p,order,type,amount,price
-        console.log(`❌ Invalid order parameters: ${orderParams}`);
-        throw new Error('Invalid order parameters');
-      }
-      
-      // Extract parameters correctly
-      // Format: confirm_p2p_order_{type}_{amount}_{price}_{minAmount}_{maxAmount}[_{targetUserId}]
-      const orderType = parts[3];
-      const amountStr = parts[4];
-      const priceStr = parts[5];
-      const minAmountStr = parts.length > 6 ? parts[6] : '1';
-      const maxAmountStr = parts.length > 7 ? parts[7] : amountStr;
-      
-      const amount = parseFloat(amountStr);
-      const pricePerToken = parseFloat(priceStr);
-      const minAmount = parseFloat(minAmountStr);
-      const maxAmount = parseFloat(maxAmountStr);
       const chatId = ctx.chat.id.toString();
+      console.log(`🔄 Processing P2P order confirmation for user ${chatId}`);
       
-      // Check if this is a direct order with a specific user
-      let targetUserId = null;
-      // If we have more parts, the last one might be the targetUserId
-      if (parts.length > 8) {
-        targetUserId = parts[8];
-      } else if (parts.length === 8) {
-        // Check if the 8th part is a valid user ID (not a number)
-        if (isNaN(parseFloat(parts[7]))) {
-          targetUserId = parts[7];
-        }
+      // Get P2P order data from session
+      const pendingOrder = this.getSessionData(chatId, 'pendingP2POrder');
+      
+      if (!pendingOrder || !pendingOrder.orderType || !pendingOrder.amount || !pendingOrder.pricePerToken) {
+        throw new Error('Данные ордера не найдены. Попробуйте снова.');
       }
+      
+      // Check if order data is not too old (30 minutes)
+      const orderAge = Date.now() - (pendingOrder.timestamp || 0);
+      if (orderAge > 30 * 60 * 1000) {
+        this.setSessionData(chatId, 'pendingP2POrder', null);
+        throw new Error('Данные ордера устарели. Попробуйте снова.');
+      }
+      
+      const { orderType, amount, pricePerToken, minAmount, maxAmount, targetUserId } = pendingOrder;
       
       console.log(`📊 Order details: type=${orderType}, amount=${amount}, price=${pricePerToken}, min=${minAmount}, max=${maxAmount}, chatId=${chatId}, targetUserId=${targetUserId}`);
       
@@ -1775,6 +1791,9 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
       }
       
       console.log(`✅ Order created successfully: ${result._id}`);
+      
+      // Clear pending order data
+      this.setSessionData(chatId, 'pendingP2POrder', null);
       
       const typeEmoji = orderType === 'buy' ? '📈' : '📉';
       const typeText = orderType === 'buy' ? 'покупку' : 'продажу';
