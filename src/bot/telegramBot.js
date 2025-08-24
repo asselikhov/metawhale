@@ -1,6 +1,9 @@
 const { Telegraf } = require('telegraf');
-const messageHandler = require('../handlers/messageHandler');
+const MessageHandler = require('../handlers/messageHandler');
 const config = require('../config/configuration');
+
+// Create an instance of MessageHandler
+const messageHandler = new MessageHandler();
 
 class TelegramBot {
   constructor() {
@@ -66,242 +69,242 @@ class TelegramBot {
     // Commands
     this.bot.start((ctx) => {
       console.log('📥 Received /start command');
-      return messageHandler.handleStart.call(messageHandler, ctx);
+      return messageHandler.handleStart(ctx);
     });
     
     this.bot.command('price', (ctx) => {
       console.log('📥 Received /price command');
-      return messageHandler.handlePrice.call(messageHandler, ctx);
+      return messageHandler.handlePrice(ctx);
     });
 
     // Text messages (for regular keyboard buttons)
     this.bot.on('text', (ctx) => {
       console.log('📥 Received text message:', ctx.message.text);
-      return messageHandler.handleTextMessage.call(messageHandler, ctx);
+      return messageHandler.handleTextMessage(ctx);
     });
 
     // Callback handlers
     this.bot.action('personal_cabinet', (ctx) => {
       console.log('📥 Received personal_cabinet callback');
-      return messageHandler.handlePersonalCabinetText.call(messageHandler, ctx);
+      return messageHandler.handlePersonalCabinetText(ctx);
     });
     
     this.bot.action('p2p_menu', (ctx) => {
       console.log('📥 Received p2p_menu callback');
-      return messageHandler.handleP2PMenu.call(messageHandler, ctx);
+      return messageHandler.handleP2PMenu(ctx);
     });
     
     this.bot.action('get_price', (ctx) => {
       console.log('Received get_price callback');
-      return messageHandler.handlePrice.call(messageHandler, ctx);
+      return messageHandler.handlePrice(ctx);
     });
     
     this.bot.action('create_wallet', (ctx) => {
       console.log('Received create_wallet callback');
-      return messageHandler.handleCreateWallet.call(messageHandler, ctx);
+      return messageHandler.handleCreateWallet(ctx);
     });
     
     this.bot.action('edit_wallet', (ctx) => {
       console.log('Received edit_wallet callback');
-      return messageHandler.handleWalletEdit.call(messageHandler, ctx);
+      return messageHandler.handleWalletEdit(ctx);
     });
     
     this.bot.action('wallet_details', (ctx) => {
       console.log('Received wallet_details callback');
-      return messageHandler.handleWalletDetails.call(messageHandler, ctx);
+      return messageHandler.handleWalletDetails(ctx);
     });
     
     this.bot.action('transfer_menu', (ctx) => {
       console.log('Received transfer_menu callback');
-      return messageHandler.handleTransferMenu.call(messageHandler, ctx);
+      return messageHandler.handleTransferMenu(ctx);
     });
     
     this.bot.action('show_private_key', (ctx) => {
       console.log('Received show_private_key callback');
-      return messageHandler.handleShowPrivateKey.call(messageHandler, ctx);
+      return messageHandler.handleShowPrivateKey(ctx);
     });
     
     this.bot.action('export_wallet', (ctx) => {
       console.log('Received export_wallet callback');
-      return messageHandler.handleExportWallet.call(messageHandler, ctx);
+      return messageHandler.handleExportWallet(ctx);
     });
     
     this.bot.action('delete_wallet', (ctx) => {
       console.log('Received delete_wallet callback');
-      return messageHandler.handleDeleteWallet.call(messageHandler, ctx);
+      return messageHandler.handleDeleteWallet(ctx);
     });
     
     this.bot.action('confirm_delete_wallet', (ctx) => {
       console.log('Received confirm_delete_wallet callback');
-      return messageHandler.handleConfirmDeleteWallet.call(messageHandler, ctx);
+      return messageHandler.handleConfirmDeleteWallet(ctx);
     });
     
     this.bot.action('refresh_balance', (ctx) => {
       console.log('Received refresh_balance callback');
-      return messageHandler.handleRefreshBalance.call(messageHandler, ctx);
+      return messageHandler.handleRefreshBalance(ctx);
     });
     
     this.bot.action('back_to_menu', (ctx) => {
       console.log('Received back_to_menu callback');
-      return messageHandler.handleBackToMenu.call(messageHandler, ctx);
+      return messageHandler.handleBackToMenu(ctx);
     });
     
     // Token transfer handlers
     this.bot.action('send_ces_tokens', (ctx) => {
       console.log('Received send_ces_tokens callback');
-      return messageHandler.handleSendCESTokens.call(messageHandler, ctx);
+      return messageHandler.handleSendCESTokens(ctx);
     });
     
     this.bot.action('send_pol_tokens', (ctx) => {
       console.log('Received send_pol_tokens callback');
-      return messageHandler.handleSendPOLTokens.call(messageHandler, ctx);
+      return messageHandler.handleSendPOLTokens(ctx);
     });
     
     this.bot.action('transaction_history', (ctx) => {
       console.log('Received transaction_history callback');
-      return messageHandler.handleTransactionHistory.call(messageHandler, ctx);
+      return messageHandler.handleTransactionHistory(ctx);
     });
     
     // P2P Exchange handlers
     this.bot.action('p2p_buy_ces', (ctx) => {
       console.log('Received p2p_buy_ces callback');
-      return messageHandler.handleP2PBuyCES.call(messageHandler, ctx);
+      return messageHandler.handleP2PBuyCES(ctx);
     });
     
     this.bot.action('p2p_sell_ces', (ctx) => {
       console.log('Received p2p_sell_ces callback');
-      return messageHandler.handleP2PSellCES.call(messageHandler, ctx);
+      return messageHandler.handleP2PSellCES(ctx);
     });
     
     this.bot.action('p2p_market_orders', (ctx) => {
       console.log('Received p2p_market_orders callback');
-      return messageHandler.handleP2PMarketOrders.call(messageHandler, ctx);
+      return messageHandler.handleP2PMarketOrders(ctx);
     });
     
     this.bot.action('p2p_buy_orders', (ctx) => {
       console.log('Received p2p_buy_orders callback');
-      return messageHandler.handleP2PBuyOrders.call(messageHandler, ctx);
+      return messageHandler.handleP2PBuyOrders(ctx);
     });
     
     this.bot.action('p2p_sell_orders', (ctx) => {
       console.log('Received p2p_sell_orders callback');
-      return messageHandler.handleP2PSellOrders.call(messageHandler, ctx);
+      return messageHandler.handleP2PSellOrders(ctx);
     });
     
     this.bot.action('p2p_my_orders', (ctx) => {
       console.log('Received p2p_my_orders callback');
-      return messageHandler.handleP2PMyOrders.call(messageHandler, ctx);
+      return messageHandler.handleP2PMyOrders(ctx);
     });
     
     this.bot.action('p2p_analytics', (ctx) => {
       console.log('Received p2p_analytics callback');
-      return messageHandler.handleP2PAnalytics.call(messageHandler, ctx);
+      return messageHandler.handleP2PAnalytics(ctx);
     });
     
     this.bot.action('p2p_my_profile', (ctx) => {
       console.log('Received p2p_my_profile callback');
-      return messageHandler.handleP2PMyProfile.call(messageHandler, ctx);
+      return messageHandler.handleP2PMyProfile(ctx);
     });
     
     this.bot.action('p2p_top_traders', (ctx) => {
       console.log('Received p2p_top_traders callback');
-      return messageHandler.handleP2PTopTraders.call(messageHandler, ctx);
+      return messageHandler.handleP2PTopTraders(ctx);
     });
     
     // Handle transfer confirmations
     this.bot.action('confirm_transfer', (ctx) => {
       console.log('Received confirm_transfer callback');
-      return messageHandler.handleTransferConfirmation.call(messageHandler, ctx);
+      return messageHandler.handleTransferConfirmation(ctx);
     });
     
     // Handle P2P order confirmations
     this.bot.action('confirm_p2p_order', (ctx) => {
       console.log('Received confirm_p2p_order callback');
-      return messageHandler.handleP2POrderConfirmation.call(messageHandler, ctx);
+      return messageHandler.handleP2POrderConfirmation(ctx);
     });
     
     // Handle user messaging (dynamic callbacks)
     this.bot.action(/^message_user_/, (ctx) => {
       const userId = ctx.callbackQuery.data.split('_')[2];
       console.log('Received message_user callback:', userId);
-      return messageHandler.handleUserMessaging.call(messageHandler, ctx, userId);
+      return messageHandler.handleUserMessaging(ctx, userId);
     });
     
     // Handle order creation with user (dynamic callbacks)
     this.bot.action(/^create_order_with_/, (ctx) => {
       const userId = ctx.callbackQuery.data.split('_')[3];
       console.log('Received create_order_with callback:', userId);
-      return messageHandler.handleCreateOrderWithUser.call(messageHandler, ctx, userId);
+      return messageHandler.handleCreateOrderWithUser(ctx, userId);
     });
     
     // Handle create buy order with user (dynamic callbacks)
     this.bot.action(/^create_buy_order_with_/, (ctx) => {
       const userId = ctx.callbackQuery.data.split('_')[4];
       console.log('Received create_buy_order_with callback:', userId);
-      return messageHandler.handleCreateBuyOrderWithUser.call(messageHandler, ctx, userId);
+      return messageHandler.handleCreateBuyOrderWithUser(ctx, userId);
     });
     
     // Handle create sell order with user (dynamic callbacks)
     this.bot.action(/^create_sell_order_with_/, (ctx) => {
       const userId = ctx.callbackQuery.data.split('_')[4];
       console.log('Received create_sell_order_with callback:', userId);
-      return messageHandler.handleCreateSellOrderWithUser.call(messageHandler, ctx, userId);
+      return messageHandler.handleCreateSellOrderWithUser(ctx, userId);
     });
     
     // Handle cancel order (dynamic callbacks)
     this.bot.action(/^cancel_order_/, (ctx) => {
       const orderId = ctx.callbackQuery.data.split('_')[2];
       console.log('Received cancel_order callback:', orderId);
-      return messageHandler.handleCancelOrder.call(messageHandler, ctx, orderId);
+      return messageHandler.handleCancelOrder(ctx, orderId);
     });
     
     // Handle confirm cancel order (dynamic callbacks)
     this.bot.action(/^confirm_cancel_order_/, (ctx) => {
       const orderId = ctx.callbackQuery.data.split('_')[3];
       console.log('Received confirm_cancel_order callback:', orderId);
-      return messageHandler.handleConfirmCancelOrder.call(messageHandler, ctx, orderId);
+      return messageHandler.handleConfirmCancelOrder(ctx, orderId);
     });
     
     // Handle pagination for buy orders
     this.bot.action(/^p2p_buy_orders_page_(\d+)$/, (ctx) => {
       const page = parseInt(ctx.match[1]);
       console.log('Received p2p_buy_orders_page callback:', page);
-      return messageHandler.handleP2PBuyOrders.call(messageHandler, ctx, page);
+      return messageHandler.handleP2PBuyOrders(ctx, page);
     });
     
     // Handle pagination for sell orders
     this.bot.action(/^p2p_sell_orders_page_(\d+)$/, (ctx) => {
       const page = parseInt(ctx.match[1]);
       console.log('Received p2p_sell_orders_page callback:', page);
-      return messageHandler.handleP2PSellOrders.call(messageHandler, ctx, page);
+      return messageHandler.handleP2PSellOrders(ctx, page);
     });
     
     // Handle pagination for my orders
     this.bot.action(/^p2p_my_orders_page_(\d+)$/, (ctx) => {
       const page = parseInt(ctx.match[1]);
       console.log('Received p2p_my_orders_page callback:', page);
-      return messageHandler.handleP2PMyOrders.call(messageHandler, ctx, page);
+      return messageHandler.handleP2PMyOrders(ctx, page);
     });
     
     // Handle user profile view for buy orders
     this.bot.action(/^buy_order_(.+)$/, (ctx) => {
       const userId = ctx.match[1];
       console.log('Received buy_order callback:', userId);
-      return messageHandler.handleP2PUserProfile.call(messageHandler, ctx, userId);
+      return messageHandler.handleP2PUserProfile(ctx, userId);
     });
     
     // Handle user profile view for sell orders
     this.bot.action(/^sell_order_(.+)$/, (ctx) => {
       const userId = ctx.match[1];
       console.log('Received sell_order callback:', userId);
-      return messageHandler.handleP2PUserProfile.call(messageHandler, ctx, userId);
+      return messageHandler.handleP2PUserProfile(ctx, userId);
     });
     
     // Handle enter amount for P2P trading (dynamic callbacks)
     this.bot.action(/^enter_amount_(.+)$/, (ctx) => {
       const userId = ctx.match[1];
       console.log('Received enter_amount callback:', userId);
-      return messageHandler.handleEnterAmount.call(messageHandler, ctx, userId);
+      return messageHandler.handleEnterAmount(ctx, userId);
     });
     
     // Handle buy order details (dynamic callbacks)
@@ -309,7 +312,7 @@ class TelegramBot {
       const userId = ctx.match[1];
       const orderId = ctx.match[2];
       console.log('Received buy_details callback:', userId, orderId);
-      return messageHandler.handleBuyOrderDetails.call(messageHandler, ctx, userId, orderId);
+      return messageHandler.handleBuyOrderDetails(ctx, userId, orderId);
     });
     
     // Handle sell order details (dynamic callbacks)
@@ -317,7 +320,7 @@ class TelegramBot {
       const userId = ctx.match[1];
       const orderId = ctx.match[2];
       console.log('Received sell_details callback:', userId, orderId);
-      return messageHandler.handleSellOrderDetails.call(messageHandler, ctx, userId, orderId);
+      return messageHandler.handleSellOrderDetails(ctx, userId, orderId);
     });
     
     // Error handling for the bot

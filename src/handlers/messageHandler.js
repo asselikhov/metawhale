@@ -180,6 +180,42 @@ class MessageHandler {
   async handleP2POrderConfirmation(ctx) {
     await ctx.reply('🚧 Функция подтверждения ордеров в разработке');
   }
+
+  async handleP2PMyProfile(ctx) {
+    await ctx.reply('🚧 Функция просмотра профиля в разработке');
+  }
+
+  async handleCreateOrderWithUser(ctx, userId) {
+    await ctx.reply('🚧 Функция создания ордера с пользователем в разработке');
+  }
+
+  async handleCreateBuyOrderWithUser(ctx, userId) {
+    await ctx.reply('🚧 Функция создания ордера на покупку в разработке');
+  }
+
+  async handleCreateSellOrderWithUser(ctx, userId) {
+    await ctx.reply('🚧 Функция создания ордера на продажу в разработке');
+  }
+
+  async handleConfirmCancelOrder(ctx, orderId) {
+    await ctx.reply('🚧 Функция подтверждения отмены ордера в разработке');
+  }
+
+  async handleP2PUserProfile(ctx, userId) {
+    await ctx.reply('🚧 Функция просмотра профиля пользователя в разработке');
+  }
+
+  async handleEnterAmount(ctx, userId) {
+    await ctx.reply('🚧 Функция ввода суммы в разработке');
+  }
+
+  async handleBuyOrderDetails(ctx, userId, orderId) {
+    await ctx.reply('🚧 Функция просмотра деталей ордера на покупку в разработке');
+  }
+
+  async handleSellOrderDetails(ctx, userId, orderId) {
+    await ctx.reply('🚧 Функция просмотра деталей ордера на продажу в разработке');
+  }
 }
 
 module.exports = MessageHandler;
