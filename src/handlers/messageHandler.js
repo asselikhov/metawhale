@@ -627,23 +627,18 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
       // Get user reputation data
       const reputationService = require('../services/reputationService');
       const user = await User.findOne({ chatId });
-      const reputation = await reputationService.getUserReputation(user._id);
       
-      // Get user profile details for trading volume
-      const profileDetails = await reputationService.getUserProfileDetails(user._id);
-      const userLevel = this.getUserLevelDisplayNew(reputation.trustScore);
+      // Get standardized user statistics
+      const stats = await reputationService.getStandardizedUserStats(user._id);
       
       // Prepare message text in the exact format requested
-      // Adding extra spacing to ensure text width matches button width
       const message = `🔄 P2P БИРЖА\n` +
                      `➖➖➖➖➖➖➖➖➖➖➖\n` +
-                     `Рейтинг: ${reputation.trustScore}/1000 ${userLevel.emoji}\n` +
-                     `Объем сделок: ${(profileDetails.totalTradeVolume || 0).toLocaleString('ru-RU')} ₽\n` +
-                     `Завершенные сделки: ${reputation.completionRate}%\n` +
-                     `Спорные сделки: ${reputation.disputeRate}%\n` +
-                     `Всего сделок: ${reputation.totalTrades}\n\n` +
-                     `⚡️ Быстро | 🔒 Безопасно | 📊 Прозрачно\n` +
-                     `                         `;  // Extra spaces to match button width
+                     `Исполненные ордера за 30 дней: ${stats.ordersLast30Days} шт.\n` +
+                     `Процент исполнения за 30 дней: ${stats.completionRateLast30Days}%\n` +
+                     `Среднее время перевода: ${stats.avgTransferTime} мин.\n` +
+                     `Среднее время оплаты: ${stats.avgPaymentTime} мин.\n` +
+                     `Рейтинг: ${stats.rating}`;
       
       // Keyboard with buttons
       const keyboard = Markup.inlineKeyboard([
@@ -1459,7 +1454,6 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
         headerButtons.push(paginationButtons);
       }
       
-      headerButtons.push([Markup.button.callback('🔙 Назад', 'p2p_market_orders')]);
       const headerKeyboard = Markup.inlineKeyboard(headerButtons);
       
       await ctx.reply(headerMessage, headerKeyboard);
@@ -1474,13 +1468,16 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
         // Get standardized user statistics
         const stats = await reputationService.getStandardizedUserStats(order.userId._id);
         
+        // Extract only emoji from rating (remove the number part)
+        const emoji = stats.rating.split(' ').pop(); // Gets the last part after space (emoji)
+        
         // Calculate limits in rubles based on price and amounts
         const minAmount = order.minTradeAmount || 1;
         const maxAmount = order.maxTradeAmount || order.remainingAmount;
         const minRubles = (minAmount * order.pricePerToken).toFixed(2);
         const maxRubles = (maxAmount * order.pricePerToken).toFixed(2);
         
-        const orderMessage = `₽ ${order.pricePerToken.toFixed(2)} / CES | @${username} ${stats.rating}\n` +
+        const orderMessage = `₽ ${order.pricePerToken.toFixed(2)} / CES | @${username} ${emoji}\n` +
                            `Количество: ${order.remainingAmount.toFixed(2)} CES\n` +
                            `Лимиты: ${minRubles} - ${maxRubles} ₽`;
         
@@ -1493,6 +1490,13 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
         // Небольшая пауза между сообщениями чтобы не спамить
         await new Promise(resolve => setTimeout(resolve, 100));
       }
+      
+      // Отправляем кнопку "Назад" отдельным сообщением в самом конце
+      const backKeyboard = Markup.inlineKeyboard([
+        [Markup.button.callback('🔙 Назад', 'p2p_market_orders')]
+      ]);
+      
+      await ctx.reply('◀️ Навигация:', backKeyboard);
       
     } catch (error) {
       console.error('Buy orders error:', error);
@@ -1547,7 +1551,6 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
         headerButtons.push(paginationButtons);
       }
       
-      headerButtons.push([Markup.button.callback('🔙 Назад', 'p2p_market_orders')]);
       const headerKeyboard = Markup.inlineKeyboard(headerButtons);
       
       await ctx.reply(headerMessage, headerKeyboard);
@@ -1562,13 +1565,16 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
         // Get standardized user statistics
         const stats = await reputationService.getStandardizedUserStats(order.userId._id);
         
+        // Extract only emoji from rating (remove the number part)
+        const emoji = stats.rating.split(' ').pop(); // Gets the last part after space (emoji)
+        
         // Calculate limits in rubles based on price and amounts
         const minAmount = order.minTradeAmount || 1;
         const maxAmount = order.maxTradeAmount || order.remainingAmount;
         const minRubles = (minAmount * order.pricePerToken).toFixed(2);
         const maxRubles = (maxAmount * order.pricePerToken).toFixed(2);
         
-        const orderMessage = `₽ ${order.pricePerToken.toFixed(2)} / CES @${username} ${stats.rating}\n` +
+        const orderMessage = `₽ ${order.pricePerToken.toFixed(2)} / CES | @${username} ${emoji}\n` +
                            `Количество: ${order.remainingAmount.toFixed(2)} CES\n` +
                            `Лимиты: ${minRubles} - ${maxRubles} ₽`;
         
@@ -1581,6 +1587,13 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
         // Небольшая пауза между сообщениями чтобы не спамить
         await new Promise(resolve => setTimeout(resolve, 100));
       }
+      
+      // Отправляем кнопку "Назад" отдельным сообщением в самом конце
+      const backKeyboard = Markup.inlineKeyboard([
+        [Markup.button.callback('🔙 Назад', 'p2p_market_orders')]
+      ]);
+      
+      await ctx.reply('◀️ Навигация:', backKeyboard);
       
     } catch (error) {
       console.error('Sell orders error:', error);
