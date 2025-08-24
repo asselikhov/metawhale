@@ -567,11 +567,12 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
                      `Объем сделок: ${(profileDetails.totalTradeVolume || 0).toLocaleString('ru-RU')} ₽\n` +
                      `Завершенные сделки: ${reputation.completionRate}%\n` +
                      `Спорные сделки: ${reputation.disputeRate}%\n` +
-                     `Всего сделок: ${reputation.totalTrades}`;
-      
+                     `Всего сделок: ${reputation.totalTrades}\n\n` +
+                     `⚡️ Скорость | 🔒 Безопасность | 📊 Прозрачность`;
+
       // Keyboard with buttons
       const keyboard = Markup.inlineKeyboard([
-        [Markup.button.callback('📈 Купить CES', 'p2p_buy_ces'), Markup.button.callback('.DataGridViewColumn Продать CES', 'p2p_sell_ces')],
+        [Markup.button.callback('📈 Купить CES', 'p2p_buy_ces'), Markup.button.callback('📉 Продать CES', 'p2p_sell_ces')],
         [Markup.button.callback('📊 Рынок ордеров', 'p2p_market_orders'), Markup.button.callback('📋 Мои ордера', 'p2p_my_orders')],
         [Markup.button.callback('🏆 Топ трейдеров', 'p2p_top_traders'), Markup.button.callback('🧮 Аналитика', 'p2p_analytics')]
       ]);
