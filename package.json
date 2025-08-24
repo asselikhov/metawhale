@@ -7,7 +7,9 @@
     "start": "node app.js",
     "dev": "NODE_ENV=development node app.js",
     "dev:win": "set NODE_ENV=development&& node app.js",
-    "test": "echo \"No tests specified\" && exit 0",
+    "test": "mocha src/test/**/*.test.js",
+    "test:watch": "mocha src/test/**/*.test.js --watch",
+    "test:coverage": "nyc mocha src/test/**/*.test.js",
     "lint": "echo \"No linting configured\" && exit 0"
   },
   "keywords": [
@@ -38,7 +40,11 @@
     "telegraf": "^4.15.6"
   },
   "devDependencies": {
-    "nodemon": "^3.0.2"
+    "chai": "^6.0.1",
+    "mocha": "^11.7.1",
+    "nodemon": "^3.0.2",
+    "nyc": "^17.1.0",
+    "sinon": "^21.0.0"
   },
   "engines": {
     "node": ">=18.0.0"

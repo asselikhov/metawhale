@@ -98,6 +98,30 @@ class Bot {
       const userId = ctx.callbackQuery.data.split('_')[3];
       return messageHandler.handleCreateOrderWithUser.call(messageHandler, ctx, userId);
     });
+    
+    // Handle create buy order with user (dynamic callbacks)
+    this.bot.action(/^create_buy_order_with_/, (ctx) => {
+      const userId = ctx.callbackQuery.data.split('_')[4];
+      return messageHandler.handleCreateBuyOrderWithUser.call(messageHandler, ctx, userId);
+    });
+    
+    // Handle create sell order with user (dynamic callbacks)
+    this.bot.action(/^create_sell_order_with_/, (ctx) => {
+      const userId = ctx.callbackQuery.data.split('_')[4];
+      return messageHandler.handleCreateSellOrderWithUser.call(messageHandler, ctx, userId);
+    });
+    
+    // Handle cancel order (dynamic callbacks)
+    this.bot.action(/^cancel_order_/, (ctx) => {
+      const orderId = ctx.callbackQuery.data.split('_')[2];
+      return messageHandler.handleCancelOrder.call(messageHandler, ctx, orderId);
+    });
+    
+    // Handle confirm cancel order (dynamic callbacks)
+    this.bot.action(/^confirm_cancel_order_/, (ctx) => {
+      const orderId = ctx.callbackQuery.data.split('_')[3];
+      return messageHandler.handleConfirmCancelOrder.call(messageHandler, ctx, orderId);
+    });
   }
 
   // Set webhook

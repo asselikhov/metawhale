@@ -136,7 +136,7 @@ class ReputationService {
           const disputeRate = totalTrades > 0 ? (disputedTrades / totalTrades * 100) : 0;
           const failureRate = totalTrades > 0 ? ((totalTrades - completedTrades - disputedTrades) / totalTrades * 100) : 0;
 
-          const trustScore = user.trustScore || 0;
+          const trustScore = user.trustScore !== undefined ? user.trustScore : 0;
           const userLevel = this.getUserLevel(trustScore);
 
           return {
@@ -246,7 +246,7 @@ class ReputationService {
       };
 
       // Get trading limits based on trust score
-      const trustScore = user.trustScore || 0;
+      const trustScore = user.trustScore !== undefined ? user.trustScore : 0;
       const tradingLimits = this.getUserVerificationRequirements(trustScore);
 
       return {
@@ -316,7 +316,7 @@ class ReputationService {
         case 'high': scoreAdjustment = -200; break;
       }
 
-      const newScore = Math.max(0, (user.trustScore || 0) + scoreAdjustment);
+      const newScore = Math.max(0, (user.trustScore !== undefined ? user.trustScore : 0) + scoreAdjustment);
       
       await User.findByIdAndUpdate(userId, {
         trustScore: newScore

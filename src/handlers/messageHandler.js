@@ -1094,6 +1094,144 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
     }
   }
 
+  // Handle create order with user
+  async handleCreateOrderWithUser(ctx, targetUserId) {
+    try {
+      const chatId = ctx.chat.id.toString();
+      const targetUser = await User.findById(targetUserId);
+      
+      if (!targetUser) {
+        return await ctx.reply('❌ Пользователь не найден.');
+      }
+      
+      const username = targetUser.username || targetUser.firstName || 'Пользователь';
+      
+      const message = `📝 *Создание ордера с пользователем @${username}*\n\n` +
+                     'Выберите тип ордера:';
+      
+      const keyboard = Markup.inlineKeyboard([
+        [Markup.button.callback('📈 Купить CES', `create_buy_order_with_${targetUserId}`)],
+        [Markup.button.callback('📉 Продать CES', `create_sell_order_with_${targetUserId}`)],
+        [Markup.button.callback('❌ Отмена', 'p2p_market_orders')]
+      ]);
+      
+      await ctx.reply(message, { parse_mode: 'Markdown', ...keyboard });
+      
+    } catch (error) {
+      console.error('Create order with user error:', error);
+      await ctx.reply('❌ Ошибка создания ордера с пользователем.');
+    }
+  }
+
+  // Handle create buy order with user
+  async handleCreateBuyOrderWithUser(ctx, targetUserId) {
+    try {
+      const chatId = ctx.chat.id.toString();
+      const targetUser = await User.findById(targetUserId);
+      
+      if (!targetUser) {
+        return await ctx.reply('❌ Пользователь не найден.');
+      }
+      
+      const username = targetUser.username || targetUser.firstName || 'Пользователь';
+      const priceData = await p2pService.getMarketPriceSuggestion();
+      
+      // Store target user ID in session
+      this.setSessionData(chatId, 'targetUserId', targetUserId);
+      
+      const message = `📈 *ПОКУПКА CES ТОКЕНОВ у @${username}*\n` +
+                     `➖➖➖➖➖➖➖➖➖➖➖\n` +
+                     `Текущая рыночная цена:\n` +
+                     `💰 ${priceData.currentPrice.toFixed(2)} ₽ за 1 CES\n\n` +
+                     `Введите количество и цену:\n` +
+                     `➤ Формат: кол-во цена_за_токен\n` +
+                     `➤ Пример: 10 ${priceData.suggestedPrice.toFixed(2)}\n\n` +
+                     `Информация:\n` +
+                     `➤ Минимальная сумма: 1 CES\n` +
+                     `➤ Комиссия платформы: 1%`;
+      
+      // Store state to handle next user message
+      this.setSessionData(chatId, 'awaitingP2POrder', true);
+      this.setSessionData(chatId, 'p2pOrderType', 'buy');
+      
+      const keyboard = Markup.inlineKeyboard([
+        [Markup.button.callback('❌ Отмена', 'p2p_market_orders')]
+      ]);
+      
+      await ctx.reply(message, { parse_mode: 'Markdown', ...keyboard });
+      
+    } catch (error) {
+      console.error('Create buy order with user error:', error);
+      await ctx.reply('❌ Ошибка создания ордера на покупку.');
+    }
+  }
+
+  // Handle create sell order with user
+  async handleCreateSellOrderWithUser(ctx, targetUserId) {
+    try {
+      const chatId = ctx.chat.id.toString();
+      const walletInfo = await walletService.getUserWallet(chatId);
+      const targetUser = await User.findById(targetUserId);
+      
+      if (!targetUser) {
+        return await ctx.reply('❌ Пользователь не найден.');
+      }
+      
+      if (!walletInfo || !walletInfo.hasWallet) {
+        return await ctx.reply('❌ У вас нет кошелька. Создайте его в Личном кабинете.');
+      }
+      
+      if (walletInfo.cesBalance < 1) {
+        const message = `📉 *ПРОДАЖА CES ТОКЕНОВ пользователю @${targetUser.username || targetUser.firstName || 'Пользователь'}*\n` +
+                       `➖➖➖➖➖➖➖➖➖➖➖\n` +
+                       `⚠️ Недостаточно CES для продажи\n` +
+                       `Ваш баланс: ${walletInfo.cesBalance.toFixed(4)} CES\n\n` +
+                       `Информация:\n` +
+                       `➤ Минимальная сумма: 1 CES\n` +
+                       `➤ Комиссия платформы: 1%\n\n` +
+                       `💡 Пополните баланс CES`;
+        
+        const keyboard = Markup.inlineKeyboard([
+          [Markup.button.callback('❌ Отмена', 'p2p_market_orders')]
+        ]);
+        
+        return await ctx.reply(message, { parse_mode: 'Markdown', ...keyboard });
+      }
+      
+      const username = targetUser.username || targetUser.firstName || 'Пользователь';
+      const priceData = await p2pService.getMarketPriceSuggestion();
+      
+      // Store target user ID in session
+      this.setSessionData(chatId, 'targetUserId', targetUserId);
+      
+      const message = `📉 *ПРОДАЖА CES ТОКЕНОВ пользователю @${username}*\n` +
+                     `➖➖➖➖➖➖➖➖➖➖➖\n` +
+                     `Ваш баланс: ${walletInfo.cesBalance.toFixed(4)} CES\n\n` +
+                     `Текущая рыночная цена:\n` +
+                     `💰 ${priceData.currentPrice.toFixed(2)} ₽ за 1 CES\n\n` +
+                     `Введите количество и цену:\n` +
+                     `➤ Формат: кол-во цена_за_токен\n` +
+                     `➤ Пример: 10 ${priceData.suggestedPrice.toFixed(2)}\n\n` +
+                     `Информация:\n` +
+                     `➤ Минимальная сумма: 1 CES\n` +
+                     `➤ Комиссия платформы: 1%`;
+      
+      // Store state to handle next user message
+      this.setSessionData(chatId, 'awaitingP2POrder', true);
+      this.setSessionData(chatId, 'p2pOrderType', 'sell');
+      
+      const keyboard = Markup.inlineKeyboard([
+        [Markup.button.callback('❌ Отмена', 'p2p_market_orders')]
+      ]);
+      
+      await ctx.reply(message, { parse_mode: 'Markdown', ...keyboard });
+      
+    } catch (error) {
+      console.error('Create sell order with user error:', error);
+      await ctx.reply('❌ Ошибка создания ордера на продажу.');
+    }
+  }
+
   // Handle market orders display
   async handleP2PMarketOrders(ctx) {
     try {
@@ -1124,22 +1262,33 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
       let message = `📈 ЗАЯВКИ НА ПОКУПКУ\n` +
                    `➖➖➖➖➖➖➖➖➖➖➖\n`;
       
+      const keyboardButtons = [];
+      
       if (orders.buyOrders.length > 0) {
         orders.buyOrders.slice(0, 10).forEach((order, index) => {
           const username = order.userId.username || order.userId.firstName || 'Пользователь';
-          const trustScore = order.userId.trustScore || 0;
+          const trustScore = order.userId.trustScore !== undefined ? order.userId.trustScore : 0;
           const userLevel = this.getUserLevelDisplayNew(trustScore);
           
+          // Get min and max trade amounts if available
+          const minAmount = order.minTradeAmount || 1;
+          const maxAmount = order.maxTradeAmount || order.remainingAmount;
+          
           message += `${index + 1}. ${order.remainingAmount.toFixed(2)} CES по ₽ ${order.pricePerToken.toFixed(2)}\n` +
-                    `@${username} ${trustScore}/1000 ${userLevel.emoji}\n\n`;
+                    `@${username} ${trustScore}/1000 ${userLevel.emoji}\n` +
+                    `Мин: ${minAmount.toFixed(2)} CES | Макс: ${maxAmount.toFixed(2)} CES\n\n`;
+          
+          // Add button to create order with this user
+          keyboardButtons.push([Markup.button.callback(`Создать сделку с @${username}`, `create_order_with_${order.userId._id}`)]);
         });
       } else {
         message += `⚠️ Активных ордеров на покупку пока нет\n\n💡 Создайте первый ордер на покупку!`;
       }
       
-      const keyboard = Markup.inlineKeyboard([
-        [Markup.button.callback('🔙 Назад', 'p2p_market_orders')]
-      ]);
+      // Add back button
+      keyboardButtons.push([Markup.button.callback('🔙 Назад', 'p2p_market_orders')]);
+      
+      const keyboard = Markup.inlineKeyboard(keyboardButtons);
       
       await ctx.reply(message, keyboard);
       
@@ -1157,22 +1306,33 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
       let message = `📉 ЗАЯВКИ НА ПРОДАЖУ\n` +
                    `➖➖➖➖➖➖➖➖➖➖➖\n`;
       
+      const keyboardButtons = [];
+      
       if (orders.sellOrders.length > 0) {
         orders.sellOrders.slice(0, 10).forEach((order, index) => {
           const username = order.userId.username || order.userId.firstName || 'Пользователь';
-          const trustScore = order.userId.trustScore || 0;
+          const trustScore = order.userId.trustScore !== undefined ? order.userId.trustScore : 0;
           const userLevel = this.getUserLevelDisplayNew(trustScore);
           
+          // Get min and max trade amounts if available
+          const minAmount = order.minTradeAmount || 1;
+          const maxAmount = order.maxTradeAmount || order.remainingAmount;
+          
           message += `${index + 1}. ${order.remainingAmount.toFixed(2)} CES по ₽ ${order.pricePerToken.toFixed(2)}\n` +
-                    `@${username} ${trustScore}/1000 ${userLevel.emoji}\n\n`;
+                    `@${username} ${trustScore}/1000 ${userLevel.emoji}\n` +
+                    `Мин: ${minAmount.toFixed(2)} CES | Макс: ${maxAmount.toFixed(2)} CES\n\n`;
+          
+          // Add button to create order with this user
+          keyboardButtons.push([Markup.button.callback(`Создать сделку с @${username}`, `create_order_with_${order.userId._id}`)]);
         });
       } else {
         message += `⚠️ Активных ордеров на продажу пока нет\n\n💡 Создайте первый ордер на продажу!`;
       }
       
-      const keyboard = Markup.inlineKeyboard([
-        [Markup.button.callback('🔙 Назад', 'p2p_market_orders')]
-      ]);
+      // Add back button
+      keyboardButtons.push([Markup.button.callback('🔙 Назад', 'p2p_market_orders')]);
+      
+      const keyboard = Markup.inlineKeyboard(keyboardButtons);
       
       await ctx.reply(message, keyboard);
       
@@ -1244,6 +1404,8 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
       let message = `📋 МОИ ОРДЕРА\n` +
                    `➖➖➖➖➖➖➖➖➖➖➖\n`;
       
+      const keyboardButtons = [];
+      
       if (orders.length === 0) {
         message += `⚠️ У вас пока нет активных ордеров\n\n` +
                   `💡 Создайте ордер на покупку или продажу CES !`;
@@ -1258,13 +1420,22 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
           message += `${index + 1}. ${orderType}\n` +
                     `${order.amount.toFixed(2)} CES по ₽ ${order.pricePerToken.toFixed(2)}\n` +
                     `Статус: ${status}\n` +
-                    `${order.createdAt.toLocaleString('ru-RU')}\n\n`;
+                    `${order.createdAt.toLocaleString('ru-RU')}\n`;
+          
+          // Add cancel button for active and partial orders
+          if (order.status === 'active' || order.status === 'partial') {
+            message += `ID: ${order._id}\n`;
+            keyboardButtons.push([Markup.button.callback(`❌ Отменить ордер #${order._id.toString().substr(0, 6)}`, `cancel_order_${order._id}`)]);
+          }
+          
+          message += `\n`;
         });
       }
       
-      const keyboard = Markup.inlineKeyboard([
-        [Markup.button.callback('🔙 Назад', 'p2p_menu')]
-      ]);
+      // Add back button
+      keyboardButtons.push([Markup.button.callback('🔙 Назад', 'p2p_menu')]);
+      
+      const keyboard = Markup.inlineKeyboard(keyboardButtons);
       
       await ctx.reply(message, keyboard);
       
@@ -1313,22 +1484,42 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
       
       console.log(`💰 Processing P2P order: ${amount} CES at ₽${pricePerToken} (total: ₽${totalValue.toFixed(2)}, commission: ₽${commission.toFixed(2)})`);
       
+      // Check if this is a direct order with a specific user
+      const targetUserId = this.getSessionData(chatId, 'targetUserId');
+      
       // Show confirmation
       const typeEmoji = orderType === 'buy' ? '📈' : '📉';
       const typeText = orderType === 'buy' ? 'покупку' : 'продажу';
       
-      const message = `${typeEmoji} Подтверждение ордера на ${typeText}\n` +
-                     `➖➖➖➖➖➖➖➖➖➖➖\n` +
-                     `Количество: ${amount} CES\n` +
-                     `Цена за токен: ₽${pricePerToken.toFixed(2)}\n` +
-                     `Общая сумма: ₽${totalValue.toFixed(2)}\n` +
-                     `Комиссия: ₽${commission.toFixed(2)} (1%)\n\n` +
-                     `🛡️ Безопасность:\n` +
-                     `Все сделки защищены эскроу-системой\n\n` +
-                     `⚠️ Подтвердить создание ордера?`;
+      let message = `${typeEmoji} Подтверждение ордера на ${typeText}\n` +
+                   `➖➖➖➖➖➖➖➖➖➖➖\n` +
+                   `Количество: ${amount} CES\n` +
+                   `Цена за токен: ₽${pricePerToken.toFixed(2)}\n` +
+                   `Общая сумма: ₽${totalValue.toFixed(2)}\n` +
+                   `Комиссия: ₽${commission.toFixed(2)} (1%)\n\n` +
+                   `🛡️ Безопасность:\n` +
+                   `Все сделки защищены эскроу-системой\n\n` +
+                   `⚠️ Подтвердить создание ордера?`;
+      
+      // Add target user info if this is a direct order
+      if (targetUserId) {
+        const targetUser = await User.findById(targetUserId);
+        if (targetUser) {
+          const username = targetUser.username || targetUser.firstName || 'Пользователь';
+          message = `${typeEmoji} Подтверждение ордера на ${typeText} у @${username}\n` +
+                   `➖➖➖➖➖➖➖➖➖➖➖\n` +
+                   `Количество: ${amount} CES\n` +
+                   `Цена за токен: ₽${pricePerToken.toFixed(2)}\n` +
+                   `Общая сумма: ₽${totalValue.toFixed(2)}\n` +
+                   `Комиссия: ₽${commission.toFixed(2)} (1%)\n\n` +
+                   `🛡️ Безопасность:\n` +
+                   `Все сделки защищены эскроу-системой\n\n` +
+                   `⚠️ Подтвердить создание ордера?`;
+        }
+      }
       
       const keyboard = Markup.inlineKeyboard([
-        [Markup.button.callback('✅ Подтвердить', `confirm_p2p_order_${orderType}_${amount}_${pricePerToken}`)],
+        [Markup.button.callback('✅ Подтвердить', `confirm_p2p_order_${orderType}_${amount}_${pricePerToken}${targetUserId ? `_${targetUserId}` : ''}`)],
         [Markup.button.callback('❌ Отмена', 'p2p_menu')]
       ]);
       
@@ -1357,7 +1548,13 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
       const pricePerToken = parseFloat(priceStr);
       const chatId = ctx.chat.id.toString();
       
-      console.log(`📊 Order details: type=${orderType}, amount=${amount}, price=${pricePerToken}, chatId=${chatId}`);
+      // Check if this is a direct order with a specific user
+      let targetUserId = null;
+      if (parts.length >= 7) {
+        targetUserId = parts[6];
+      }
+      
+      console.log(`📊 Order details: type=${orderType}, amount=${amount}, price=${pricePerToken}, chatId=${chatId}, targetUserId=${targetUserId}`);
       
       await ctx.reply('⏳ Создание ордера... Подождите.');
       
@@ -1376,14 +1573,29 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
       const typeText = orderType === 'buy' ? 'покупку' : 'продажу';
       const totalValue = amount * pricePerToken;
       
-      const message = `${typeEmoji} Ордер на ${typeText} создан!\n` +
-                     `➖➖➖➖➖➖➖➖➖➖➖\n` +
-                     `Количество: ${amount} CES\n` +
-                     `Цена за токен: ₽${pricePerToken.toFixed(2)}\n` +
-                     `Общая сумма: ₽${totalValue.toFixed(2)}\n\n` +
-                     `🛡️ Безопасность:\n` +
-                     `Все сделки защищены эскроу-системой`;
-
+      let message = `${typeEmoji} Ордер на ${typeText} создан!\n` +
+                   `➖➖➖➖➖➖➖➖➖➖➖\n` +
+                   `Количество: ${amount} CES\n` +
+                   `Цена за токен: ₽${pricePerToken.toFixed(2)}\n` +
+                   `Общая сумма: ₽${totalValue.toFixed(2)}\n\n` +
+                   `🛡️ Безопасность:\n` +
+                   `Все сделки защищены эскроу-системой`;
+      
+      // Add target user info if this is a direct order
+      if (targetUserId) {
+        const targetUser = await User.findById(targetUserId);
+        if (targetUser) {
+          const username = targetUser.username || targetUser.firstName || 'Пользователь';
+          message = `${typeEmoji} Ордер на ${typeText} у @${username} создан!\n` +
+                   `➖➖➖➖➖➖➖➖➖➖➖\n` +
+                   `Количество: ${amount} CES\n` +
+                   `Цена за токен: ₽${pricePerToken.toFixed(2)}\n` +
+                   `Общая сумма: ₽${totalValue.toFixed(2)}\n\n` +
+                   `🛡️ Безопасность:\n` +
+                   `Все сделки защищены эскроу-системой`;
+        }
+      }
+      
       const keyboard = Markup.inlineKeyboard([
         [Markup.button.callback('📋 Мои ордера', 'p2p_my_orders')],
         [Markup.button.callback('🔙 К P2P меню', 'p2p_menu')]
@@ -1394,9 +1606,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
     } catch (error) {
       console.error('P2P order confirmation error:', error);
       
-      const errorMessage = `❌ **Ошибка создания ордера**
-
-ℹ️ ${error.message}`;
+      const errorMessage = `❌ **Ошибка создания ордера**\n\nℹ️ ${error.message}`;
       
       const keyboard = Markup.inlineKeyboard([
         [Markup.button.callback('🔙 К P2P меню', 'p2p_menu')]
@@ -1486,7 +1696,6 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
       ]);
       
       await ctx.reply(message, { parse_mode: 'Markdown', ...keyboard });
-      
     } catch (error) {
       console.error('Create order with user error:', error);
       await ctx.reply('❌ Ошибка создания ордера с пользователем.');
@@ -1532,6 +1741,65 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
     } catch (error) {
       console.error('Process user message error:', error);
       await ctx.reply('❌ Ошибка отправки сообщения.');
+    }
+  }
+
+  // Handle order cancellation
+  async handleCancelOrder(ctx, orderId) {
+    try {
+      const chatId = ctx.chat.id.toString();
+      
+      // Show confirmation message
+      const message = `⚠️ *Подтверждение отмены ордера*\n\n` +
+                     `Вы уверены, что хотите отменить ордер #${orderId.toString().substr(0, 6)}?\n\n` +
+                     `ℹ️ Отмененные ордера нельзя восстановить`;
+      
+      const keyboard = Markup.inlineKeyboard([
+        [Markup.button.callback('✅ Да, отменить', `confirm_cancel_order_${orderId}`)],
+        [Markup.button.callback('❌ Нет, вернуться', 'p2p_my_orders')]
+      ]);
+      
+      await ctx.reply(message, { parse_mode: 'Markdown', ...keyboard });
+      
+    } catch (error) {
+      console.error('Cancel order error:', error);
+      await ctx.reply('❌ Ошибка при отмене ордера.');
+    }
+  }
+
+  // Handle order cancellation confirmation
+  async handleConfirmCancelOrder(ctx, orderId) {
+    try {
+      const chatId = ctx.chat.id.toString();
+      
+      await ctx.reply('⏳ Отмена ордера... Подождите.');
+      
+      // Call the service to cancel the order
+      const result = await p2pService.cancelOrder(chatId, orderId);
+      
+      const message = `✅ *Ордер отменен*\n\n` +
+                     `Ордер #${orderId.toString().substr(0, 6)} успешно отменен\n\n` +
+                     `ℹ️ Все заблокированные средства возвращены`;
+      
+      const keyboard = Markup.inlineKeyboard([
+        [Markup.button.callback('📋 Мои ордера', 'p2p_my_orders')],
+        [Markup.button.callback('🔄 К P2P меню', 'p2p_menu')]
+      ]);
+      
+      await ctx.reply(message, { parse_mode: 'Markdown', ...keyboard });
+      
+    } catch (error) {
+      console.error('Confirm cancel order error:', error);
+      
+      const errorMessage = `❌ *Ошибка отмены ордера*\n\n` +
+                          `ℹ️ ${error.message || 'Не удалось отменить ордер'}`;
+      
+      const keyboard = Markup.inlineKeyboard([
+        [Markup.button.callback('📋 Мои ордера', 'p2p_my_orders')],
+        [Markup.button.callback('🔄 К P2P меню', 'p2p_menu')]
+      ]);
+      
+      await ctx.reply(errorMessage, { parse_mode: 'Markdown', ...keyboard });
     }
   }
 }

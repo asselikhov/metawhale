@@ -230,8 +230,8 @@ class P2PService {
             }
             
             // Check user verification compatibility
-            const buyUserTrust = buyOrder.userId.trustScore || 0;
-            const sellUserTrust = sellOrder.userId.trustScore || 0;
+            const buyUserTrust = buyOrder.userId.trustScore !== undefined ? buyOrder.userId.trustScore : 0;
+            const sellUserTrust = sellOrder.userId.trustScore !== undefined ? sellOrder.userId.trustScore : 0;
             
             // Calculate trade amount (minimum of remaining amounts)
             const tradeAmount = Math.min(buyOrder.remainingAmount, sellOrder.remainingAmount);
@@ -459,6 +459,25 @@ class P2PService {
     } catch (error) {
       console.error('Error getting user orders:', error);
       throw error;
+    }
+  }
+
+  // Get user's P2P orders by user ID and type
+  async getUserOrdersByUserId(userId, type, limit = 1) {
+    try {
+      const orders = await P2POrder.find({ 
+        userId: userId,
+        type: type,
+        status: 'active'
+      })
+      .sort({ createdAt: -1 })
+      .limit(limit);
+      
+      return orders;
+      
+    } catch (error) {
+      console.error('Error getting user orders by user ID:', error);
+      return [];
     }
   }
 

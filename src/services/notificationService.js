@@ -26,7 +26,7 @@ class NotificationService {
                      `💰 Количество: ${matchedOrder.remainingAmount.toFixed(2)} CES\n` +
                      `💵 Цена: ₽${matchedOrder.pricePerToken.toFixed(2)} за токен\n` +
                      `👤 Пользователь: ${matchedOrder.userId.username || 'Аноним'}\n` +
-                     `⭐ Рейтинг: ${matchedOrder.userId.trustScore || 0}/1000\n\n` +
+                     `⭐ Рейтинг: ${matchedOrder.userId.trustScore !== undefined ? matchedOrder.userId.trustScore : 0}/1000\n\n` +
                      `Хотите исполнить сделку?`;
 
       // In a real implementation, you would send this message via the bot
@@ -212,7 +212,7 @@ class NotificationService {
       return {
         orderMatches: true,
         tradeUpdates: true,
-        marketInsights: true
+        marketInsights: true,
       };
     }
   }

@@ -58,7 +58,7 @@ class SmartNotificationService {
       const hasPreferredMethod = preferredMethods.includes(matchedOrder.paymentMethods[0]);
       
       // Get trust score information
-      const trustScore = matchedOrder.userId.trustScore || 100;
+      const trustScore = matchedOrder.userId.trustScore !== undefined ? matchedOrder.userId.trustScore : 100;
       const trustLevel = trustScore > 800 ? 'Высокий' : trustScore > 500 ? 'Средний' : 'Низкий';
       
       let message = `🔔 Найден подходящий ордер для ${typeText}!\n\n` +
@@ -87,7 +87,7 @@ class SmartNotificationService {
       let priority = 0;
       
       // Higher priority for users with higher trust scores
-      const userTrustScore = user.trustScore || 100;
+      const userTrustScore = user.trustScore !== undefined ? user.trustScore : 100;
       priority += userTrustScore / 100;
       
       // Higher priority for orders with larger amounts
