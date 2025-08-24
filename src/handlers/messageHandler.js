@@ -1388,6 +1388,11 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
   // Handle market orders display
   async handleP2PMarketOrders(ctx) {
     try {
+      const chatId = ctx.chat.id.toString();
+      
+      // Clear any existing order session data when entering market orders
+      this.clearUserSession(chatId);
+      
       // Show selection menu for buy/sell orders
       const message = `📊 РЫНОК ОРДЕРОВ\n` +
                      `➖➖➖➖➖➖➖➖➖➖➖\n` +
@@ -1523,12 +1528,193 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
     }
   }
 
-  // Handle sell orders display with pagination (each order in separate message)
+  // Handle buy orders display with pagination (edit existing messages)
+  async handleP2PBuyOrders(ctx, page = 1) {
+    try {
+      const limit = 5; // Показываем по 5 ордеров на странице
+      const offset = (page - 1) * limit;
+      const result = await p2pService.getMarketOrders(limit, offset);
+      const chatId = ctx.chat.id.toString();
+      
+      // Buy orders section shows sell orders from database (users wanting to buy CES)
+      if (result.sellOrders.length === 0) {
+        const message = `📈 ОРДЕРА НА ПОКУПКУ\n` +
+                       `➖➖➖➖➖➖➖➖➖➖➖\n` +
+                       `⚠️ Активных ордеров на покупку пока нет\n\n` +
+                       `💡 Создайте первый ордер на покупку!`;
+        
+        const keyboard = Markup.inlineKeyboard([
+          [Markup.button.callback('🔙 Назад', 'p2p_market_orders')]
+        ]);
+        
+        // Clear any existing session data
+        this.clearUserSession(chatId);
+        return await ctx.reply(message, keyboard);
+      }
+      
+      const totalPages = Math.ceil(result.sellOrdersCount / limit);
+      
+      // Check if this is pagination (edit mode) or initial display
+      const sessionData = this.getSessionData(chatId, 'buyOrdersMessages');
+      const isEditMode = sessionData && page > 1;
+      
+      // Отправляем заголовок
+      let headerMessage = `📈 ОРДЕРА НА ПОКУПКУ\n` +
+                         `➖➖➖➖➖➖➖➖➖➖➖\n`;
+      
+      if (totalPages > 1) {
+        headerMessage += `Страница ${page} из ${totalPages}\n\n`;
+      }
+      
+      let headerMessageId;
+      
+      if (isEditMode && sessionData.headerMessageId) {
+        // Edit existing header message
+        try {
+          await ctx.telegram.editMessageText(
+            ctx.chat.id,
+            sessionData.headerMessageId,
+            null,
+            headerMessage
+          );
+          headerMessageId = sessionData.headerMessageId;
+        } catch (error) {
+          console.log('Could not edit header message, sending new one');
+          const headerMsg = await ctx.reply(headerMessage);
+          headerMessageId = headerMsg.message_id;
+        }
+      } else {
+        // Send new header message
+        const headerMsg = await ctx.reply(headerMessage);
+        headerMessageId = headerMsg.message_id;
+      }
+      
+      // Отправляем каждый ордер отдельным сообщением или редактируем
+      const reputationService = require('../services/reputationService');
+      const orderMessageIds = [];
+      
+      // Display sell orders from database (users wanting to buy CES from market perspective)
+      for (let i = 0; i < result.sellOrders.length; i++) {
+        const order = result.sellOrders[i];
+        const username = order.userId.username || order.userId.firstName || 'Пользователь';
+        
+        // Get standardized user statistics
+        const stats = await reputationService.getStandardizedUserStats(order.userId._id);
+        
+        // Extract only emoji from rating (remove the number part)
+        const emoji = stats.rating.split(' ').pop(); // Gets the last part after space (emoji)
+        
+        // Calculate limits in rubles based on price and amounts
+        const minAmount = order.minTradeAmount || 1;
+        const maxAmount = order.maxTradeAmount || order.remainingAmount;
+        const minRubles = (minAmount * order.pricePerToken).toFixed(2);
+        const maxRubles = (maxAmount * order.pricePerToken).toFixed(2);
+        
+        const orderMessage = `₽ ${order.pricePerToken.toFixed(2)} / CES | @${username} ${emoji}\n` +
+                           `Количество: ${order.remainingAmount.toFixed(2)} CES\n` +
+                           `Лимиты: ${minRubles} - ${maxRubles} ₽`;
+        
+        const orderKeyboard = Markup.inlineKeyboard([
+          [Markup.button.callback('🟩 Купить', `buy_details_${order.userId._id}_${order._id}`)]
+        ]);
+        
+        let orderMessageId;
+        
+        // Try to edit existing message if we have session data
+        if (isEditMode && sessionData.orderMessageIds && sessionData.orderMessageIds[i]) {
+          try {
+            await ctx.telegram.editMessageText(
+              ctx.chat.id,
+              sessionData.orderMessageIds[i],
+              null,
+              orderMessage,
+              orderKeyboard
+            );
+            orderMessageId = sessionData.orderMessageIds[i];
+          } catch (error) {
+            console.log(`Could not edit order message ${i}, sending new one`);
+            const orderMsg = await ctx.reply(orderMessage, orderKeyboard);
+            orderMessageId = orderMsg.message_id;
+          }
+        } else {
+          // Send new order message
+          const orderMsg = await ctx.reply(orderMessage, orderKeyboard);
+          orderMessageId = orderMsg.message_id;
+        }
+        
+        orderMessageIds.push(orderMessageId);
+        
+        // Небольшая пауза между сообщениями чтобы не спамить
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+      
+      // Пагинация над кнопкой "Назад"
+      const navigationButtons = [];
+      if (totalPages > 1) {
+        const paginationButtons = [];
+        
+        if (page > 1) {
+          paginationButtons.push(Markup.button.callback('⬅️', `p2p_buy_orders_page_${page - 1}`));
+        }
+        
+        paginationButtons.push(Markup.button.callback(`${page}/${totalPages}`, 'p2p_buy_orders'));
+        
+        if (page < totalPages) {
+          paginationButtons.push(Markup.button.callback('➡️', `p2p_buy_orders_page_${page + 1}`));
+        }
+        
+        navigationButtons.push(paginationButtons);
+      }
+      
+      // Кнопка "Назад" внизу
+      navigationButtons.push([Markup.button.callback('🔙 Назад', 'p2p_market_orders')]);
+      
+      const navigationKeyboard = Markup.inlineKeyboard(navigationButtons);
+      
+      let navigationMessageId;
+      
+      // Edit navigation message if exists
+      if (isEditMode && sessionData.navigationMessageId) {
+        try {
+          await ctx.telegram.editMessageText(
+            ctx.chat.id,
+            sessionData.navigationMessageId,
+            null,
+            'Навигация:',
+            navigationKeyboard
+          );
+          navigationMessageId = sessionData.navigationMessageId;
+        } catch (error) {
+          console.log('Could not edit navigation message, sending new one');
+          const navMsg = await ctx.reply('Навигация:', navigationKeyboard);
+          navigationMessageId = navMsg.message_id;
+        }
+      } else {
+        // Send new navigation message
+        const navMsg = await ctx.reply('Навигация:', navigationKeyboard);
+        navigationMessageId = navMsg.message_id;
+      }
+      
+      // Store message IDs in session for future edits
+      this.setSessionData(chatId, 'buyOrdersMessages', {
+        headerMessageId,
+        orderMessageIds,
+        navigationMessageId
+      });
+      
+    } catch (error) {
+      console.error('Buy orders error:', error);
+      await ctx.reply('❌ Ошибка загрузки ордеров на покупку.');
+    }
+  }
+
+  // Handle sell orders display with pagination (edit existing messages)
   async handleP2PSellOrders(ctx, page = 1) {
     try {
       const limit = 5; // Показываем по 5 ордеров на странице
       const offset = (page - 1) * limit;
       const result = await p2pService.getMarketOrders(limit, offset);
+      const chatId = ctx.chat.id.toString();
       
       // Sell orders section shows buy orders from database (users wanting to sell CES)
       if (result.buyOrders.length === 0) {
@@ -1541,42 +1727,51 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
           [Markup.button.callback('🔙 Назад', 'p2p_market_orders')]
         ]);
         
+        // Clear any existing session data
+        this.clearUserSession(chatId);
         return await ctx.reply(message, keyboard);
       }
+      
+      const totalPages = Math.ceil(result.buyOrdersCount / limit);
+      
+      // Check if this is pagination (edit mode) or initial display
+      const sessionData = this.getSessionData(chatId, 'sellOrdersMessages');
+      const isEditMode = sessionData && page > 1;
       
       // Отправляем заголовок
       let headerMessage = `📉 ОРДЕРА НА ПРОДАЖУ\n` +
                          `➖➖➖➖➖➖➖➖➖➖➖\n`;
       
-      const totalPages = Math.ceil(result.buyOrdersCount / limit);
       if (totalPages > 1) {
         headerMessage += `Страница ${page} из ${totalPages}\n\n`;
       }
       
-      // Пагинация в заголовке
-      const headerButtons = [];
-      if (totalPages > 1) {
-        const paginationButtons = [];
-        
-        if (page > 1) {
-          paginationButtons.push(Markup.button.callback('⬅️ Назад', `p2p_sell_orders_page_${page - 1}`));
+      let headerMessageId;
+      
+      if (isEditMode && sessionData.headerMessageId) {
+        // Edit existing header message
+        try {
+          await ctx.telegram.editMessageText(
+            ctx.chat.id,
+            sessionData.headerMessageId,
+            null,
+            headerMessage
+          );
+          headerMessageId = sessionData.headerMessageId;
+        } catch (error) {
+          console.log('Could not edit header message, sending new one');
+          const headerMsg = await ctx.reply(headerMessage);
+          headerMessageId = headerMsg.message_id;
         }
-        
-        paginationButtons.push(Markup.button.callback(`${page}/${totalPages}`, 'p2p_sell_orders'));
-        
-        if (page < totalPages) {
-          paginationButtons.push(Markup.button.callback('Вперед ➡️', `p2p_sell_orders_page_${page + 1}`));
-        }
-        
-        headerButtons.push(paginationButtons);
+      } else {
+        // Send new header message
+        const headerMsg = await ctx.reply(headerMessage);
+        headerMessageId = headerMsg.message_id;
       }
       
-      const headerKeyboard = Markup.inlineKeyboard(headerButtons);
-      
-      await ctx.reply(headerMessage, headerKeyboard);
-      
-      // Отправляем каждый ордер отдельным сообщением
+      // Отправляем каждый ордер отдельным сообщением или редактируем
       const reputationService = require('../services/reputationService');
+      const orderMessageIds = [];
       
       // Display buy orders from database (users wanting to sell CES from market perspective)
       for (let i = 0; i < result.buyOrders.length; i++) {
@@ -1603,7 +1798,31 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
           [Markup.button.callback('🟥 Продать', `sell_details_${order.userId._id}_${order._id}`)]
         ]);
         
-        await ctx.reply(orderMessage, orderKeyboard);
+        let orderMessageId;
+        
+        // Try to edit existing message if we have session data
+        if (isEditMode && sessionData.orderMessageIds && sessionData.orderMessageIds[i]) {
+          try {
+            await ctx.telegram.editMessageText(
+              ctx.chat.id,
+              sessionData.orderMessageIds[i],
+              null,
+              orderMessage,
+              orderKeyboard
+            );
+            orderMessageId = sessionData.orderMessageIds[i];
+          } catch (error) {
+            console.log(`Could not edit order message ${i}, sending new one`);
+            const orderMsg = await ctx.reply(orderMessage, orderKeyboard);
+            orderMessageId = orderMsg.message_id;
+          }
+        } else {
+          // Send new order message
+          const orderMsg = await ctx.reply(orderMessage, orderKeyboard);
+          orderMessageId = orderMsg.message_id;
+        }
+        
+        orderMessageIds.push(orderMessageId);
         
         // Небольшая пауза между сообщениями чтобы не спамить
         await new Promise(resolve => setTimeout(resolve, 100));
@@ -1615,13 +1834,13 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
         const paginationButtons = [];
         
         if (page > 1) {
-          paginationButtons.push(Markup.button.callback('⬅️ Назад', `p2p_sell_orders_page_${page - 1}`));
+          paginationButtons.push(Markup.button.callback('⬅️', `p2p_sell_orders_page_${page - 1}`));
         }
         
         paginationButtons.push(Markup.button.callback(`${page}/${totalPages}`, 'p2p_sell_orders'));
         
         if (page < totalPages) {
-          paginationButtons.push(Markup.button.callback('Вперед ➡️', `p2p_sell_orders_page_${page + 1}`));
+          paginationButtons.push(Markup.button.callback('➡️', `p2p_sell_orders_page_${page + 1}`));
         }
         
         navigationButtons.push(paginationButtons);
@@ -1631,7 +1850,37 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
       navigationButtons.push([Markup.button.callback('🔙 Назад', 'p2p_market_orders')]);
       
       const navigationKeyboard = Markup.inlineKeyboard(navigationButtons);
-      await ctx.reply('Навигация:', navigationKeyboard);
+      
+      let navigationMessageId;
+      
+      // Edit navigation message if exists
+      if (isEditMode && sessionData.navigationMessageId) {
+        try {
+          await ctx.telegram.editMessageText(
+            ctx.chat.id,
+            sessionData.navigationMessageId,
+            null,
+            'Навигация:',
+            navigationKeyboard
+          );
+          navigationMessageId = sessionData.navigationMessageId;
+        } catch (error) {
+          console.log('Could not edit navigation message, sending new one');
+          const navMsg = await ctx.reply('Навигация:', navigationKeyboard);
+          navigationMessageId = navMsg.message_id;
+        }
+      } else {
+        // Send new navigation message
+        const navMsg = await ctx.reply('Навигация:', navigationKeyboard);
+        navigationMessageId = navMsg.message_id;
+      }
+      
+      // Store message IDs in session for future edits
+      this.setSessionData(chatId, 'sellOrdersMessages', {
+        headerMessageId,
+        orderMessageIds,
+        navigationMessageId
+      });
       
     } catch (error) {
       console.error('Sell orders error:', error);
