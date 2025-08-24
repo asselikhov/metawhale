@@ -61,59 +61,67 @@ describe('P2P Order Display with Inline Buttons', function() {
       trustScore: 100
     };
 
+    // Mock standardized stats
+    const mockStats = {
+      rating: '0/1000 🐹',
+      ordersLast30Days: 85,
+      completionRateLast30Days: 94,
+      avgTransferTime: 1,
+      avgPaymentTime: 5
+    };
+
     // Stub services
     sinon.stub(p2pService, 'getMarketOrders').resolves(mockOrders);
     sinon.stub(reputationService, 'getUserReputation').resolves(mockReputation);
+    sinon.stub(reputationService, 'getStandardizedUserStats').resolves(mockStats);
   });
 
   afterEach(function() {
     sinon.restore();
   });
 
-  it('should display buy orders with correct format and inline buttons', async function() {
+  it('should display buy orders with each order in separate message', async function() {
     await messageHandler.handleP2PBuyOrders(ctx, 1);
     
-    expect(ctx.reply.calledOnce).to.be.true;
+    // Check that reply was called multiple times (header + individual orders)
+    expect(ctx.reply.callCount).to.be.greaterThan(1);
     
-    const replyArgs = ctx.reply.firstCall.args;
-    const message = replyArgs[0];
-    const keyboard = replyArgs[1];
+    // Check header message
+    const firstReplyArgs = ctx.reply.firstCall.args;
+    expect(firstReplyArgs[0]).to.include('📈 ОРДЕРА НА ПОКУПКУ');
     
-    // Check message format
-    expect(message).to.include('📈 ОРДЕРА НА ПОКУПКУ');
-    expect(message).to.include('₽ 5.00 / CES | @testuser2 0/1000 🐹');
-    expect(message).to.include('Количество: 10000.00 CES');
-    expect(message).to.include('Лимиты: 2500.00 - 25000.00 ₽');
+    // Check individual order message
+    const secondReplyArgs = ctx.reply.secondCall.args;
+    expect(secondReplyArgs[0]).to.include('₽ 5.00 / CES | @testuser2 0/1000 🐹');
+    expect(secondReplyArgs[0]).to.include('Количество: 10000.00 CES');
+    expect(secondReplyArgs[0]).to.include('Лимиты: 2500.00 - 25000.00 ₽');
     
-    // Check inline keyboard has buy button
-    expect(keyboard.reply_markup.inline_keyboard).to.have.length.greaterThan(0);
-    const hasGreenBuyButton = keyboard.reply_markup.inline_keyboard.some(row => 
-      row.some(btn => btn.text === '🟩 Купить')
-    );
-    expect(hasGreenBuyButton).to.be.true;
+    // Check that individual order has inline button
+    const orderKeyboard = secondReplyArgs[1];
+    expect(orderKeyboard.reply_markup.inline_keyboard).to.have.length(1);
+    expect(orderKeyboard.reply_markup.inline_keyboard[0][0].text).to.equal('🟩 Купить');
   });
 
-  it('should display sell orders with correct format and inline buttons', async function() {
+  it('should display sell orders with each order in separate message', async function() {
     await messageHandler.handleP2PSellOrders(ctx, 1);
     
-    expect(ctx.reply.calledOnce).to.be.true;
+    // Check that reply was called multiple times (header + individual orders)
+    expect(ctx.reply.callCount).to.be.greaterThan(1);
     
-    const replyArgs = ctx.reply.firstCall.args;
-    const message = replyArgs[0];
-    const keyboard = replyArgs[1];
+    // Check header message
+    const firstReplyArgs = ctx.reply.firstCall.args;
+    expect(firstReplyArgs[0]).to.include('📉 ОРДЕРА НА ПРОДАЖУ');
     
-    // Check message format
-    expect(message).to.include('📉 ОРДЕРА НА ПРОДАЖУ');
-    expect(message).to.include('₽ 1.00 / CES @testuser1 0/1000 🐹');
-    expect(message).to.include('Количество: 4000.00 CES');
-    expect(message).to.include('Лимиты: 500.00 - 3000.00 ₽');
+    // Check individual order message
+    const secondReplyArgs = ctx.reply.secondCall.args;
+    expect(secondReplyArgs[0]).to.include('₽ 1.00 / CES @testuser1 0/1000 🐹');
+    expect(secondReplyArgs[0]).to.include('Количество: 4000.00 CES');
+    expect(secondReplyArgs[0]).to.include('Лимиты: 500.00 - 3000.00 ₽');
     
-    // Check inline keyboard has sell button
-    expect(keyboard.reply_markup.inline_keyboard).to.have.length.greaterThan(0);
-    const hasRedSellButton = keyboard.reply_markup.inline_keyboard.some(row => 
-      row.some(btn => btn.text === '🟥 Продать')
-    );
-    expect(hasRedSellButton).to.be.true;
+    // Check that individual order has inline button
+    const orderKeyboard = secondReplyArgs[1];
+    expect(orderKeyboard.reply_markup.inline_keyboard).to.have.length(1);
+    expect(orderKeyboard.reply_markup.inline_keyboard[0][0].text).to.equal('🟥 Продать');
   });
 
   it('should handle buy order details display', async function() {
@@ -133,7 +141,7 @@ describe('P2P Order Display with Inline Buttons', function() {
     
     // Check detailed info format
     expect(message).to.include('Рейтинг: 0/1000 🐹');
-    expect(message).to.include('Исполненные ордера за 30 дней: 85 Ордера');
+    expect(message).to.include('Исполненные ордера за 30 дней: 85 ордера');
     expect(message).to.include('Процент исполнения за 30 дней: 94%');
     expect(message).to.include('Среднее время перевода: 1 мин.');
   });
@@ -155,7 +163,7 @@ describe('P2P Order Display with Inline Buttons', function() {
     
     // Check detailed info format for sell orders
     expect(message).to.include('Рейтинг: 0/1000 🐹');
-    expect(message).to.include('Исполненные ордера за 30 дней: 85 Ордера');
+    expect(message).to.include('Исполненные ордера за 30 дней: 85 ордера');
     expect(message).to.include('Процент исполнения за 30 дней: 94%');
     expect(message).to.include('Среднее время оплаты: 5 мин.');
   });

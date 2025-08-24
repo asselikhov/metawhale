@@ -1412,76 +1412,87 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
     }
   }
 
-  // Handle buy orders display with pagination
+  // Handle buy orders display with pagination (each order in separate message)
   async handleP2PBuyOrders(ctx, page = 1) {
     try {
-      const limit = 20;
+      const limit = 10; // Показываем по 10 ордеров на странице
       const offset = (page - 1) * limit;
       const result = await p2pService.getMarketOrders(limit, offset);
       
-      let message = `📈 ОРДЕРА НА ПОКУПКУ\n` +
-                   `➖➖➖➖➖➖➖➖➖➖➖\n`;
-      
-      const keyboardButtons = [];
-      
-      if (result.sellOrders.length > 0) {
-        // Get reputation data for all users at once for better performance
-        const reputationService = require('../services/reputationService');
+      if (result.sellOrders.length === 0) {
+        const message = `📈 ОРДЕРА НА ПОКУПКУ\n` +
+                       `➖➖➖➖➖➖➖➖➖➖➖\n` +
+                       `⚠️ Активных ордеров на покупку пока нет\n\n` +
+                       `💡 Создайте первый ордер на покупку!`;
         
-        for (let i = 0; i < result.sellOrders.length; i++) {
-          const order = result.sellOrders[i];
-          const index = i;
-          const username = order.userId.username || order.userId.firstName || 'Пользователь';
-          
-          // Get actual completed deals count instead of trust score
-          const reputation = await reputationService.getUserReputation(order.userId._id);
-          const completedDeals = reputation ? reputation.totalTrades : 0;
-          const userLevel = this.getUserLevelDisplayNew(reputation ? reputation.trustScore : 0);
-          
-          // Calculate limits in rubles based on price and amounts
-          const minAmount = order.minTradeAmount || 1;
-          const maxAmount = order.maxTradeAmount || order.remainingAmount;
-          const minRubles = (minAmount * order.pricePerToken).toFixed(2);
-          const maxRubles = (maxAmount * order.pricePerToken).toFixed(2);
-          
-          message += `₽ ${order.pricePerToken.toFixed(2)} / CES | @${username} ${completedDeals}/1000 ${userLevel.emoji}\n` +
-                    `Количество: ${order.remainingAmount.toFixed(2)} CES\n` +
-                    `Лимиты: ${minRubles} - ${maxRubles} ₽\n\n`;
-          
-          // Add buy button for each order
-          keyboardButtons.push([Markup.button.callback('🟩 Купить', `buy_details_${order.userId._id}_${order._id}`)]);
-        }
+        const keyboard = Markup.inlineKeyboard([
+          [Markup.button.callback('🔙 Назад', 'p2p_market_orders')]
+        ]);
         
-        // Add pagination controls
-        const totalPages = Math.ceil(result.sellOrdersCount / limit);
-        if (totalPages > 1) {
-          const paginationButtons = [];
-          
-          // Previous button
-          if (page > 1) {
-            paginationButtons.push(Markup.button.callback('⬅️ Назад', `p2p_buy_orders_page_${page - 1}`));
-          }
-          
-          // Page info
-          paginationButtons.push(Markup.button.callback(`${page}/${totalPages}`, 'p2p_buy_orders'));
-          
-          // Next button
-          if (page < totalPages) {
-            paginationButtons.push(Markup.button.callback('Вперед ➡️', `p2p_buy_orders_page_${page + 1}`));
-          }
-          
-          keyboardButtons.push(paginationButtons);
-        }
-      } else {
-        message += `⚠️ Активных ордеров на покупку пока нет\n\n💡 Создайте первый ордер на покупку!`;
+        return await ctx.reply(message, keyboard);
       }
       
-      // Add back button
-      keyboardButtons.push([Markup.button.callback('🔙 Назад', 'p2p_market_orders')]);
+      // Отправляем заголовок
+      let headerMessage = `📈 ОРДЕРА НА ПОКУПКУ\n` +
+                         `➖➖➖➖➖➖➖➖➖➖➖\n`;
       
-      const keyboard = Markup.inlineKeyboard(keyboardButtons);
+      const totalPages = Math.ceil(result.sellOrdersCount / limit);
+      if (totalPages > 1) {
+        headerMessage += `Страница ${page} из ${totalPages}\n\n`;
+      }
       
-      await ctx.reply(message, keyboard);
+      // Пагинация в заголовке
+      const headerButtons = [];
+      if (totalPages > 1) {
+        const paginationButtons = [];
+        
+        if (page > 1) {
+          paginationButtons.push(Markup.button.callback('⬅️ Назад', `p2p_buy_orders_page_${page - 1}`));
+        }
+        
+        paginationButtons.push(Markup.button.callback(`${page}/${totalPages}`, 'p2p_buy_orders'));
+        
+        if (page < totalPages) {
+          paginationButtons.push(Markup.button.callback('Вперед ➡️', `p2p_buy_orders_page_${page + 1}`));
+        }
+        
+        headerButtons.push(paginationButtons);
+      }
+      
+      headerButtons.push([Markup.button.callback('🔙 Назад', 'p2p_market_orders')]);
+      const headerKeyboard = Markup.inlineKeyboard(headerButtons);
+      
+      await ctx.reply(headerMessage, headerKeyboard);
+      
+      // Отправляем каждый ордер отдельным сообщением
+      const reputationService = require('../services/reputationService');
+      
+      for (let i = 0; i < result.sellOrders.length; i++) {
+        const order = result.sellOrders[i];
+        const username = order.userId.username || order.userId.firstName || 'Пользователь';
+        
+        // Get standardized user statistics
+        const stats = await reputationService.getStandardizedUserStats(order.userId._id);
+        
+        // Calculate limits in rubles based on price and amounts
+        const minAmount = order.minTradeAmount || 1;
+        const maxAmount = order.maxTradeAmount || order.remainingAmount;
+        const minRubles = (minAmount * order.pricePerToken).toFixed(2);
+        const maxRubles = (maxAmount * order.pricePerToken).toFixed(2);
+        
+        const orderMessage = `₽ ${order.pricePerToken.toFixed(2)} / CES | @${username} ${stats.rating}\n` +
+                           `Количество: ${order.remainingAmount.toFixed(2)} CES\n` +
+                           `Лимиты: ${minRubles} - ${maxRubles} ₽`;
+        
+        const orderKeyboard = Markup.inlineKeyboard([
+          [Markup.button.callback('🟩 Купить', `buy_details_${order.userId._id}_${order._id}`)]
+        ]);
+        
+        await ctx.reply(orderMessage, orderKeyboard);
+        
+        // Небольшая пауза между сообщениями чтобы не спамить
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
       
     } catch (error) {
       console.error('Buy orders error:', error);
@@ -1489,76 +1500,87 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
     }
   }
 
-  // Handle sell orders display with pagination
+  // Handle sell orders display with pagination (each order in separate message)
   async handleP2PSellOrders(ctx, page = 1) {
     try {
-      const limit = 20;
+      const limit = 10; // Показываем по 10 ордеров на странице
       const offset = (page - 1) * limit;
       const result = await p2pService.getMarketOrders(limit, offset);
       
-      let message = `📉 ОРДЕРА НА ПРОДАЖУ\n` +
-                   `➖➖➖➖➖➖➖➖➖➖➖\n`;
-      
-      const keyboardButtons = [];
-      
-      if (result.buyOrders.length > 0) {
-        // Get reputation data for all users at once for better performance
-        const reputationService = require('../services/reputationService');
+      if (result.buyOrders.length === 0) {
+        const message = `📉 ОРДЕРА НА ПРОДАЖУ\n` +
+                       `➖➖➖➖➖➖➖➖➖➖➖\n` +
+                       `⚠️ Активных ордеров на продажу пока нет\n\n` +
+                       `💡 Создайте первый ордер на продажу!`;
         
-        for (let i = 0; i < result.buyOrders.length; i++) {
-          const order = result.buyOrders[i];
-          const index = i;
-          const username = order.userId.username || order.userId.firstName || 'Пользователь';
-          
-          // Get actual completed deals count instead of trust score
-          const reputation = await reputationService.getUserReputation(order.userId._id);
-          const completedDeals = reputation ? reputation.totalTrades : 0;
-          const userLevel = this.getUserLevelDisplayNew(reputation ? reputation.trustScore : 0);
-          
-          // Calculate limits in rubles based on price and amounts
-          const minAmount = order.minTradeAmount || 1;
-          const maxAmount = order.maxTradeAmount || order.remainingAmount;
-          const minRubles = (minAmount * order.pricePerToken).toFixed(2);
-          const maxRubles = (maxAmount * order.pricePerToken).toFixed(2);
-          
-          message += `₽ ${order.pricePerToken.toFixed(2)} / CES @${username} ${completedDeals}/1000 ${userLevel.emoji}\n` +
-                    `Количество: ${order.remainingAmount.toFixed(2)} CES\n` +
-                    `Лимиты: ${minRubles} - ${maxRubles} ₽\n\n`;
-          
-          // Add sell button for each order
-          keyboardButtons.push([Markup.button.callback('🟥 Продать', `sell_details_${order.userId._id}_${order._id}`)]);
-        }
+        const keyboard = Markup.inlineKeyboard([
+          [Markup.button.callback('🔙 Назад', 'p2p_market_orders')]
+        ]);
         
-        // Add pagination controls
-        const totalPages = Math.ceil(result.buyOrdersCount / limit);
-        if (totalPages > 1) {
-          const paginationButtons = [];
-          
-          // Previous button
-          if (page > 1) {
-            paginationButtons.push(Markup.button.callback('⬅️ Назад', `p2p_sell_orders_page_${page - 1}`));
-          }
-          
-          // Page info
-          paginationButtons.push(Markup.button.callback(`${page}/${totalPages}`, 'p2p_sell_orders'));
-          
-          // Next button
-          if (page < totalPages) {
-            paginationButtons.push(Markup.button.callback('Вперед ➡️', `p2p_sell_orders_page_${page + 1}`));
-          }
-          
-          keyboardButtons.push(paginationButtons);
-        }
-      } else {
-        message += `⚠️ Активных ордеров на продажу пока нет\n\n💡 Создайте первый ордер на продажу!`;
+        return await ctx.reply(message, keyboard);
       }
       
-      // Add back button
-      keyboardButtons.push([Markup.button.callback('🔙 Назад', 'p2p_market_orders')]);
+      // Отправляем заголовок
+      let headerMessage = `📉 ОРДЕРА НА ПРОДАЖУ\n` +
+                         `➖➖➖➖➖➖➖➖➖➖➖\n`;
       
-      const keyboard = Markup.inlineKeyboard(keyboardButtons);
+      const totalPages = Math.ceil(result.buyOrdersCount / limit);
+      if (totalPages > 1) {
+        headerMessage += `Страница ${page} из ${totalPages}\n\n`;
+      }
       
-      await ctx.reply(message, keyboard);
+      // Пагинация в заголовке
+      const headerButtons = [];
+      if (totalPages > 1) {
+        const paginationButtons = [];
+        
+        if (page > 1) {
+          paginationButtons.push(Markup.button.callback('⬅️ Назад', `p2p_sell_orders_page_${page - 1}`));
+        }
+        
+        paginationButtons.push(Markup.button.callback(`${page}/${totalPages}`, 'p2p_sell_orders'));
+        
+        if (page < totalPages) {
+          paginationButtons.push(Markup.button.callback('Вперед ➡️', `p2p_sell_orders_page_${page + 1}`));
+        }
+        
+        headerButtons.push(paginationButtons);
+      }
+      
+      headerButtons.push([Markup.button.callback('🔙 Назад', 'p2p_market_orders')]);
+      const headerKeyboard = Markup.inlineKeyboard(headerButtons);
+      
+      await ctx.reply(headerMessage, headerKeyboard);
+      
+      // Отправляем каждый ордер отдельным сообщением
+      const reputationService = require('../services/reputationService');
+      
+      for (let i = 0; i < result.buyOrders.length; i++) {
+        const order = result.buyOrders[i];
+        const username = order.userId.username || order.userId.firstName || 'Пользователь';
+        
+        // Get standardized user statistics
+        const stats = await reputationService.getStandardizedUserStats(order.userId._id);
+        
+        // Calculate limits in rubles based on price and amounts
+        const minAmount = order.minTradeAmount || 1;
+        const maxAmount = order.maxTradeAmount || order.remainingAmount;
+        const minRubles = (minAmount * order.pricePerToken).toFixed(2);
+        const maxRubles = (maxAmount * order.pricePerToken).toFixed(2);
+        
+        const orderMessage = `₽ ${order.pricePerToken.toFixed(2)} / CES @${username} ${stats.rating}\n` +
+                           `Количество: ${order.remainingAmount.toFixed(2)} CES\n` +
+                           `Лимиты: ${minRubles} - ${maxRubles} ₽`;
+        
+        const orderKeyboard = Markup.inlineKeyboard([
+          [Markup.button.callback('🟥 Продать', `sell_details_${order.userId._id}_${order._id}`)]
+        ]);
+        
+        await ctx.reply(orderMessage, orderKeyboard);
+        
+        // Небольшая пауза между сообщениями чтобы не спамить
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
       
     } catch (error) {
       console.error('Sell orders error:', error);
@@ -1595,21 +1617,13 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
         return await ctx.reply('❌ Пользователь не найден.');
       }
       
-      const reputation = await reputationService.getUserReputation(userId);
-      const completedDeals = reputation ? reputation.totalTrades : 0;
-      const userLevel = this.getUserLevelDisplayNew(reputation ? reputation.trustScore : 0);
+      // Get standardized user statistics
+      const stats = await reputationService.getStandardizedUserStats(userId);
       
-      // Get 30-day statistics (mock data for now)
-      const ordersLast30Days = 85;
-      const completionRate = 94;
-      const avgTransferTime = 1;
-      
-      const username = user.username || user.firstName || 'Пользователь';
-      
-      const message = `Рейтинг: ${completedDeals}/1000 ${userLevel.emoji}\n` +
-                     `Исполненные ордера за 30 дней: ${ordersLast30Days} Ордера\n` +
-                     `Процент исполнения за 30 дней: ${completionRate}%\n` +
-                     `Среднее время перевода: ${avgTransferTime} мин.`;
+      const message = `Рейтинг: ${stats.rating}\n` +
+                     `Исполненные ордера за 30 дней: ${stats.ordersLast30Days} ордера\n` +
+                     `Процент исполнения за 30 дней: ${stats.completionRateLast30Days}%\n` +
+                     `Среднее время перевода: ${stats.avgTransferTime} мин.`;
       
       const keyboard = Markup.inlineKeyboard([
         [Markup.button.callback('🔙 Назад', 'p2p_buy_orders')]
@@ -1634,21 +1648,13 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
         return await ctx.reply('❌ Пользователь не найден.');
       }
       
-      const reputation = await reputationService.getUserReputation(userId);
-      const completedDeals = reputation ? reputation.totalTrades : 0;
-      const userLevel = this.getUserLevelDisplayNew(reputation ? reputation.trustScore : 0);
+      // Get standardized user statistics
+      const stats = await reputationService.getStandardizedUserStats(userId);
       
-      // Get 30-day statistics (mock data for now)
-      const ordersLast30Days = 85;
-      const completionRate = 94;
-      const avgPaymentTime = 5;
-      
-      const username = user.username || user.firstName || 'Пользователь';
-      
-      const message = `Рейтинг: ${completedDeals}/1000 ${userLevel.emoji}\n` +
-                     `Исполненные ордера за 30 дней: ${ordersLast30Days} Ордера\n` +
-                     `Процент исполнения за 30 дней: ${completionRate}%\n` +
-                     `Среднее время оплаты: ${avgPaymentTime} мин.`;
+      const message = `Рейтинг: ${stats.rating}\n` +
+                     `Исполненные ордера за 30 дней: ${stats.ordersLast30Days} ордера\n` +
+                     `Процент исполнения за 30 дней: ${stats.completionRateLast30Days}%\n` +
+                     `Среднее время оплаты: ${stats.avgPaymentTime} мин.`;
       
       const keyboard = Markup.inlineKeyboard([
         [Markup.button.callback('🔙 Назад', 'p2p_sell_orders')]

@@ -346,6 +346,58 @@ class ReputationService {
     }
   }
 
+  // Get standardized user statistics for P2P display
+  async getStandardizedUserStats(userId) {
+    try {
+      const user = await User.findById(userId);
+      if (!user) {
+        return {
+          rating: '0/1000 🐹',
+          ordersLast30Days: 85,
+          completionRateLast30Days: 94,
+          avgTransferTime: 1,
+          avgPaymentTime: 5
+        };
+      }
+
+      // Get user reputation data
+      const reputation = await this.getUserReputation(userId);
+      const completedDeals = reputation ? reputation.totalTrades : 0;
+      const trustScore = reputation ? reputation.trustScore : 0;
+      
+      // Get user level emoji
+      const userLevel = this.getUserLevelDisplay(trustScore);
+      
+      // Return standardized format
+      return {
+        rating: `${completedDeals}/1000 ${userLevel.emoji}`,
+        ordersLast30Days: 85,  // Mock data - would be calculated from actual trades
+        completionRateLast30Days: 94,  // Mock data - would be calculated from last 30 days
+        avgTransferTime: 1,  // Mock data - for buy orders (average transfer time)
+        avgPaymentTime: 5    // Mock data - for sell orders (average payment time)
+      };
+    } catch (error) {
+      console.error('Error getting standardized user stats:', error);
+      // Return default values on error
+      return {
+        rating: '0/1000 🐹',
+        ordersLast30Days: 85,
+        completionRateLast30Days: 94,
+        avgTransferTime: 1,
+        avgPaymentTime: 5
+      };
+    }
+  }
+
+  // Get user level display with emoji (consistent with message handler)
+  getUserLevelDisplay(trustScore) {
+    if (trustScore >= 1000) return { emoji: '🐋' };
+    if (trustScore >= 500) return { emoji: '🐺' };
+    if (trustScore >= 200) return { emoji: '🦅' };
+    if (trustScore >= 50) return { emoji: '🐿️' };
+    return { emoji: '🐹' }; // For 0-49 trust score
+  }
+
   // Get user verification requirements based on trust score
   getUserVerificationRequirements(trustScore) {
     if (trustScore >= 800) {
