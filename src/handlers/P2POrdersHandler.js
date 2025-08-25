@@ -19,9 +19,7 @@ class P2POrdersHandler {
       
       // Buy orders section shows sell orders from database (users wanting to buy CES)
       if (result.sellOrders.length === 0) {
-        const message = `📈 ОРДЕРА НА ПОКУПКУ\n` +
-                       `➖➖➖➖➖➖➖➖➖➖➖\n` +
-                       `⚠️ Активных ордеров на покупку пока нет\n\n` +
+        const message = `⚠️ Активных ордеров на покупку пока нет\n\n` +
                        `💡 Создайте первый ордер на покупку!`;
         
         const keyboard = Markup.inlineKeyboard([
@@ -37,33 +35,7 @@ class P2POrdersHandler {
       
       // Check if this is pagination (edit mode) or initial display
       const sessionData = sessionManager.getSessionData(chatId, 'buyOrdersMessages');
-      const isEditMode = sessionData && sessionData.headerMessageId;
-      
-      // Отправляем заголовок
-      let headerMessage = `📈 ОРДЕРА НА ПОКУПКУ\n` +
-                         `➖➖➖➖➖➖➖➖➖➖➖\n`;
-      
-      let headerMessageId;
-      
-      if (isEditMode) {
-        // Always edit existing header message during pagination
-        try {
-          await ctx.telegram.editMessageText(
-            ctx.chat.id,
-            sessionData.headerMessageId,
-            null,
-            headerMessage
-          );
-          headerMessageId = sessionData.headerMessageId;
-        } catch (error) {
-          console.log('Could not edit header message, using existing ID');
-          headerMessageId = sessionData.headerMessageId;
-        }
-      } else {
-        // Send new header message only on initial display
-        const headerMsg = await ctx.reply(headerMessage);
-        headerMessageId = headerMsg.message_id;
-      }
+      const isEditMode = sessionData && sessionData.orderMessageIds;
       
       // Отправляем каждый ордер отдельным сообщением или редактируем
       const reputationService = require('../services/reputationService');
@@ -90,9 +62,51 @@ class P2POrdersHandler {
                            `Количество: ${order.remainingAmount.toFixed(2)} CES\n` +
                            `Лимиты: ${minRubles} - ${maxRubles} ₽`;
         
-        const orderKeyboard = Markup.inlineKeyboard([
-          [Markup.button.callback('🟩 Купить', `buy_details_${order.userId._id}_${order._id}`)]
-        ]);
+        // Check if this is the last order on page to add navigation
+        const isLastOrder = i === result.sellOrders.length - 1;
+        let orderKeyboard;
+        
+        if (isLastOrder) {
+          // Create navigation buttons for the last order
+          const navigationButtons = [[Markup.button.callback('🟩 Купить', `buy_details_${order.userId._id}_${order._id}`)]];
+          
+          // Add pagination if there are multiple pages
+          if (totalPages > 1) {
+            const paginationButtons = [];
+            
+            // На первой странице - некликабельная левая кнопка и кликабельная правая
+            if (page === 1 && totalPages > 1) {
+              paginationButtons.push(Markup.button.callback('⬅️', 'no_action')); // некликабельная
+              paginationButtons.push(Markup.button.callback(`${page}/${totalPages}`, 'p2p_buy_orders'));
+              paginationButtons.push(Markup.button.callback('➡️', `p2p_buy_orders_page_${page + 1}`));
+            }
+            // На последней странице - кликабельная левая кнопка и некликабельная правая
+            else if (page === totalPages && totalPages > 1) {
+              paginationButtons.push(Markup.button.callback('⬅️', `p2p_buy_orders_page_${page - 1}`));
+              paginationButtons.push(Markup.button.callback(`${page}/${totalPages}`, 'p2p_buy_orders'));
+              paginationButtons.push(Markup.button.callback('➡️', 'no_action')); // некликабельная
+            }
+            // На средних страницах - обе кнопки кликабельные
+            else if (page > 1 && page < totalPages) {
+              paginationButtons.push(Markup.button.callback('⬅️', `p2p_buy_orders_page_${page - 1}`));
+              paginationButtons.push(Markup.button.callback(`${page}/${totalPages}`, 'p2p_buy_orders'));
+              paginationButtons.push(Markup.button.callback('➡️', `p2p_buy_orders_page_${page + 1}`));
+            }
+            
+            if (paginationButtons.length > 0) {
+              navigationButtons.push(paginationButtons);
+            }
+          }
+          
+          // Кнопка "Назад" внизу
+          navigationButtons.push([Markup.button.callback('🔙 Назад', 'p2p_market_orders')]);
+          
+          orderKeyboard = Markup.inlineKeyboard(navigationButtons);
+        } else {
+          orderKeyboard = Markup.inlineKeyboard([
+            [Markup.button.callback('🟩 Купить', `buy_details_${order.userId._id}_${order._id}`)]
+          ]);
+        }
         
         let orderMessageId;
         
@@ -124,72 +138,9 @@ class P2POrdersHandler {
         await new Promise(resolve => setTimeout(resolve, 100));
       }
       
-      // Пагинация над кнопкой "Назад" - умная логика для кнопок с некликабельными крайними кнопками
-      const navigationButtons = [];
-      if (totalPages > 1) {
-        const paginationButtons = [];
-        
-        // На первой странице - некликабельная левая кнопка и кликабельная правая
-        if (page === 1 && totalPages > 1) {
-          paginationButtons.push(Markup.button.callback('⬅️', 'no_action')); // некликабельная
-          paginationButtons.push(Markup.button.callback(`${page}/${totalPages}`, 'p2p_buy_orders'));
-          paginationButtons.push(Markup.button.callback('➡️', `p2p_buy_orders_page_${page + 1}`));
-        }
-        // На последней странице - кликабельная левая кнопка и некликабельная правая
-        else if (page === totalPages && totalPages > 1) {
-          paginationButtons.push(Markup.button.callback('⬅️', `p2p_buy_orders_page_${page - 1}`));
-          paginationButtons.push(Markup.button.callback(`${page}/${totalPages}`, 'p2p_buy_orders'));
-          paginationButtons.push(Markup.button.callback('➡️', 'no_action')); // некликабельная
-        }
-        // На средних страницах - обе кнопки кликабельные
-        else if (page > 1 && page < totalPages) {
-          paginationButtons.push(Markup.button.callback('⬅️', `p2p_buy_orders_page_${page - 1}`));
-          paginationButtons.push(Markup.button.callback(`${page}/${totalPages}`, 'p2p_buy_orders'));
-          paginationButtons.push(Markup.button.callback('➡️', `p2p_buy_orders_page_${page + 1}`));
-        }
-        
-        if (paginationButtons.length > 0) {
-          navigationButtons.push(paginationButtons);
-        }
-      }
-      
-      // Кнопка "Назад" внизу
-      navigationButtons.push([Markup.button.callback('🔙 Назад', 'p2p_market_orders')]);
-      
-      const navigationKeyboard = Markup.inlineKeyboard(navigationButtons);
-      
-      let navigationMessageId;
-      
-      // Navigation message with page number in the correct format
-      const navigationText = totalPages > 1 ? `➖➖➖➖➖➖➖➖➖➖➖` : 'Навигация';
-      
-      // Edit navigation message if exists
-      if (isEditMode && sessionData.navigationMessageId) {
-        try {
-          await ctx.telegram.editMessageText(
-            ctx.chat.id,
-            sessionData.navigationMessageId,
-            null,
-            navigationText,
-            navigationKeyboard
-          );
-          navigationMessageId = sessionData.navigationMessageId;
-        } catch (error) {
-          console.log('Could not edit navigation message, sending new one');
-          const navMsg = await ctx.reply(navigationText, navigationKeyboard);
-          navigationMessageId = navMsg.message_id;
-        }
-      } else {
-        // Send new navigation message
-        const navMsg = await ctx.reply(navigationText, navigationKeyboard);
-        navigationMessageId = navMsg.message_id;
-      }
-      
       // Store message IDs in session for future edits
       sessionManager.setSessionData(chatId, 'buyOrdersMessages', {
-        headerMessageId,
-        orderMessageIds,
-        navigationMessageId
+        orderMessageIds
       });
       
     } catch (error) {
@@ -208,9 +159,7 @@ class P2POrdersHandler {
       
       // Sell orders section shows buy orders from database (users wanting to sell CES)
       if (result.buyOrders.length === 0) {
-        const message = `📉 ОРДЕРА НА ПРОДАЖУ\n` +
-                       `➖➖➖➖➖➖➖➖➖➖➖\n` +
-                       `⚠️ Активных ордеров на продажу пока нет\n\n` +
+        const message = `⚠️ Активных ордеров на продажу пока нет\n\n` +
                        `💡 Создайте первый ордер на продажу!`;
         
         const keyboard = Markup.inlineKeyboard([
@@ -226,33 +175,7 @@ class P2POrdersHandler {
       
       // Check if this is pagination (edit mode) or initial display
       const sessionData = sessionManager.getSessionData(chatId, 'sellOrdersMessages');
-      const isEditMode = sessionData && sessionData.headerMessageId;
-      
-      // Отправляем заголовок
-      let headerMessage = `📉 ОРДЕРА НА ПРОДАЖУ\n` +
-                         `➖➖➖➖➖➖➖➖➖➖➖\n`;
-      
-      let headerMessageId;
-      
-      if (isEditMode) {
-        // Always edit existing header message during pagination
-        try {
-          await ctx.telegram.editMessageText(
-            ctx.chat.id,
-            sessionData.headerMessageId,
-            null,
-            headerMessage
-          );
-          headerMessageId = sessionData.headerMessageId;
-        } catch (error) {
-          console.log('Could not edit header message, using existing ID');
-          headerMessageId = sessionData.headerMessageId;
-        }
-      } else {
-        // Send new header message only on initial display
-        const headerMsg = await ctx.reply(headerMessage);
-        headerMessageId = headerMsg.message_id;
-      }
+      const isEditMode = sessionData && sessionData.orderMessageIds;
       
       // Отправляем каждый ордер отдельным сообщением или редактируем
       const reputationService = require('../services/reputationService');
@@ -279,9 +202,51 @@ class P2POrdersHandler {
                            `Количество: ${order.remainingAmount.toFixed(2)} CES\n` +
                            `Лимиты: ${minRubles} - ${maxRubles} ₽`;
         
-        const orderKeyboard = Markup.inlineKeyboard([
-          [Markup.button.callback('🟥 Продать', `sell_details_${order.userId._id}_${order._id}`)]
-        ]);
+        // Check if this is the last order on page to add navigation
+        const isLastOrder = i === result.buyOrders.length - 1;
+        let orderKeyboard;
+        
+        if (isLastOrder) {
+          // Create navigation buttons for the last order
+          const navigationButtons = [[Markup.button.callback('🟥 Продать', `sell_details_${order.userId._id}_${order._id}`)]];
+          
+          // Add pagination if there are multiple pages
+          if (totalPages > 1) {
+            const paginationButtons = [];
+            
+            // На первой странице - некликабельная левая кнопка и кликабельная правая
+            if (page === 1 && totalPages > 1) {
+              paginationButtons.push(Markup.button.callback('⬅️', 'no_action')); // некликабельная
+              paginationButtons.push(Markup.button.callback(`${page}/${totalPages}`, 'p2p_sell_orders'));
+              paginationButtons.push(Markup.button.callback('➡️', `p2p_sell_orders_page_${page + 1}`));
+            }
+            // На последней странице - кликабельная левая кнопка и некликабельная правая
+            else if (page === totalPages && totalPages > 1) {
+              paginationButtons.push(Markup.button.callback('⬅️', `p2p_sell_orders_page_${page - 1}`));
+              paginationButtons.push(Markup.button.callback(`${page}/${totalPages}`, 'p2p_sell_orders'));
+              paginationButtons.push(Markup.button.callback('➡️', 'no_action')); // некликабельная
+            }
+            // На средних страницах - обе кнопки кликабельные
+            else if (page > 1 && page < totalPages) {
+              paginationButtons.push(Markup.button.callback('⬅️', `p2p_sell_orders_page_${page - 1}`));
+              paginationButtons.push(Markup.button.callback(`${page}/${totalPages}`, 'p2p_sell_orders'));
+              paginationButtons.push(Markup.button.callback('➡️', `p2p_sell_orders_page_${page + 1}`));
+            }
+            
+            if (paginationButtons.length > 0) {
+              navigationButtons.push(paginationButtons);
+            }
+          }
+          
+          // Кнопка "Назад" внизу
+          navigationButtons.push([Markup.button.callback('🔙 Назад', 'p2p_market_orders')]);
+          
+          orderKeyboard = Markup.inlineKeyboard(navigationButtons);
+        } else {
+          orderKeyboard = Markup.inlineKeyboard([
+            [Markup.button.callback('🟥 Продать', `sell_details_${order.userId._id}_${order._id}`)]
+          ]);
+        }
         
         let orderMessageId;
         
@@ -313,72 +278,9 @@ class P2POrdersHandler {
         await new Promise(resolve => setTimeout(resolve, 100));
       }
       
-      // Пагинация над кнопкой "Назад" - умная логика для кнопок с некликабельными крайними кнопками
-      const navigationButtons = [];
-      if (totalPages > 1) {
-        const paginationButtons = [];
-        
-        // На первой странице - некликабельная левая кнопка и кликабельная правая
-        if (page === 1 && totalPages > 1) {
-          paginationButtons.push(Markup.button.callback('⬅️', 'no_action')); // некликабельная
-          paginationButtons.push(Markup.button.callback(`${page}/${totalPages}`, 'p2p_sell_orders'));
-          paginationButtons.push(Markup.button.callback('➡️', `p2p_sell_orders_page_${page + 1}`));
-        }
-        // На последней странице - кликабельная левая кнопка и некликабельная правая
-        else if (page === totalPages && totalPages > 1) {
-          paginationButtons.push(Markup.button.callback('⬅️', `p2p_sell_orders_page_${page - 1}`));
-          paginationButtons.push(Markup.button.callback(`${page}/${totalPages}`, 'p2p_sell_orders'));
-          paginationButtons.push(Markup.button.callback('➡️', 'no_action')); // некликабельная
-        }
-        // На средних страницах - обе кнопки кликабельные
-        else if (page > 1 && page < totalPages) {
-          paginationButtons.push(Markup.button.callback('⬅️', `p2p_sell_orders_page_${page - 1}`));
-          paginationButtons.push(Markup.button.callback(`${page}/${totalPages}`, 'p2p_sell_orders'));
-          paginationButtons.push(Markup.button.callback('➡️', `p2p_sell_orders_page_${page + 1}`));
-        }
-        
-        if (paginationButtons.length > 0) {
-          navigationButtons.push(paginationButtons);
-        }
-      }
-      
-      // Кнопка "Назад" внизу
-      navigationButtons.push([Markup.button.callback('🔙 Назад', 'p2p_market_orders')]);
-      
-      const navigationKeyboard = Markup.inlineKeyboard(navigationButtons);
-      
-      let navigationMessageId;
-      
-      // Navigation message with page number in the correct format
-      const navigationText = totalPages > 1 ? `➖➖➖➖➖➖➖➖➖➖➖` : 'Навигация';
-      
-      // Edit navigation message if exists
-      if (isEditMode && sessionData.navigationMessageId) {
-        try {
-          await ctx.telegram.editMessageText(
-            ctx.chat.id,
-            sessionData.navigationMessageId,
-            null,
-            navigationText,
-            navigationKeyboard
-          );
-          navigationMessageId = sessionData.navigationMessageId;
-        } catch (error) {
-          console.log('Could not edit navigation message, sending new one');
-          const navMsg = await ctx.reply(navigationText, navigationKeyboard);
-          navigationMessageId = navMsg.message_id;
-        }
-      } else {
-        // Send new navigation message
-        const navMsg = await ctx.reply(navigationText, navigationKeyboard);
-        navigationMessageId = navMsg.message_id;
-      }
-      
       // Store message IDs in session for future edits
       sessionManager.setSessionData(chatId, 'sellOrdersMessages', {
-        headerMessageId,
-        orderMessageIds,
-        navigationMessageId
+        orderMessageIds
       });
       
     } catch (error) {

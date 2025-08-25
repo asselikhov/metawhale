@@ -51,7 +51,7 @@ class P2PHandler {
       // Keyboard with buttons
       const keyboard = Markup.inlineKeyboard([
         [Markup.button.callback('📈 Купить CES', 'p2p_buy_ces'), Markup.button.callback('📉 Продать CES', 'p2p_sell_ces')],
-        [Markup.button.callback('📊 Рынок ордеров', 'p2p_market_orders'), Markup.button.callback('📋 Мои ордеры', 'p2p_my_orders')],
+        [Markup.button.callback('📊 Рынок', 'p2p_market_orders'), Markup.button.callback('📋 Мои ордеры', 'p2p_my_orders')],
         [Markup.button.callback('🏆 Топ трейдеров', 'p2p_top_traders'), Markup.button.callback('🧮 Аналитика', 'p2p_analytics')]
       ]);
       
@@ -164,13 +164,13 @@ class P2PHandler {
       sessionManager.clearUserSession(chatId);
       
       // Show selection menu for buy/sell orders
-      const message = `📊 РЫНОК ОРДЕРОВ\n` +
+      const message = `📊 РЫНОК\n` +
                      `➖➖➖➖➖➖➖➖➖➖➖\n` +
                      `Выберите тип ордеров для просмотра:`;
 
       const keyboard = Markup.inlineKeyboard([
-        [Markup.button.callback('📈 Ордера на покупку', 'p2p_buy_orders')],
-        [Markup.button.callback('📉 Ордера на продажу', 'p2p_sell_orders')],
+        [Markup.button.callback('📈 Купить', 'p2p_buy_orders')],
+        [Markup.button.callback('📉 Продать', 'p2p_sell_orders')],
         [Markup.button.callback('🔙 Назад', 'p2p_menu')]
       ]);
 
