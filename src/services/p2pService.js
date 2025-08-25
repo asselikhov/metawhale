@@ -882,7 +882,7 @@ class P2PService {
   // Create a trade with escrow for the selling flow
   async createTradeWithEscrow(tradeData) {
     try {
-      const { buyerChatId, sellerChatId, cesAmount, pricePerToken, totalPrice, paymentMethod, tradeTimeLimit, orderNumber } = tradeData;
+      const { buyerChatId, sellerChatId, cesAmount, pricePerToken, totalPrice, paymentMethod, tradeTimeLimit, orderNumber, buyOrderId } = tradeData;
       
       console.log(`Creating trade with escrow: ${cesAmount} CES for ₽${totalPrice}`);
       
@@ -906,8 +906,56 @@ class P2PService {
         return { success: false, error: 'Ошибка блокировки средств в эскроу' };
       }
       
+      // Map bank codes to payment method enum values
+      const paymentMethodMapping = {
+        'sberbank': 'bank_transfer',
+        'vtb': 'bank_transfer',
+        'gazprombank': 'bank_transfer',
+        'alfabank': 'bank_transfer',
+        'rshb': 'bank_transfer',
+        'mkb': 'bank_transfer',
+        'sovcombank': 'bank_transfer',
+        'tbank': 'bank_transfer',
+        'domrf': 'bank_transfer',
+        'otkritie': 'bank_transfer',
+        'raiffeisenbank': 'bank_transfer',
+        'rosbank': 'bank_transfer'
+      };
+      
+      // Get the mapped payment method from the paymentMethod object
+      let mappedPaymentMethod = 'bank_transfer'; // Default fallback
+      if (paymentMethod && paymentMethod.bank) {
+        mappedPaymentMethod = paymentMethodMapping[paymentMethod.bank] || 'bank_transfer';
+      }
+      
+      // Create a temporary sell order for this trade
+      const tempSellOrder = new P2POrder({
+        userId: seller._id,
+        type: 'sell',
+        amount: cesAmount,
+        pricePerToken: pricePerToken,
+        totalValue: totalPrice,
+        status: 'locked',
+        filledAmount: cesAmount,
+        remainingAmount: 0,
+        escrowLocked: true,
+        escrowAmount: cesAmount,
+        minTradeAmount: cesAmount,
+        maxTradeAmount: cesAmount,
+        paymentMethods: ['bank_transfer'],
+        tradeTimeLimit: tradeTimeLimit || 30
+      });
+      
+      await tempSellOrder.save();
+      const sellOrderId = tempSellOrder._id;
+      
+      // Use the provided buyOrderId or the temporary sell order ID as fallback
+      const finalBuyOrderId = buyOrderId || sellOrderId;
+      
       // Create trade record
       const trade = new P2PTrade({
+        buyOrderId: finalBuyOrderId,
+        sellOrderId: sellOrderId,
         buyerId: buyer._id,
         sellerId: seller._id,
         amount: cesAmount,
@@ -918,12 +966,7 @@ class P2PService {
         commission: 0, // Will be calculated later if needed
         status: 'escrow_locked',
         escrowStatus: 'locked',
-        paymentMethod: paymentMethod.bank || 'bank_transfer',
-        paymentDetails: {
-          bankName: paymentMethod.bank,
-          cardNumber: paymentMethod.cardNumber,
-          orderNumber: orderNumber
-        },
+        paymentMethod: mappedPaymentMethod,
         timeTracking: {
           createdAt: new Date(),
           escrowLockedAt: new Date(),

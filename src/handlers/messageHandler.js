@@ -843,7 +843,8 @@ class MessageHandler {
         totalPrice: totalPrice,
         paymentMethod: selectedPaymentMethod,
         tradeTimeLimit: orderData.tradeTimeLimit || 30,
-        orderNumber: orderNumber
+        orderNumber: orderNumber,
+        buyOrderId: orderData.orderId // Include the buy order ID
       });
       
       if (!tradeResult.success) {
