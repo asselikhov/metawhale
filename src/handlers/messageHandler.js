@@ -401,6 +401,29 @@ class MessageHandler {
         return await ctx.reply(validation.message, keyboard);
       }
       
+      // Get order and maker details to check for self-trading
+      const { P2POrder, User } = require('../database/models');
+      
+      const order = await P2POrder.findById(orderId).populate('userId');
+      if (!order) {
+        return await ctx.reply('❌ Ордер не найден.');
+      }
+      
+      const maker = order.userId;
+      
+      // Check if user is trying to trade with their own order
+      const currentUser = await User.findOne({ chatId });
+      if (!currentUser) {
+        return await ctx.reply('❌ Пользователь не найден.');
+      }
+      
+      if (maker._id.toString() === currentUser._id.toString()) {
+        const keyboard = Markup.inlineKeyboard([
+          [Markup.button.callback('🔙 Назад', 'p2p_buy_orders')]
+        ]);
+        return await ctx.reply('⚠️ Вы не можете исполнить свой собственный ордер', keyboard);
+      }
+      
       // TODO: Implement full order details view
       await ctx.reply('🚧 Функция просмотра деталей ордера на покупку в разработке');
       
@@ -432,6 +455,20 @@ class MessageHandler {
       }
       
       const maker = order.userId;
+      
+      // Check if user is trying to trade with their own order
+      const currentUser = await User.findOne({ chatId });
+      if (!currentUser) {
+        return await ctx.reply('❌ Пользователь не найден.');
+      }
+      
+      if (maker._id.toString() === currentUser._id.toString()) {
+        const keyboard = Markup.inlineKeyboard([
+          [Markup.button.callback('🔙 Назад', 'p2p_sell_orders')]
+        ]);
+        return await ctx.reply('⚠️ Вы не можете исполнить свой собственный ордер', keyboard);
+      }
+      
       const stats = await reputationService.getStandardizedUserStats(maker._id);
       
       // Get maker's P2P profile name

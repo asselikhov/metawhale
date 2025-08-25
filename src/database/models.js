@@ -282,6 +282,25 @@ const priceHistorySchema = new mongoose.Schema({
 // Add indexes for faster queries
 priceHistorySchema.index({ timestamp: -1 });
 
+// Escrow Transaction Schema
+const escrowTransactionSchema = new mongoose.Schema({
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  tradeId: { type: mongoose.Schema.Types.ObjectId, ref: 'P2PTrade' },
+  type: { type: String, enum: ['lock', 'release', 'refund'], required: true },
+  tokenType: { type: String, enum: ['CES', 'POL'], required: true },
+  amount: { type: Number, required: true },
+  status: { type: String, enum: ['pending', 'completed', 'failed'], default: 'pending' },
+  txHash: String,
+  reason: String,
+  createdAt: { type: Date, default: Date.now },
+  completedAt: Date
+});
+
+// Add indexes for faster queries
+escrowTransactionSchema.index({ userId: 1, type: 1 });
+escrowTransactionSchema.index({ tradeId: 1 });
+escrowTransactionSchema.index({ createdAt: -1 });
+
 // Models
 const User = mongoose.models.User || mongoose.model('User', userSchema);
 const Wallet = mongoose.models.Wallet || mongoose.model('Wallet', walletSchema);
@@ -289,6 +308,7 @@ const Transaction = mongoose.models.Transaction || mongoose.model('Transaction',
 const P2POrder = mongoose.models.P2POrder || mongoose.model('P2POrder', p2pOrderSchema);
 const P2PTrade = mongoose.models.P2PTrade || mongoose.model('P2PTrade', p2pTradeSchema);
 const PriceHistory = mongoose.models.PriceHistory || mongoose.model('PriceHistory', priceHistorySchema);
+const EscrowTransaction = mongoose.models.EscrowTransaction || mongoose.model('EscrowTransaction', escrowTransactionSchema);
 
 module.exports = {
   connectDatabase,
@@ -299,5 +319,6 @@ module.exports = {
   Transaction,
   P2POrder,
   P2PTrade,
-  PriceHistory
+  PriceHistory,
+  EscrowTransaction
 };

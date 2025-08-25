@@ -362,13 +362,17 @@ class ReputationService {
       // Get all users with trade activity in last 30 days
       const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
       
-      const usersWithTrades = await P2PTrade.distinct('buyerId', {
-        createdAt: { $gte: thirtyDaysAgo }
-      }).concat(await P2PTrade.distinct('sellerId', {
-        createdAt: { $gte: thirtyDaysAgo }
-      }));
+      const [buyerIds, sellerIds] = await Promise.all([
+        P2PTrade.distinct('buyerId', {
+          createdAt: { $gte: thirtyDaysAgo }
+        }),
+        P2PTrade.distinct('sellerId', {
+          createdAt: { $gte: thirtyDaysAgo }
+        })
+      ]);
       
-      // Remove duplicates
+      // Combine and remove duplicates
+      const usersWithTrades = buyerIds.concat(sellerIds);
       const uniqueUserIds = [...new Set(usersWithTrades)];
       
       // Calculate smart rating for each user and sort
