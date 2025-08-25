@@ -118,10 +118,10 @@ class EscrowService {
       if (tradeId) {
         // Если это для сделки, получаем адрес покупателя
         const trade = await P2PTrade.findById(tradeId).populate('buyerId');
-        if (trade && trade.buyerId.walletAddress) {
+        if (trade && trade.buyerId && trade.buyerId.walletAddress) {
           buyerAddress = trade.buyerId.walletAddress;
         } else {
-          throw new Error('Не удалось получить адрес покупателя из сделки');
+          throw new Error('Не удалось получить адрес покупателя из сделки. Убедитесь, что у покупателя создан кошелек.');
         }
       } else {
         // Для ордеров используем админский адрес как placeholder

@@ -1434,16 +1434,19 @@ class P2PService {
         return { success: false, error: 'Пользователи не найдены' };
       }
       
+      // Check if both users have wallets
+      if (!buyer.walletAddress) {
+        return { success: false, error: 'У покупателя не создан кошелек. Попросите его создать кошелек сначала.' };
+      }
+      
+      if (!seller.walletAddress) {
+        return { success: false, error: 'У продавца не создан кошелек. Необходимо создать кошелек сначала.' };
+      }
+      
       // Check seller's available CES balance (excluding escrowed tokens)
       const walletInfo = await walletService.getUserWallet(sellerChatId);
       if (walletInfo.cesBalance < cesAmount) {
         return { success: false, error: 'Недостаточно доступных CES для продажи. Некоторые средства могут быть заблокированы в эскроу' };
-      }
-      
-      // Lock CES tokens in escrow
-      const escrowResult = await escrowService.lockTokensInEscrow(seller._id, null, 'CES', cesAmount);
-      if (!escrowResult.success) {
-        return { success: false, error: 'Ошибка блокировки средств в эскроу' };
       }
       
       // Map bank codes to payment method enum values
@@ -1504,16 +1507,30 @@ class P2PService {
         buyerCommission: 0, // Seller is maker, so buyer pays no commission
         sellerCommission: 0, // Commission is handled separately
         commission: 0, // Will be calculated later if needed
-        status: 'escrow_locked',
-        escrowStatus: 'locked',
+        status: 'creating',
+        escrowStatus: 'pending',
         paymentMethod: mappedPaymentMethod,
         timeTracking: {
           createdAt: new Date(),
-          escrowLockedAt: new Date(),
           expiresAt: new Date(Date.now() + (tradeTimeLimit || 30) * 60 * 1000)
         }
       });
       
+      await trade.save();
+      
+      // Now lock CES tokens in escrow with the trade ID
+      const escrowResult = await escrowService.lockTokensInEscrow(seller._id, trade._id, 'CES', cesAmount);
+      if (!escrowResult.success) {
+        // Rollback trade creation
+        await P2PTrade.findByIdAndDelete(trade._id);
+        await P2POrder.findByIdAndDelete(tempSellOrder._id);
+        return { success: false, error: 'Ошибка блокировки средств в эскроу' };
+      }
+      
+      // Update trade status after successful escrow
+      trade.status = 'escrow_locked';
+      trade.escrowStatus = 'locked';
+      trade.timeTracking.escrowLockedAt = new Date();
       await trade.save();
       
       console.log(`Trade created with escrow: ${trade._id}`);

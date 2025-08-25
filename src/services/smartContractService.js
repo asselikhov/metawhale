@@ -44,11 +44,32 @@ class SmartContractService {
       const wallet = new ethers.Wallet(sellerPrivateKey, this.provider);
       const escrowContract = new ethers.Contract(this.escrowContractAddress, this.escrowABI, wallet);
 
+      // Check allowance before creating escrow
+      const cesTokenAddress = process.env.CES_TOKEN_ADDRESS || '0x1bdf71ede1a4777db1eebe7232bcda20d6fc1610';
+      const erc20Abi = [
+        "function allowance(address owner, address spender) view returns (uint256)",
+        "function balanceOf(address account) view returns (uint256)"
+      ];
+      
+      const cesContract = new ethers.Contract(cesTokenAddress, erc20Abi, this.provider);
+      const amountWei = utils.parseEther(amount.toString());
+      
+      // Check balance
+      const balance = await cesContract.balanceOf(wallet.address);
+      if (balance.lt(amountWei)) {
+        throw new Error(`Insufficient CES balance. Available: ${utils.formatEther(balance)}, required: ${amount}`);
+      }
+      
+      // Check allowance
+      const allowance = await cesContract.allowance(wallet.address, this.escrowContractAddress);
+      if (allowance.lt(amountWei)) {
+        throw new Error(`Insufficient allowance. Current: ${utils.formatEther(allowance)} CES, required: ${amount} CES. Please approve tokens first.`);
+      }
+      
+      console.log(`✅ Allowance check passed: ${utils.formatEther(allowance)} >= ${amount} CES`);
+
       // Convert timelock to seconds
       const timelockSeconds = timelockMinutes * 60;
-      
-      // Convert amount to wei (assuming 18 decimals for CES)
-      const amountWei = utils.parseEther(amount.toString());
 
       // Create escrow transaction
       const tx = await escrowContract.createEscrow(
