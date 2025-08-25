@@ -4,6 +4,7 @@
  */
 
 const { User, P2POrder, P2PTrade } = require('../database/models');
+const config = require('../config/configuration');
 // Remove direct bot import to avoid circular dependencies
 // const bot = require('../bot/telegramBot').getInstance();
 
@@ -168,18 +169,18 @@ class SmartNotificationService {
     try {
       const timeLimit = trade.timeTracking?.expiresAt 
         ? Math.ceil((trade.timeTracking.expiresAt - new Date()) / (60 * 1000)) 
-        : 30;
+        : config.escrow.timeoutMinutes;
       
       return `⏳ Оплата ожидается\n\n` +
             `Сделка #${trade._id.toString().substr(0, 8)}\n` +
             `💰 Сумма: ₽${trade.totalValue.toFixed(2)}\n` +
-            `🕐 Время на оплату: ${timeLimit} минут\n\n` +
+            `🕐 Время на оплату: ${config.escrow.displayFormat.minutes(timeLimit)}\n\n` +
             `Не забудьте подтвердить оплату после перевода средств!`;
     } catch (error) {
       return `⏳ Оплата ожидается\n\n` +
             `Сделка #${trade._id.toString().substr(0, 8)}\n` +
             `💰 Сумма: ₽${trade.totalValue.toFixed(2)}\n` +
-            `🕐 Время на оплату: 30 минут`;
+            `🕐 Время на оплату: ${config.escrow.displayFormat.minutes(config.escrow.timeoutMinutes)}`;
     }
   }
 

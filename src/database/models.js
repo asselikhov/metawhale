@@ -4,6 +4,7 @@
 
 const mongoose = require('mongoose');
 const config = require('../config/configuration');
+const config = require('../config/configuration');
 
 // Configure mongoose connection with optimized settings
 mongoose.set('strictQuery', false);
@@ -201,7 +202,7 @@ const p2pOrderSchema = new mongoose.Schema({
   minTradeAmount: { type: Number, default: 1 }, // Minimum trade amount per transaction
   maxTradeAmount: { type: Number }, // Maximum trade amount per transaction
   paymentMethods: [{ type: String, enum: ['bank_transfer', 'sbp', 'qiwi', 'yoomoney'], default: ['bank_transfer'] }],
-  tradeTimeLimit: { type: Number, default: 30 }, // Time limit in minutes
+  tradeTimeLimit: { type: Number, default: () => config.escrow?.timeoutMinutes || 30 }, // Time limit in minutes
   autoReply: String, // Automatic reply message
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now },

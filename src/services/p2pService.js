@@ -10,11 +10,12 @@ const priceService = require('./priceService');
 const escrowService = require('./escrowService');
 const smartNotificationService = require('./smartNotificationService');
 const reputationService = require('./reputationService');
+const config = require('../config/configuration');
 
 class P2PService {
   constructor() {
     this.commissionRate = 0.01; // 1% commission
-    this.defaultTradeTimeout = 30; // 30 minutes
+    this.defaultTradeTimeout = config.escrow.timeoutMinutes; // Use configurable timeout
     this.maxOrderAmount = 10000; // Maximum order amount in CES
     this.minOrderAmount = 1; // Minimum order amount in CES
   }

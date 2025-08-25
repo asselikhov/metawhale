@@ -64,6 +64,34 @@ const config = {
     { min: 0, max: 49, emoji: '🐹', name: 'Хомяк', range: '0–49' }
   ],
 
+  // Escrow Configuration
+  escrow: {
+    // Timeout settings in minutes
+    timeoutMinutes: parseInt(process.env.ESCROW_TIMEOUT_MINUTES) || 30,
+    disputeTimeoutMinutes: parseInt(process.env.ESCROW_DISPUTE_TIMEOUT_MINUTES) || (24 * 60),
+    
+    // Smart contract settings
+    useSmartContract: process.env.USE_SMART_CONTRACT_ESCROW === 'true',
+    contractAddress: process.env.ESCROW_CONTRACT_ADDRESS,
+    
+    // Display settings
+    displayFormat: {
+      minutes: (minutes) => {
+        if (minutes < 60) {
+          return `${minutes} мин.`;
+        } else if (minutes < 1440) {
+          const hours = Math.floor(minutes / 60);
+          const remainingMinutes = minutes % 60;
+          return remainingMinutes > 0 ? `${hours} ч. ${remainingMinutes} мин.` : `${hours} ч.`;
+        } else {
+          const days = Math.floor(minutes / 1440);
+          const remainingHours = Math.floor((minutes % 1440) / 60);
+          return remainingHours > 0 ? `${days} д. ${remainingHours} ч.` : `${days} д.`;
+        }
+      }
+    }
+  },
+
   // Constants
   constants: {
     ivLength: 16,

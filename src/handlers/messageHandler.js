@@ -11,6 +11,7 @@ const P2PHandler = require('./P2PHandler');
 const P2POrdersHandler = require('./P2POrdersHandler');
 const P2PDataHandler = require('./P2PDataHandler');
 const sessionManager = require('./SessionManager');
+const config = require('../config/configuration');
 
 class MessageHandler {
   constructor() {
@@ -713,7 +714,7 @@ class MessageHandler {
                      `Количество: ${buyOrder.remainingAmount.toFixed(2)} CES\n` +
                      `Лимиты: ${minRubles}-${maxRubles} ₽\n` +
                      `Способ оплаты: Банковский перевод\n` +
-                     `Длительность оплаты: ${buyOrder.tradeTimeLimit || 30} мин.\n\n` +
+                     `Длительность оплаты: ${config.escrow.displayFormat.minutes(buyOrder.tradeTimeLimit || config.escrow.timeoutMinutes)}\n\n` +
                      `Условия мейкера:\n` +
                      `${makerConditions}\n\n` +
                      `Сведения о мейкере:\n` +
@@ -824,7 +825,7 @@ class MessageHandler {
                      `Количество: ${buyOrder.remainingAmount.toFixed(2)} CES\n` +
                      `Лимиты: ${minRubles}-${maxRubles} ₽\n` +
                      `Способ оплаты: Банковский перевод\n` +
-                     `Длительность оплаты: ${buyOrder.tradeTimeLimit || 30} мин.\n\n` +
+                     `Длительность оплаты: ${config.escrow.displayFormat.minutes(buyOrder.tradeTimeLimit || config.escrow.timeoutMinutes)}\n\n` +
                      `Условия мейкера:\n` +
                      `${makerConditions}\n\n` +
                      `Сведения о мейкере:\n` +

@@ -8,6 +8,10 @@ const crypto = require('crypto');
 const config = require('../config/configuration');
 const { User, Wallet, Transaction } = require('../database/models');
 
+// Ensure ethers providers are available
+const providers = ethers.providers || ethers;
+const utils = ethers.utils || ethers;
+
 class WalletService {
   constructor() {
     // Ensure we have a 32-byte key for AES-256
@@ -97,7 +101,7 @@ class WalletService {
       console.log(`🔍 Checking real CES balance for address: ${address}`);
       
       // Setup Polygon provider with timeout
-      const provider = new ethers.providers.JsonRpcProvider(config.wallet.polygonRpcUrl);
+      const provider = new providers.JsonRpcProvider(config.wallet.polygonRpcUrl);
       
       // Set timeout for requests (10 seconds)
       provider.pollingInterval = 10000;
@@ -129,7 +133,7 @@ class WalletService {
       const [balance, decimals] = await balancePromise;
       
       // Convert from wei to human readable format
-      const formattedBalance = ethers.utils.formatUnits(balance, decimals);
+      const formattedBalance = utils.formatUnits(balance, decimals);
       
       console.log(`💰 Real CES balance for ${address}: ${formattedBalance} CES`);
       
@@ -150,7 +154,7 @@ class WalletService {
       console.log(`🔍 Checking POL balance for address: ${address}`);
       
       // Setup Polygon provider with timeout
-      const provider = new ethers.providers.JsonRpcProvider(config.wallet.polygonRpcUrl);
+      const provider = new providers.JsonRpcProvider(config.wallet.polygonRpcUrl);
       
       // Set timeout for requests (10 seconds)
       provider.pollingInterval = 10000;
@@ -166,7 +170,7 @@ class WalletService {
       const balance = await balancePromise;
       
       // Convert from wei to human readable format (POL has 18 decimals)
-      const formattedBalance = ethers.utils.formatEther(balance);
+      const formattedBalance = utils.formatEther(balance);
       
       console.log(`💎 POL balance for ${address}: ${formattedBalance} POL`);
       
@@ -331,7 +335,7 @@ class WalletService {
       }
       
       // Validate recipient address
-      if (!ethers.utils.isAddress(toAddress)) {
+      if (!utils.isAddress(toAddress)) {
         throw new Error('Неверный адрес получателя');
       }
       
@@ -344,14 +348,14 @@ class WalletService {
       const toUser = await User.findOne({ walletAddress: toAddress });
       
       // Setup blockchain transaction
-      const provider = new ethers.providers.JsonRpcProvider(config.wallet.polygonRpcUrl);
+      const provider = new providers.JsonRpcProvider(config.wallet.polygonRpcUrl);
       
       // Get sender's private key
       const privateKey = await this.getUserPrivateKey(fromChatId);
       const wallet = new ethers.Wallet(privateKey, provider);
       
       // Convert amount to wei
-      const transferAmount = ethers.utils.parseEther(amount.toString());
+      const transferAmount = utils.parseEther(amount.toString());
       
       // Create transaction record
       const transaction = new Transaction({
@@ -466,7 +470,7 @@ class WalletService {
       const toUser = await User.findOne({ walletAddress: toAddress });
       
       // Setup blockchain transaction
-      const provider = new ethers.providers.JsonRpcProvider(config.wallet.polygonRpcUrl);
+      const provider = new providers.JsonRpcProvider(config.wallet.polygonRpcUrl);
       
       // Get sender's private key
       const privateKey = await this.getUserPrivateKey(fromChatId);
@@ -488,7 +492,7 @@ class WalletService {
       
       // Get token decimals
       const decimals = await contract.decimals();
-      const transferAmount = ethers.utils.parseUnits(amount.toString(), decimals);
+      const transferAmount = utils.parseUnits(amount.toString(), decimals);
       
       // Create transaction record
       const transaction = new Transaction({

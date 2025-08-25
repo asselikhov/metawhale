@@ -7,15 +7,17 @@
 const { User, P2PTrade, EscrowTransaction } = require('../database/models');
 const walletService = require('./walletService');
 const smartContractService = require('./smartContractService');
+const config = require('../config/configuration');
 
 class EscrowService {
   constructor() {
-    this.escrowTimeoutMinutes = 30; // Default timeout for escrow
-    this.disputeTimeoutMinutes = 24 * 60; // 24 hours for dispute resolution
+    // Load timeout settings from configuration
+    this.escrowTimeoutMinutes = config.escrow.timeoutMinutes;
+    this.disputeTimeoutMinutes = config.escrow.disputeTimeoutMinutes;
     
     // Check smart contract configuration
-    this.useSmartContract = process.env.USE_SMART_CONTRACT_ESCROW === 'true';
-    this.escrowContractAddress = process.env.ESCROW_CONTRACT_ADDRESS;
+    this.useSmartContract = config.escrow.useSmartContract;
+    this.escrowContractAddress = config.escrow.contractAddress;
     
     // Log current configuration
     this.logConfiguration();
@@ -43,7 +45,8 @@ class EscrowService {
       console.log('🔧 To enable secure mode: SET USE_SMART_CONTRACT_ESCROW=true');
     }
     
-    console.log(`⏰ Escrow timeout: ${this.escrowTimeoutMinutes} minutes`);
+    console.log(`⏰ Escrow timeout: ${config.escrow.displayFormat.minutes(this.escrowTimeoutMinutes)}`);
+    console.log(`⚖️ Dispute timeout: ${config.escrow.displayFormat.minutes(this.disputeTimeoutMinutes)}`);
     console.log('================================\n');
   }
 
