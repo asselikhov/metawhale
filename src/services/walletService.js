@@ -185,6 +185,85 @@ class WalletService {
     }
   }
 
+  // Auto-approve CES tokens for escrow contract
+  async autoApproveCESTokens(chatId, amount) {
+    try {
+      console.log(`🔐 Auto-approving ${amount} CES tokens for user ${chatId}`);
+      
+      // Get user
+      const user = await User.findOne({ chatId });
+      if (!user || !user.walletAddress) {
+        throw new Error('Пользователь или кошелек не найден');
+      }
+      
+      // Get user's private key
+      const privateKey = await this.getUserPrivateKey(chatId);
+      if (!privateKey) {
+        throw new Error('Не удалось получить приватный ключ');
+      }
+      
+      // Setup wallet and contracts
+      const provider = new providers.JsonRpcProvider(config.wallet.polygonRpcUrl);
+      const wallet = new ethers.Wallet(privateKey, provider);
+      
+      const cesTokenAddress = process.env.CES_TOKEN_ADDRESS;
+      const escrowContractAddress = process.env.ESCROW_CONTRACT_ADDRESS;
+      
+      if (!cesTokenAddress || !escrowContractAddress) {
+        throw new Error('Адреса контрактов не настроены');
+      }
+      
+      const erc20Abi = [
+        "function allowance(address owner, address spender) view returns (uint256)",
+        "function approve(address spender, uint256 amount) returns (bool)",
+        "function balanceOf(address account) view returns (uint256)"
+      ];
+      
+      const cesContract = new ethers.Contract(cesTokenAddress, erc20Abi, wallet);
+      const amountWei = utils.parseEther(amount.toString());
+      
+      // Check current allowance
+      const currentAllowance = await cesContract.allowance(user.walletAddress, escrowContractAddress);
+      
+      console.log(`📊 Current allowance: ${utils.formatEther(currentAllowance)} CES`);
+      console.log(`📊 Required amount: ${amount} CES`);
+      
+      // If allowance is sufficient, no need to approve again
+      if (currentAllowance.gte(amountWei)) {
+        console.log('✅ Sufficient allowance already exists');
+        return { success: true, txHash: null, message: 'Одобрение уже есть' };
+      }
+      
+      // Execute approval transaction
+      console.log('🔐 Executing automatic approval transaction...');
+      
+      const tx = await cesContract.approve(escrowContractAddress, amountWei, {
+        gasLimit: 100000,
+        gasPrice: utils.parseUnits('30', 'gwei')
+      });
+      
+      console.log(`⏳ Approval transaction sent: ${tx.hash}`);
+      
+      // Wait for transaction confirmation
+      const receipt = await tx.wait();
+      
+      if (receipt.status === 1) {
+        console.log(`✅ Approval transaction confirmed: ${tx.hash}`);
+        return { 
+          success: true, 
+          txHash: tx.hash, 
+          message: 'Токены успешно одобрены для эскроу' 
+        };
+      } else {
+        throw new Error('Транзакция одобрения не удалась');
+      }
+      
+    } catch (error) {
+      console.error('Error auto-approving CES tokens:', error);
+      throw new Error(`Ошибка автоматического одобрения: ${error.message}`);
+    }
+  }
+
   // Get available balance (excluding escrow)
   async getAvailableBalance(user, tokenType) {
     try {
