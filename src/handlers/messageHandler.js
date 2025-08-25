@@ -231,7 +231,33 @@ class MessageHandler {
   }
 
   async handleCancelOrder(ctx, orderId) {
-    await ctx.reply('🚧 Функция отмены ордеров в разработке');
+    try {
+      const chatId = ctx.chat.id.toString();
+      
+      // Cancel the order using P2P service
+      const p2pService = require('../services/p2pService');
+      const cancelledOrder = await p2pService.cancelOrder(chatId, orderId);
+      
+      // Send simple success message
+      await ctx.reply('✅ Ордер успешно отменен!');
+      
+      // Automatically return to P2P exchange page
+      const P2PHandler = require('./P2PHandler');
+      const p2pHandler = new P2PHandler();
+      await p2pHandler.handleP2PMenu(ctx);
+      
+    } catch (error) {
+      console.error('Cancel order error:', error);
+      
+      // Handle specific error cases
+      if (error.message === 'Пользователь не найден') {
+        await ctx.reply('❌ Пользователь не найден.');
+      } else if (error.message === 'Ордер не найден или уже завершен') {
+        await ctx.reply('❌ Ордер не найден или уже завершен.');
+      } else {
+        await ctx.reply('❌ Ошибка отмены ордера.');
+      }
+    }
   }
 
   async handleP2POrderConfirmation(ctx) {
@@ -295,35 +321,13 @@ class MessageHandler {
       // Clear pending order from session
       sessionManager.clearUserSession(chatId);
       
-      // Calculate values for display
-      const totalValue = amount * pricePerToken;
-      const commissionCES = amount * 0.01; // 1% commission in CES
-      const minRubles = minAmount * pricePerToken;
-      const maxRubles = maxAmount * pricePerToken;
+      // Send simple success message
+      await ctx.reply('✅ Ордер успешно создан!');
       
-      // Create success message with exact formatting requested
-      const typeEmoji = orderType === 'buy' ? '📈' : '📉';
-      const typeText = orderType === 'buy' ? 'покупку' : 'продажу';
-      
-      const message = `${typeEmoji} Подтверждение ордера на ${typeText}\n` +
-                     `➖➖➖➖➖➖➖➖➖➖➖\n` +
-                     `Количество: ${amount} CES\n` +
-                     `Цена за токен: ₽${pricePerToken.toFixed(2)}\n` +
-                     `Общая сумма: ₽${totalValue.toFixed(2)}\n` +
-                     `Мин. сумма: ${minRubles.toFixed(0)} ₽\n` +
-                     `Макс. сумма: ${maxRubles.toFixed(0)} ₽\n` +
-                     `Комиссия: ${commissionCES.toFixed(2)} CES (1%)\n\n` +
-                     `🛡️ Безопасность:\n` +
-                     `Все сделки защищены эскроу-системой\n\n` +
-                     `✅ Ордер успешно создан!`;
-      
-      const keyboard = Markup.inlineKeyboard([
-        [Markup.button.callback('📈 Мои ордера', 'p2p_my_orders')],
-        [Markup.button.callback('📉 Рынок', 'p2p_market_orders')],
-        [Markup.button.callback('🔙 К P2P меню', 'p2p_menu')]
-      ]);
-      
-      await ctx.reply(message, keyboard);
+      // Automatically return to P2P exchange page
+      const P2PHandler = require('./P2PHandler');
+      const p2pHandler = new P2PHandler();
+      await p2pHandler.handleP2PMenu(ctx);
       
     } catch (error) {
       console.error('P2P order confirmation error:', error);
@@ -348,7 +352,33 @@ class MessageHandler {
   }
 
   async handleConfirmCancelOrder(ctx, orderId) {
-    await ctx.reply('🚧 Функция подтверждения отмены ордера в разработке');
+    try {
+      const chatId = ctx.chat.id.toString();
+      
+      // Cancel the order using P2P service
+      const p2pService = require('../services/p2pService');
+      const cancelledOrder = await p2pService.cancelOrder(chatId, orderId);
+      
+      // Send simple success message
+      await ctx.reply('✅ Ордер успешно отменен!');
+      
+      // Automatically return to P2P exchange page
+      const P2PHandler = require('./P2PHandler');
+      const p2pHandler = new P2PHandler();
+      await p2pHandler.handleP2PMenu(ctx);
+      
+    } catch (error) {
+      console.error('Confirm cancel order error:', error);
+      
+      // Handle specific error cases
+      if (error.message === 'Пользователь не найден') {
+        await ctx.reply('❌ Пользователь не найден.');
+      } else if (error.message === 'Ордер не найден или уже завершен') {
+        await ctx.reply('❌ Ордер не найден или уже завершен.');
+      } else {
+        await ctx.reply('❌ Ошибка отмены ордера.');
+      }
+    }
   }
 
   async handleP2PUserProfile(ctx, userId) {
