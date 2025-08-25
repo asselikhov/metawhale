@@ -307,8 +307,8 @@ class P2PDataHandler {
       
       // Refresh my data view
       setTimeout(async () => {
-        const p2pHandler = require('./P2PHandler');
-        const handler = new p2pHandler();
+        const P2PHandler = require('./P2PHandler');
+        const handler = new P2PHandler();
         await handler.handleP2PMyData(ctx);
       }, 1000);
       
@@ -330,13 +330,13 @@ class P2PDataHandler {
       
       const profile = user.p2pProfile;
       
-      const message = '👀 КАК ВИДЯТ ПОКУПАТЕЛИ\n' +
-                     '➖➖➖➖➖➖➖➖➖➖➖\n' +
-                     'Так будут выглядеть ваши данные в ордерах:\n\n' +
-                     '📋 Данные продавца:\n' +
-                     `👤 ${profile.fullName || 'Не указано'}\n` +
-                     `📞 ${profile.contactInfo || 'Не указано'}\n\n` +
-                     '💳 Способы оплаты:\n';
+      let message = '👀 КАК ВИДЯТ ПОКУПАТЕЛИ\n' +
+                   '➖➖➖➖➖➖➖➖➖➖➖\n' +
+                   'Так будут выглядеть ваши данные в ордерах:\n\n' +
+                   '📋 Данные продавца:\n' +
+                   `👤 ${profile.fullName || 'Не указано'}\n` +
+                   `📞 ${profile.contactInfo || 'Не указано'}\n\n` +
+                   '💳 Способы оплаты:\n';
       
       if (profile.paymentMethods && profile.paymentMethods.length > 0) {
         const bankNames = {
@@ -406,6 +406,8 @@ class P2PDataHandler {
           await user.save();
           sessionManager.setSessionData(chatId, 'editingField', null);
           await ctx.reply('✅ ФИО сохранено!');
+          // Redirect back to edit data menu
+          setTimeout(() => this.handleP2PEditData(ctx), 1000);
           break;
           
         case 'contactInfo':
@@ -413,6 +415,8 @@ class P2PDataHandler {
           await user.save();
           sessionManager.setSessionData(chatId, 'editingField', null);
           await ctx.reply('✅ Контакт сохранен!');
+          // Redirect back to edit data menu
+          setTimeout(() => this.handleP2PEditData(ctx), 1000);
           break;
           
         case 'makerConditions':
@@ -420,6 +424,8 @@ class P2PDataHandler {
           await user.save();
           sessionManager.setSessionData(chatId, 'editingField', null);
           await ctx.reply('✅ Условия сохранены!');
+          // Redirect back to edit data menu
+          setTimeout(() => this.handleP2PEditData(ctx), 1000);
           break;
           
         case 'cardNumbers':
@@ -499,6 +505,8 @@ class P2PDataHandler {
         sessionManager.setSessionData(chatId, 'editingField', null);
         sessionManager.setSessionData(chatId, 'activeBanks', null);
         await ctx.reply(`✅ Сохранено реквизитов: ${saved}`);
+        // Redirect back to edit data menu
+        setTimeout(() => this.handleP2PEditData(ctx), 1000);
       } else {
         await ctx.reply('❌ Не удалось распознать реквизиты. Проверьте формат.');
       }
@@ -514,6 +522,7 @@ class P2PDataHandler {
     try {
       const profile = user.p2pProfile || {};
       
+      // Conditions field is optional per user requirement
       const isComplete = profile.fullName && 
                         profile.contactInfo && 
                         profile.paymentMethods && 
@@ -526,6 +535,56 @@ class P2PDataHandler {
       
     } catch (error) {
       console.error('Check profile completion error:', error);
+    }
+  }
+
+  // Validate if user can create orders or interact with makers
+  async validateUserForP2POperations(chatId) {
+    try {
+      const user = await User.findOne({ chatId });
+      
+      if (!user) {
+        return {
+          valid: false,
+          message: '❌ Пользователь не найден.'
+        };
+      }
+      
+      const profile = user.p2pProfile || {};
+      
+      // Check if profile is complete (excluding makerConditions as it's optional)
+      const isComplete = profile.fullName && 
+                        profile.contactInfo && 
+                        profile.paymentMethods && 
+                        profile.paymentMethods.some(pm => pm.isActive && pm.cardNumber);
+      
+      if (!isComplete) {
+        return {
+          valid: false,
+          message: '⚠️ Для создания ордеров необходимо заполнить данные\n\n' +
+                  '📑 Перейдите в "Мои данные" и заполните:\n' +
+                  '• ФИО\n' +
+                  '• Контактную информацию\n' +
+                  '• Способы оплаты с реквизитами\n\n' +
+                  '💡 Поле "Условия" заполнять не обязательно',
+          keyboard: [
+            [{ text: '📑 Заполнить данные', callback_data: 'p2p_my_data' }],
+            [{ text: '🔙 Назад', callback_data: 'p2p_menu' }]
+          ]
+        };
+      }
+      
+      return {
+        valid: true,
+        user: user
+      };
+      
+    } catch (error) {
+      console.error('P2P validation error:', error);
+      return {
+        valid: false,
+        message: '❌ Ошибка проверки данных.'
+      };
     }
   }
 }

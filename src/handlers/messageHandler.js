@@ -3,6 +3,7 @@
  * Delegates to specialized handlers for different functionality areas
  */
 
+const { Markup } = require('telegraf');
 const BaseCommandHandler = require('./BaseCommandHandler');
 const WalletHandler = require('./WalletHandler');
 const TransferHandler = require('./TransferHandler');
@@ -253,11 +254,45 @@ class MessageHandler {
   }
 
   async handleBuyOrderDetails(ctx, userId, orderId) {
-    await ctx.reply('🚧 Функция просмотра деталей ордера на покупку в разработке');
+    try {
+      const chatId = ctx.chat.id.toString();
+      
+      // Validate user profile completion before allowing interaction with makers
+      const validation = await this.dataHandler.validateUserForP2POperations(chatId);
+      
+      if (!validation.valid) {
+        const keyboard = Markup.inlineKeyboard(validation.keyboard || [[Markup.button.callback('🔙 Назад', 'p2p_buy_orders')]]);
+        return await ctx.reply(validation.message, keyboard);
+      }
+      
+      // TODO: Implement full order details view
+      await ctx.reply('🚧 Функция просмотра деталей ордера на покупку в разработке');
+      
+    } catch (error) {
+      console.error('Buy order details error:', error);
+      await ctx.reply('❌ Ошибка отображения деталей ордера.');
+    }
   }
 
   async handleSellOrderDetails(ctx, userId, orderId) {
-    await ctx.reply('🚧 Функция просмотра деталей ордера на продажу в разработке');
+    try {
+      const chatId = ctx.chat.id.toString();
+      
+      // Validate user profile completion before allowing interaction with makers
+      const validation = await this.dataHandler.validateUserForP2POperations(chatId);
+      
+      if (!validation.valid) {
+        const keyboard = Markup.inlineKeyboard(validation.keyboard || [[Markup.button.callback('🔙 Назад', 'p2p_sell_orders')]]);
+        return await ctx.reply(validation.message, keyboard);
+      }
+      
+      // TODO: Implement full order details view
+      await ctx.reply('🚧 Функция просмотра деталей ордера на продажу в разработке');
+      
+    } catch (error) {
+      console.error('Sell order details error:', error);
+      await ctx.reply('❌ Ошибка отображения деталей ордера.');
+    }
   }
 }
 

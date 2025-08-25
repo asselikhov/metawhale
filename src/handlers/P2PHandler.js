@@ -34,14 +34,27 @@ class P2PHandler {
       
       // Get user reputation data
       const reputationService = require('../services/reputationService');
+      const { User } = require('../database/models');
       const user = await User.findOne({ chatId });
       
       // Get standardized user statistics
       const stats = await reputationService.getStandardizedUserStats(user._id);
       
-      // Prepare message text in the exact format requested
+      // Get user's full name from P2P profile or fallback to Telegram name
+      let userName = 'Пользователь';
+      if (user && user.p2pProfile && user.p2pProfile.fullName) {
+        userName = user.p2pProfile.fullName;
+      } else if (user && user.firstName) {
+        userName = user.firstName;
+        if (user.lastName) {
+          userName += ` ${user.lastName}`;
+        }
+      }
+      
+      // Prepare message text in the new format with user name
       const message = `🔄 P2P БИРЖА\n` +
                      `➖➖➖➖➖➖➖➖➖➖➖\n` +
+                     `${userName}\n` +
                      `Исполненные ордера за 30 дней: ${stats.ordersLast30Days} шт.\n` +
                      `Процент исполнения за 30 дней: ${stats.completionRateLast30Days}%\n` +
                      `Среднее время перевода: ${stats.avgTransferTime} мин.\n` +
@@ -74,6 +87,17 @@ class P2PHandler {
   async handleP2PBuyCES(ctx) {
     try {
       const chatId = ctx.chat.id.toString();
+      
+      // Validate user profile completion before allowing order creation
+      const P2PDataHandler = require('./P2PDataHandler');
+      const dataHandler = new P2PDataHandler();
+      const validation = await dataHandler.validateUserForP2POperations(chatId);
+      
+      if (!validation.valid) {
+        const keyboard = Markup.inlineKeyboard(validation.keyboard || [[Markup.button.callback('🔙 Назад', 'p2p_menu')]]);
+        return await ctx.reply(validation.message, keyboard);
+      }
+      
       const priceData = await p2pService.getMarketPriceSuggestion();
       
       const message = `📈 ПОКУПКА CES ТОКЕНОВ\n` +
@@ -107,6 +131,17 @@ class P2PHandler {
   async handleP2PSellCES(ctx) {
     try {
       const chatId = ctx.chat.id.toString();
+      
+      // Validate user profile completion before allowing order creation
+      const P2PDataHandler = require('./P2PDataHandler');
+      const dataHandler = new P2PDataHandler();
+      const validation = await dataHandler.validateUserForP2POperations(chatId);
+      
+      if (!validation.valid) {
+        const keyboard = Markup.inlineKeyboard(validation.keyboard || [[Markup.button.callback('🔙 Назад', 'p2p_menu')]]);
+        return await ctx.reply(validation.message, keyboard);
+      }
+      
       const walletInfo = await walletService.getUserWallet(chatId);
       
       if (walletInfo.cesBalance < 1) {
@@ -206,12 +241,12 @@ class P2PHandler {
                   `💡 Активно торгуйте, чтобы попасть в топ !`;
       } else {
         topTraders.forEach((trader, index) => {
-          const userLevel = this.getUserLevelDisplayNew(trader.trustScore);
-          const username = trader.username || trader.firstName || 'Пользователь';
+          const ratingEmoji = reputationService.getRatingEmoji(trader.smartRating);
+          const username = trader.username || 'Пользователь';
           
-          message += `${index + 1}. @${username} ${userLevel.emoji}\n` +
-                    `📊 Рейтинг: ${trader.trustScore}/1000\n` +
-                    `💰 Объем: ${(trader.totalTradeVolume || 0).toLocaleString('ru-RU')} ₽\n\n`;
+          message += `${index + 1}. @${username} ${ratingEmoji}\n` +
+                    `📊 Рейтинг: ${trader.smartRating}%\n` +
+                    `✅ Завершено: ${trader.completionRate || 100}%\n\n`;
         });
       }
       
@@ -337,12 +372,11 @@ class P2PHandler {
 
       // Show complete profile
       let message = '📑 МОИ ДАННЫЕ\n' +
-                   '➖➖➖➖➖➖➖➖➖➖➖\n' +
-                   'Ваши данные для сделок\n\n';
+                   '➖➖➖➖➖➖➖➖➖➖➖\n\n';
       
       // Add profile data
       if (profile.fullName) {
-        message += `👤 ФИО: ${profile.fullName}\n`;
+        message += `ФИО: ${profile.fullName}\n`;
       }
       
       if (profile.paymentMethods && profile.paymentMethods.length > 0) {
@@ -363,22 +397,30 @@ class P2PHandler {
         
         const activeMethods = profile.paymentMethods.filter(pm => pm.isActive);
         const methodNames = activeMethods.map(pm => bankNames[pm.bank]).join(', ');
-        message += `💳 Способы оплаты: ${methodNames}\n`;
+        message += `Способы оплаты: ${methodNames}\n`;
         
-        message += '🏦 Реквизиты:\n';
-        activeMethods.forEach(pm => {
-          const bankName = bankNames[pm.bank];
-          const maskedCard = pm.cardNumber ? pm.cardNumber.replace(/.(?=.{4})/g, '*') : '';
-          message += `${bankName}: ${maskedCard}\n`;
-        });
+        if (activeMethods.length > 0) {
+          message += 'Реквизиты:\n';
+          activeMethods.forEach(pm => {
+            const bankName = bankNames[pm.bank];
+            // Improved card masking: show asterisks with last 4 digits
+            let maskedCard = pm.cardNumber || '';
+            if (maskedCard.length > 4) {
+              maskedCard = '*'.repeat(maskedCard.length - 4) + maskedCard.slice(-4);
+            } else if (maskedCard) {
+              maskedCard = '*'.repeat(maskedCard.length);
+            }
+            message += `${bankName}: ${maskedCard || 'Не указано'}\n`;
+          });
+        }
       }
       
       if (profile.contactInfo) {
-        message += `📞 Контакт: ${profile.contactInfo}\n`;
+        message += `Контакт: ${profile.contactInfo}\n`;
       }
       
       if (profile.makerConditions) {
-        message += `⚙️ Условия: ${profile.makerConditions}\n`;
+        message += `Условия: ${profile.makerConditions}`;
       }
       
       const keyboard = Markup.inlineKeyboard([

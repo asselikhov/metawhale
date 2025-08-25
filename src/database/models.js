@@ -91,11 +91,13 @@ const userSchema = new mongoose.Schema({
   documentsVerified: { type: Boolean, default: false },
   isPremiumTrader: { type: Boolean, default: false },
   // Trust and reputation system
-  trustScore: { type: Number, default: 0, min: 0, max: 1000 },
+  trustScore: { type: Number, default: 0, min: 0, max: 1000 }, // Legacy trust score
+  smartRating: { type: Number, default: 0, min: 0, max: 100 }, // New smart rating percentage
   completionRate: { type: Number, default: 100 }, // Percentage of completed trades
   avgReleaseTime: { type: Number, default: 0 }, // Average time to release in minutes
   tradingVolumeLast30Days: { type: Number, default: 0 },
   lastOnline: { type: Date, default: Date.now },
+  lastRatingUpdate: { type: Date, default: Date.now }, // For smart rating updates
   // Security settings
   twoFactorEnabled: { type: Boolean, default: false },
   loginHistory: [{

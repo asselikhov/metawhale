@@ -881,8 +881,8 @@ class P2PService {
       ]);
       
       // Update trust scores
-      await reputationService.updateTrustScoreAfterTrade(buyerId, tradeStatus);
-      await reputationService.updateTrustScoreAfterTrade(sellerId, tradeStatus);
+      await reputationService.updateRatingAfterTrade(buyerId, tradeStatus);
+      await reputationService.updateRatingAfterTrade(sellerId, tradeStatus);
       
       console.log(`Updated trading stats and trust scores for users`);
       

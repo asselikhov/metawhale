@@ -428,17 +428,16 @@ class RiskManagementService {
       const user = await User.findById(userId);
       if (!user) return;
 
-      // Update trust score based on trade outcome
+      // Update smart rating based on trade outcome
       switch (tradeOutcome) {
         case 'completed':
-          user.trustScore = Math.min(1000, user.trustScore + 5);
+          // Smart rating will be recalculated by reputationService
           break;
         case 'disputed':
-          user.trustScore = Math.max(0, user.trustScore - 20);
           user.disputeCount += 1;
           break;
         case 'failed':
-          user.trustScore = Math.max(0, user.trustScore - 10);
+          // Smart rating will be recalculated by reputationService
           break;
       }
 
@@ -456,7 +455,7 @@ class RiskManagementService {
 
       await user.save();
 
-      console.log(`📊 Updated risk profile for user ${userId}: Trust score ${user.trustScore}, Completion rate ${user.completionRate}%`);
+      console.log(`📊 Updated risk profile for user ${userId}: Completion rate ${user.completionRate}% (Smart rating recalculated by reputation service)`);
 
     } catch (error) {
       console.error('Error updating user risk profile:', error);

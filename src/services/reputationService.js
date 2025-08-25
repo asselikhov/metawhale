@@ -1,31 +1,31 @@
 /**
  * Reputation Service
- * Advanced user reputation and rating system for P2P trading
+ * Smart percentage-based user rating system for P2P trading
  */
 
 const { User, P2PTrade, P2POrder } = require('../database/models');
 
 class ReputationService {
   constructor() {
-    this.trustScoreWeights = {
-      completionRate: 0.3,
-      disputeRate: 0.2,
-      verificationLevel: 0.2,
-      tradingHistory: 0.2,
-      timeActive: 0.1
+    // New smart rating weights (0-100%)
+    this.ratingWeights = {
+      completionRate: 0.5,  // W1 = 50%
+      speed: 0.3,           // W2 = 30%
+      experience: 0.2       // W3 = 20%
     };
   }
 
-  // Calculate user trust score
-  async calculateTrustScore(userId) {
+  // Calculate smart rating percentage (0-100%)
+  async calculateSmartRating(userId) {
     try {
       const user = await User.findById(userId);
-      if (!user) return 0; // Return 0 for non-existent users
+      if (!user) return 0;
 
-      // Get user trading history
+      // Get user trading history for last 30 days
+      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
       const trades = await P2PTrade.find({
         $or: [{ buyerId: userId }, { sellerId: userId }],
-        createdAt: { $gte: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000) } // Last 90 days
+        createdAt: { $gte: thirtyDaysAgo }
       });
 
       // For new users with no trades, return 0
@@ -33,51 +33,143 @@ class ReputationService {
         return 0;
       }
 
-      // Calculate completion rate
+      // 1. Completion Rate (W1 = 0.5)
       const totalTrades = trades.length;
       const completedTrades = trades.filter(t => t.status === 'completed').length;
-      const completionRate = totalTrades > 0 ? (completedTrades / totalTrades) : 1;
+      const completionPercentage = totalTrades > 0 ? (completedTrades / totalTrades) * 100 : 0;
 
-      // Calculate dispute rate
-      const disputedTrades = trades.filter(t => t.status === 'disputed').length;
-      const disputeRate = totalTrades > 0 ? (disputedTrades / totalTrades) : 0;
+      // 2. Speed Score (W2 = 0.3)
+      const speedScore = await this.calculateSpeedScore(userId, trades);
 
-      // Verification level bonus
-      let verificationBonus = 0;
-      switch (user.verificationLevel) {
-        case 'phone_verified': verificationBonus = 50; break;
-        case 'document_verified': verificationBonus = 100; break;
-        case 'premium': verificationBonus = 200; break;
-      }
+      // 3. Experience Score (W3 = 0.2)
+      const experienceScore = this.calculateExperienceScore(trades.length);
 
-      // Trading history bonus
-      const tradeVolume = trades.reduce((sum, trade) => sum + trade.totalValue, 0);
-      const tradeVolumeBonus = Math.min(200, tradeVolume / 1000); // Max 200 bonus points
-
-      // Time active bonus
-      const daysActive = (Date.now() - user.subscribedAt.getTime()) / (24 * 60 * 60 * 1000);
-      const timeActiveBonus = Math.min(100, daysActive); // Max 100 bonus points
-
-      // Calculate weighted trust score
-      const score = Math.round(
-        100 + // Base score
-        (completionRate * 300 * this.trustScoreWeights.completionRate) -
-        (disputeRate * 300 * this.trustScoreWeights.disputeRate) +
-        (verificationBonus * this.trustScoreWeights.verificationLevel) +
-        (tradeVolumeBonus * this.trustScoreWeights.tradingHistory) +
-        (timeActiveBonus * this.trustScoreWeights.timeActive)
+      // Calculate final rating percentage
+      const rating = (
+        (this.ratingWeights.completionRate * completionPercentage) +
+        (this.ratingWeights.speed * speedScore) +
+        (this.ratingWeights.experience * experienceScore)
       );
 
-      // Ensure score is within bounds
-      return Math.max(0, Math.min(1000, score));
+      // Ensure rating is within 0-100 bounds
+      return Math.max(0, Math.min(100, Math.round(rating)));
+
     } catch (error) {
-      console.error('Error calculating trust score:', error);
-      return 0; // Return 0 on error for new users
+      console.error('Error calculating smart rating:', error);
+      return 0;
     }
   }
 
-  // Update user trust score after trade
-  async updateTrustScoreAfterTrade(userId, tradeOutcome) {
+  // Calculate speed score based on average payment/transfer times
+  async calculateSpeedScore(userId, trades) {
+    try {
+      const completedTrades = trades.filter(t => t.status === 'completed');
+      
+      if (completedTrades.length === 0) {
+        return 0;
+      }
+
+      // Calculate average payment time (for sell orders - buyer payment speed)
+      const sellTrades = completedTrades.filter(t => 
+        t.sellerId.toString() === userId.toString() &&
+        t.timeTracking?.createdAt && t.timeTracking?.paymentConfirmedAt
+      );
+
+      // Calculate average transfer time (for buy orders - seller transfer speed)
+      const buyTrades = completedTrades.filter(t => 
+        t.buyerId.toString() === userId.toString() &&
+        t.timeTracking?.paymentConfirmedAt && t.timeTracking?.escrowReleasedAt
+      );
+
+      let totalTimeMinutes = 0;
+      let timeCount = 0;
+
+      // Add payment times
+      sellTrades.forEach(trade => {
+        const createdTime = new Date(trade.timeTracking.createdAt);
+        const paymentTime = new Date(trade.timeTracking.paymentConfirmedAt);
+        const minutes = (paymentTime - createdTime) / (1000 * 60);
+        totalTimeMinutes += minutes;
+        timeCount++;
+      });
+
+      // Add transfer times
+      buyTrades.forEach(trade => {
+        const paymentTime = new Date(trade.timeTracking.paymentConfirmedAt);
+        const releaseTime = new Date(trade.timeTracking.escrowReleasedAt);
+        const minutes = (releaseTime - paymentTime) / (1000 * 60);
+        totalTimeMinutes += minutes;
+        timeCount++;
+      });
+
+      if (timeCount === 0) {
+        return 0;
+      }
+
+      const avgTimeMinutes = totalTimeMinutes / timeCount;
+
+      // Speed scoring based on your specifications
+      if (avgTimeMinutes < 5) {
+        return 30; // <5 min → 30%
+      } else if (avgTimeMinutes < 15) {
+        return 20; // <15 min → 20%
+      } else if (avgTimeMinutes <= 15) {
+        return 10; // 15 min → 10%
+      } else {
+        return 5;  // >15 min → 5%
+      }
+
+    } catch (error) {
+      console.error('Error calculating speed score:', error);
+      return 0;
+    }
+  }
+
+  // Calculate experience score based on number of trades in 30 days
+  calculateExperienceScore(tradesCount) {
+    if (tradesCount >= 50) {
+      return 20; // 50+ сделок → 20%
+    } else if (tradesCount >= 20) {
+      return 15; // 20-49 сделок → 15%
+    } else if (tradesCount >= 5) {
+      return 10; // 5-19 сделок → 10%
+    } else {
+      return 5;  // <5 сделок → 5%
+    }
+  }
+
+  // Convert rating percentage to emoji
+  getRatingEmoji(ratingPercentage) {
+    if (ratingPercentage >= 81) {
+      return '🐋'; // 81-100% → Кит (топ-трейдер)
+    } else if (ratingPercentage >= 61) {
+      return '🐺'; // 61-80% → Волк (надёжный трейдер)
+    } else if (ratingPercentage >= 41) {
+      return '🦅'; // 41-60% → Ястреб (средний уровень)
+    } else if (ratingPercentage >= 21) {
+      return '🐿️'; // 21-40% → Белка (начинающий)
+    } else {
+      return '🐹'; // 0-20% → Хомяк (новичок)
+    }
+  }
+
+  // Get rating description
+  getRatingDescription(ratingPercentage) {
+    if (ratingPercentage >= 81) {
+      return 'Кит - топ-трейдер: большой опыт, высокая скорость, всё почти безупречно';
+    } else if (ratingPercentage >= 61) {
+      return 'Волк - надёжный трейдер: быстро, стабильно, много ордеров';
+    } else if (ratingPercentage >= 41) {
+      return 'Ястреб - средний уровень: сделки выполняются, скорость нормальная';
+    } else if (ratingPercentage >= 21) {
+      return 'Белка - уже начал торговать, но статистика ещё слабая';
+    } else {
+      return 'Хомяк - новичок, мало опыта или низкая дисциплина';
+    }
+  }
+
+  // Update user rating after trade
+  async updateRatingAfterTrade(userId, tradeOutcome) {
     try {
       const user = await User.findById(userId);
       if (!user) return;
@@ -103,19 +195,19 @@ class ReputationService {
 
       await User.findByIdAndUpdate(userId, updateFields);
 
-      // Recalculate trust score
-      const newTrustScore = await this.calculateTrustScore(userId);
+      // Recalculate smart rating percentage
+      const newRating = await this.calculateSmartRating(userId);
       
-      // Update user's trust score
+      // Update user's smart rating
       await User.findByIdAndUpdate(userId, {
-        trustScore: newTrustScore,
-        lastTrustScoreUpdate: new Date()
+        smartRating: newRating,
+        lastRatingUpdate: new Date()
       });
 
-      console.log(`Updated trust score for user ${userId}: ${newTrustScore}`);
-      return newTrustScore;
+      console.log(`Updated smart rating for user ${userId}: ${newRating}%`);
+      return newRating;
     } catch (error) {
-      console.error('Error updating trust score:', error);
+      console.error('Error updating smart rating:', error);
     }
   }
 
@@ -264,24 +356,47 @@ class ReputationService {
     }
   }
 
-  // Get top rated users
+  // Get top rated users (using smart rating)
   async getTopRatedUsers(limit = 10) {
     try {
-      const topUsers = await User.find({
-        trustScore: { $gte: 500 },
-        verificationLevel: { $in: ['document_verified', 'premium'] }
-      })
-      .sort({ trustScore: -1 })
-      .limit(limit)
-      .select('username firstName trustScore verificationLevel completionRate');
-
-      return topUsers.map(user => ({
-        userId: user._id,
-        username: user.username || user.firstName || 'Пользователь',
-        trustScore: user.trustScore,
-        verificationLevel: user.verificationLevel,
-        completionRate: user.completionRate || 100
+      // Get all users with trade activity in last 30 days
+      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+      
+      const usersWithTrades = await P2PTrade.distinct('buyerId', {
+        createdAt: { $gte: thirtyDaysAgo }
+      }).concat(await P2PTrade.distinct('sellerId', {
+        createdAt: { $gte: thirtyDaysAgo }
       }));
+      
+      // Remove duplicates
+      const uniqueUserIds = [...new Set(usersWithTrades)];
+      
+      // Calculate smart rating for each user and sort
+      const userRatings = [];
+      
+      for (const userId of uniqueUserIds) {
+        const user = await User.findById(userId).select('username firstName verificationLevel completionRate');
+        if (!user) continue;
+        
+        const smartRating = await this.calculateSmartRating(userId);
+        
+        // Only include users with rating >= 50% for top list
+        if (smartRating >= 50) {
+          userRatings.push({
+            userId: user._id,
+            username: user.username || user.firstName || 'Пользователь',
+            smartRating: smartRating,
+            verificationLevel: user.verificationLevel,
+            completionRate: user.completionRate || 100
+          });
+        }
+      }
+      
+      // Sort by smart rating (highest first) and return top users
+      return userRatings
+        .sort((a, b) => b.smartRating - a.smartRating)
+        .slice(0, limit);
+        
     } catch (error) {
       console.error('Error getting top rated users:', error);
       return [];
@@ -352,7 +467,7 @@ class ReputationService {
       const user = await User.findById(userId);
       if (!user) {
         return {
-          rating: '0/1000 🐹',
+          rating: '0% 🐹',
           ordersLast30Days: 0,
           completionRateLast30Days: 0,
           avgTransferTime: 0,
@@ -360,13 +475,9 @@ class ReputationService {
         };
       }
 
-      // Get user reputation data
-      const reputation = await this.getUserReputation(userId);
-      const completedDeals = reputation ? reputation.totalTrades : 0;
-      const trustScore = reputation ? reputation.trustScore : 0;
-      
-      // Get user level emoji
-      const userLevel = this.getUserLevelDisplay(trustScore);
+      // Get smart rating percentage
+      const ratingPercentage = await this.calculateSmartRating(userId);
+      const ratingEmoji = this.getRatingEmoji(ratingPercentage);
       
       // Calculate real statistics from last 30 days
       const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
@@ -436,9 +547,9 @@ class ReputationService {
         }
       }
       
-      // Return real calculated statistics
+      // Return statistics with new smart rating format
       return {
-        rating: `${completedDeals}/1000 ${userLevel.emoji}`,
+        rating: `${ratingPercentage}% ${ratingEmoji}`,
         ordersLast30Days: ordersLast30Days,
         completionRateLast30Days: completionRateLast30Days,
         avgTransferTime: avgTransferTime,
@@ -448,7 +559,7 @@ class ReputationService {
       console.error('Error getting standardized user stats:', error);
       // Return zero values on error (not mock data)
       return {
-        rating: '0/1000 🐹',
+        rating: '0% 🐹',
         ordersLast30Days: 0,
         completionRateLast30Days: 0,
         avgTransferTime: 0,
@@ -457,13 +568,9 @@ class ReputationService {
     }
   }
 
-  // Get user level display with emoji (consistent with message handler)
-  getUserLevelDisplay(trustScore) {
-    if (trustScore >= 1000) return { emoji: '🐋' };
-    if (trustScore >= 500) return { emoji: '🐺' };
-    if (trustScore >= 200) return { emoji: '🦅' };
-    if (trustScore >= 50) return { emoji: '🐿️' };
-    return { emoji: '🐹' }; // For 0-49 trust score
+  // Get user level display with emoji (updated for percentage system)
+  getUserLevelDisplay(ratingPercentage) {
+    return { emoji: this.getRatingEmoji(ratingPercentage) };
   }
 
   // Get user verification requirements based on trust score
