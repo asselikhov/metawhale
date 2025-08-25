@@ -15,6 +15,8 @@ class SchedulerService {
     this.cachedPriceData = null;
     this.lastCacheUpdate = 0;
     this.cacheTTL = 30000; // 30 seconds
+    this.lastMessageSent = 0; // Track last message timestamp to prevent duplicates
+    this.messageCooldown = 60000; // 1 minute cooldown between messages
   }
 
   // Set bot instance
@@ -70,6 +72,13 @@ class SchedulerService {
     const targetGroupId = config.schedule.groupId;
     
     try {
+      // Prevent duplicate messages within cooldown period
+      const now = Date.now();
+      if (now - this.lastMessageSent < this.messageCooldown) {
+        console.log('⚠️ Skipping duplicate message - cooldown active');
+        return;
+      }
+      
       console.log('📅 Sending scheduled price message to group...');
       
       const priceData = await this.getPriceData();
@@ -82,21 +91,23 @@ class SchedulerService {
       const isNewATH = priceData.price >= priceData.ath;
       const athDisplay = isNewATH ? `🏆 $ ${priceData.ath.toFixed(2)}` : `$ ${priceData.ath.toFixed(2)}`;
       
-      // Source indicator (only for database)
-      const sourceEmoji = priceData.source === 'database' ? '🗄️' : '';
-      
-      // Message format exactly as user example
+      // Message format with new P2P promotional content
       const message = `➖➖➖➖➖➖➖➖➖➖➖➖➖➖➖
 💰 Цена токена CES: $ ${priceData.price.toFixed(2)} | ₽ ${priceData.priceRub.toFixed(2)}
 ➖➖➖➖➖➖➖➖➖➖➖➖➖➖➖
 ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${priceService.formatNumber(priceData.volume24h).replace(/(\d+\.\d{2})K/, (match) => {
         const num = parseFloat(match.replace('K', ''));
         return num.toFixed(1) + 'K';
-      })} • 🅐🅣🅗 ${athDisplay}`;
+      })} • 🅐🅣🅗 ${athDisplay}
+
+⚡️ Торгуй CES удобно и безопасно  
+💱 P2P Биржа: Покупка и продажа за ₽  
+🌍 Свобода без посредников — только ты и рынок !`;
       
       // Send message to group
       if (this.bot) {
         await this.bot.telegram.sendMessage(targetGroupId, message);
+        this.lastMessageSent = now; // Update last message timestamp
         console.log(`✅ Price message sent to group ${targetGroupId}`);
       } else {
         console.error('❌ Bot instance not available for scheduled message');
@@ -119,6 +130,13 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
   // Setup scheduled price messages
   setupDailyPriceMessage() {
     try {
+      // Stop existing task if it exists to prevent duplicates
+      if (this.tasks.has('dailyPrice')) {
+        const existingTask = this.tasks.get('dailyPrice');
+        existingTask.stop();
+        console.log('⚠️ Stopped existing daily price task to prevent duplicates');
+      }
+      
       const task = cron.schedule(config.schedule.dailyTime, () => {
         console.log('🕕 19:00 Moscow time - sending CES price to group');
         // Use setImmediate to avoid blocking the scheduler
@@ -168,6 +186,23 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
       });
     });
     return activeTasks;
+  }
+
+  // Reset message cooldown (for testing or manual trigger)
+  resetMessageCooldown() {
+    this.lastMessageSent = 0;
+    console.log('✅ Message cooldown reset');
+  }
+
+  // Get cooldown status
+  getCooldownStatus() {
+    const now = Date.now();
+    const remainingCooldown = Math.max(0, this.messageCooldown - (now - this.lastMessageSent));
+    return {
+      isInCooldown: remainingCooldown > 0,
+      remainingMs: remainingCooldown,
+      lastMessageSent: new Date(this.lastMessageSent).toISOString()
+    };
   }
 }
 

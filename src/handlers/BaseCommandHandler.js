@@ -124,14 +124,18 @@ class BaseCommandHandler {
       // Source indicator (only for database)
       const sourceEmoji = priceData.source === 'database' ? '🗄️' : '';
       
-      // Message format exactly as in example
+      // Message format with P2P promotional content (same as scheduled message)
       const message = `➖➖➖➖➖➖➖➖➖➖➖➖➖➖➖
 💰 Цена токена CES: $ ${priceData.price.toFixed(2)} | ₽ ${priceData.priceRub.toFixed(2)}
 ➖➖➖➖➖➖➖➖➖➖➖➖➖➖➖
 ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${priceService.formatNumber(priceData.volume24h).replace(/(\d+\.\d{2})K/, (match) => {
         const num = parseFloat(match.replace('K', ''));
         return num.toFixed(1) + 'K';
-      })} • 🅐🅣🅗 ${athDisplay}`;
+      })} • 🅐🅣🅗 ${athDisplay}
+
+⚡️ Торгуй CES удобно и безопасно  
+💱 P2P Биржа: Покупка и продажа за ₽  
+🌍 Свобода без посредников — только ты и рынок !`;
       
       // Edit the original message instead of sending new one
       await ctx.telegram.editMessageText(

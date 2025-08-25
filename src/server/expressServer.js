@@ -72,6 +72,54 @@ class Server {
         message: 'Bot is active and working'
       });
     });
+
+    // Test endpoint for scheduled message (for debugging)
+    this.app.get('/test-schedule', async (req, res) => {
+      try {
+        const schedulerService = require('../services/schedulerService');
+        const cooldownStatus = schedulerService.getCooldownStatus();
+        
+        if (req.query.force === 'true') {
+          schedulerService.resetMessageCooldown();
+        }
+        
+        await schedulerService.sendPriceToGroup();
+        
+        res.json({
+          status: 'success',
+          message: 'Scheduled message sent',
+          timestamp: new Date().toISOString(),
+          cooldownStatus
+        });
+      } catch (error) {
+        res.status(500).json({
+          status: 'error',
+          message: error.message,
+          timestamp: new Date().toISOString()
+        });
+      }
+    });
+
+    // Scheduler status endpoint
+    this.app.get('/scheduler-status', (req, res) => {
+      try {
+        const schedulerService = require('../services/schedulerService');
+        const tasks = schedulerService.getActiveTasks();
+        const cooldownStatus = schedulerService.getCooldownStatus();
+        
+        res.json({
+          status: 'ok',
+          timestamp: new Date().toISOString(),
+          activeTasks: tasks,
+          cooldownStatus
+        });
+      } catch (error) {
+        res.status(500).json({
+          status: 'error',
+          message: error.message
+        });
+      }
+    });
   }
 
   // Setup webhook for bot
