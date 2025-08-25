@@ -10,6 +10,7 @@ const priceService = require('./priceService');
 const escrowService = require('./escrowService');
 const smartNotificationService = require('./smartNotificationService');
 const reputationService = require('./reputationService');
+const PrecisionUtil = require('../utils/PrecisionUtil');
 const config = require('../config/configuration');
 
 class P2PService {
@@ -177,14 +178,33 @@ class P2PService {
         return { success: false, error: 'Заполните профиль P2P для создания сделок' };
       }
       
-      // Замораживаем CES у тейкера
+      // 🔧 FIX BUG #2: Race condition protection - recheck order availability
+      const currentBuyOrder = await P2POrder.findById(buyOrderId);
+      if (!currentBuyOrder || currentBuyOrder.status !== 'active' || currentBuyOrder.remainingAmount < cesAmount) {
+        // Release already locked escrow
+        await escrowService.refundTokensFromEscrow(taker._id, null, 'CES', cesAmount, 'Order no longer available');
+        return { 
+          success: false, 
+          error: 'Ордер больше не доступен или недостаточно количества CES' 
+        };
+      }
+      
+      // Now safely lock tokens in escrow after race condition check
       const escrowResult = await escrowService.lockTokensInEscrow(taker._id, null, 'CES', cesAmount);
       if (!escrowResult.success) {
         return { success: false, error: 'Ошибка блокировки CES в эскроу' };
       }
       
       const totalPrice = cesAmount * buyOrder.pricePerToken;
-      const commission = cesAmount * this.commissionRate; // 1% комиссия с мейкера в CES
+      
+      // 🔧 FIX BUG #1 & #7: Standardized commission logic with precision handling
+      const buyerCommission = PrecisionUtil.calculateCommission(cesAmount, this.commissionRate, 4); // 1% commission from maker (buyer)
+      const sellerCommission = 0; // Taker (seller) pays no commission
+      
+      console.log(`💰 Commission calculation: Buyer (maker) pays ${buyerCommission.toFixed(4)} CES commission, Seller (taker) pays nothing`);
+      
+      // Convert commission to ruble equivalent for display
+      const buyerCommissionInRubles = PrecisionUtil.cesCommissionToRubles(buyerCommission, buyOrder.pricePerToken, 2);
       
       // Переводим резерв рублей из ордера в сделку
       const rubleReserveService = require('./rubleReserveService');
@@ -201,18 +221,38 @@ class P2PService {
         return { success: false, error: `Ошибка резерва рублей: ${transferResult.message}` };
       }
       
+      // 🔧 FIX BUG #3: Create proper temporary sell order instead of reusing buy order ID
+      const tempSellOrder = new P2POrder({
+        userId: taker._id,
+        type: 'sell',
+        amount: cesAmount,
+        pricePerToken: buyOrder.pricePerToken,
+        totalValue: totalPrice,
+        status: 'locked', // Special status for temporary order
+        filledAmount: cesAmount,
+        remainingAmount: 0,
+        escrowLocked: true,
+        escrowAmount: cesAmount,
+        minTradeAmount: cesAmount,
+        maxTradeAmount: cesAmount,
+        paymentMethods: taker.p2pProfile.paymentMethods?.map(pm => pm.bank) || ['bank_transfer'],
+        tradeTimeLimit: buyOrder.tradeTimeLimit || 30
+      });
+      
+      await tempSellOrder.save();
+      
       // Создаём сделку
       const trade = new P2PTrade({
         buyOrderId: buyOrder._id,
-        sellOrderId: buyOrder._id, // Пока используем тот же ID
+        sellOrderId: tempSellOrder._id, // ✅ FIXED: Use actual sell order ID
         buyerId: buyOrder.userId._id, // Мейкер (покупатель)
         sellerId: taker._id, // Тейкер (продавец)
         amount: cesAmount,
         pricePerToken: buyOrder.pricePerToken,
         totalValue: totalPrice,
-        buyerCommission: commission, // Комиссия с мейкера в CES
-        sellerCommission: 0, // Тейкер не платит комиссию
-        commission: commission,
+        buyerCommission: buyerCommission, // Комиссия с мейкера (покупателя)
+        sellerCommission: sellerCommission, // Тейкер не платит комиссию
+        commission: buyerCommission, // Total commission equals maker commission
         status: 'escrow_locked',
         escrowStatus: 'locked',
         paymentMethod: 'bank_transfer',
@@ -229,24 +269,69 @@ class P2PService {
         }
       });
       
-      await trade.save();
+      // 🔧 FIX BUG #4: Add atomic transaction handling for order updates
+      const mongoose = require('mongoose');
+      const session = await mongoose.startSession();
       
-      // Обновляем ордер
-      buyOrder.filledAmount += cesAmount;
-      buyOrder.remainingAmount -= cesAmount;
-      
-      if (buyOrder.remainingAmount <= 0) {
-        buyOrder.status = 'completed';
-        // Освобождаем оставшийся резерв (если есть)
-        await rubleReserveService.releaseOrderReserve(
-          buyOrder.userId._id.toString(),
-          buyOrder._id.toString()
-        );
-      } else {
-        buyOrder.status = 'partial';
+      try {
+        await session.withTransaction(async () => {
+          // Update order amounts atomically
+          const orderUpdateResult = await P2POrder.findByIdAndUpdate(
+            buyOrder._id,
+            {
+              $inc: {
+                filledAmount: cesAmount,
+                remainingAmount: -cesAmount
+              },
+              $set: {
+                status: buyOrder.remainingAmount - cesAmount <= 0 ? 'completed' : 'partial',
+                updatedAt: new Date()
+              }
+            },
+            { session, new: true }
+          );
+          
+          if (!orderUpdateResult) {
+            throw new Error('Ошибка обновления ордера');
+          }
+          
+          // Save trade within the same transaction
+          await trade.save({ session });
+          await tempSellOrder.save({ session });
+        });
+      } catch (transactionError) {
+        console.error('❌ Transaction failed:', transactionError);
+        // Rollback escrow on transaction failure
+        await escrowService.refundTokensFromEscrow(taker._id, null, 'CES', cesAmount, 'Transaction failed');
+        await rubleReserveService.releaseTradeReserve(buyOrder.userId._id.toString(), null, totalPrice);
+        throw transactionError;
+      } finally {
+        await session.endSession();
       }
       
-      await buyOrder.save();
+      // 🔧 FIX BUG #6: Enhanced escrow linking with better error handling
+      try {
+        await escrowService.linkEscrowToTrade(taker._id, trade._id, 'CES', cesAmount);
+        console.log(`✅ Successfully linked escrow to trade ${trade._id}`);
+      } catch (linkError) {
+        console.error('⚠️ Failed to link escrow to trade:', linkError);
+        // This is not critical - trade can continue but we should monitor orphaned escrows
+        // The escrow cleanup service will handle this automatically
+      }
+      
+      // Handle remaining order reserve if order is completed
+      if (buyOrder.remainingAmount - cesAmount <= 0) {
+        try {
+          await rubleReserveService.releaseOrderReserve(
+            buyOrder.userId._id.toString(),
+            buyOrder._id.toString()
+          );
+          console.log('✅ Released remaining order reserve');
+        } catch (reserveError) {
+          console.error('⚠️ Failed to release order reserve:', reserveError);
+          // Non-critical error - reserve cleanup service will handle this
+        }
+      }
       
       console.log(`Сделка создана: ${trade._id}`);
       console.log(`Мейкер: ${buyOrder.userId.chatId}, Тейкер: ${takerChatId}`);
@@ -483,6 +568,27 @@ class P2PService {
         console.log(`Insufficient available CES balance: ${walletInfo.cesBalance} < ${amount}`);
         throw new Error(`Недостаточно доступных CES токенов. Доступно: ${walletInfo.cesBalance.toFixed(4)} CES`);
       }
+
+      // 🔧 ИСПРАВЛЕНИЕ: Проверяем на существование других активных sell ордеров
+      const activeSellOrders = await P2POrder.find({
+        userId: user._id,
+        type: 'sell',
+        status: { $in: ['active', 'partial'] }
+      });
+      
+      let totalEscrowedAmount = 0;
+      activeSellOrders.forEach(order => {
+        if (order.escrowLocked && order.escrowAmount > 0) {
+          totalEscrowedAmount += order.escrowAmount;
+        }
+      });
+      
+      // Проверяем, что у пользователя достаточно средств для нового эскроу
+      if (totalEscrowedAmount + amount > walletInfo.cesBalance + (user.escrowCESBalance || 0)) {
+        throw new Error(`Недостаточно CES для создания нового ордера. Общий баланс: ${(walletInfo.cesBalance + (user.escrowCESBalance || 0)).toFixed(4)} CES, требуется: ${(totalEscrowedAmount + amount).toFixed(4)} CES`);
+      }
+      
+      console.log(`✅ Escrow validation passed: Total will be ${(totalEscrowedAmount + amount).toFixed(4)} CES`);
       
       const totalValue = amount * pricePerToken;
       console.log(`Total order value: ₽${totalValue.toFixed(2)}`);
@@ -606,43 +712,65 @@ class P2PService {
             // Calculate trade amount (minimum of remaining amounts)
             const tradeAmount = Math.min(buyOrder.remainingAmount, sellOrder.remainingAmount);
             
-            // Check if trade amount is within user limits
-            const buyerLimitCheck = this.checkUserTradeLimits(buyOrder.userId, tradeAmount, 'buy');
-            const sellerLimitCheck = this.checkUserTradeLimits(sellOrder.userId, tradeAmount, 'sell');
+            // 🔧 FIX BUG #8: Enhanced trading limit validation
+            const tradeValue = PrecisionUtil.multiply(tradeAmount, tradePrice, 2);
+            
+            // Check user trading limits more thoroughly
+            const buyerLimitCheck = this.checkEnhancedTradeLimits(buyOrder.userId, tradeAmount, tradeValue, 'buy');
+            const sellerLimitCheck = this.checkEnhancedTradeLimits(sellOrder.userId, tradeAmount, tradeValue, 'sell');
             
             if (!buyerLimitCheck.allowed || !sellerLimitCheck.allowed) {
-              // User limits exceeded, skip this pair
-              continue;
+              console.log(`⚠️ Trading limits exceeded: Buyer - ${buyerLimitCheck.reason}, Seller - ${sellerLimitCheck.reason}`);
+              continue; // Skip this pair and try next
+            }
+            
+            // 🔧 FIX BUG #10: Enhanced payment method compatibility check
+            const paymentMethodCompatible = this.checkPaymentMethodCompatibility(buyOrder, sellOrder);
+            if (!paymentMethodCompatible.compatible) {
+              console.log(`⚠️ Payment methods incompatible: ${paymentMethodCompatible.reason}`);
+              continue; // Skip this pair and try next
             }
             
             // Use seller's price for the trade
             const tradePrice = sellOrder.pricePerToken;
             const totalValue = tradeAmount * tradePrice;
             
-            // CORRECT MAKER/TAKER LOGIC: Maker = order created first, Taker = order created later
+            // 🔧 FIX BUG #1: Standardized commission logic across all trade creation paths
+            // Use consistent maker/taker identification based on order creation time
             const buyOrderTime = new Date(buyOrder.createdAt).getTime();
             const sellOrderTime = new Date(sellOrder.createdAt).getTime();
             
-            let makerCommissionInCES = 0;
-            let takerCommissionInCES = 0;
             let buyerCommissionInRubles = 0;
             let sellerCommissionInRubles = 0;
+            let makerCommissionInCES = 0;
             
             if (buyOrderTime < sellOrderTime) {
               // Buy order was created first → Buyer is MAKER, Seller is TAKER
-              makerCommissionInCES = tradeAmount * this.commissionRate; // 1% from buyer (maker)
-              buyerCommissionInRubles = makerCommissionInCES * tradePrice;
+              makerCommissionInCES = PrecisionUtil.calculateCommission(tradeAmount, this.commissionRate, 4); // 1% from buyer (maker)
+              buyerCommissionInRubles = PrecisionUtil.cesCommissionToRubles(makerCommissionInCES, tradePrice, 2);
               sellerCommissionInRubles = 0; // Seller (taker) pays nothing
-              console.log(`Buy order is maker (${new Date(buyOrder.createdAt).toISOString()}) vs sell order taker (${new Date(sellOrder.createdAt).toISOString()})`);
+              console.log(`🔑 Buy order is maker (${new Date(buyOrder.createdAt).toISOString()}) vs sell order taker (${new Date(sellOrder.createdAt).toISOString()})`);
             } else {
               // Sell order was created first → Seller is MAKER, Buyer is TAKER  
-              makerCommissionInCES = tradeAmount * this.commissionRate; // 1% from seller (maker)
-              sellerCommissionInRubles = makerCommissionInCES * tradePrice;
+              makerCommissionInCES = PrecisionUtil.calculateCommission(tradeAmount, this.commissionRate, 4); // 1% from seller (maker)
+              sellerCommissionInRubles = PrecisionUtil.cesCommissionToRubles(makerCommissionInCES, tradePrice, 2);
               buyerCommissionInRubles = 0; // Buyer (taker) pays nothing
-              console.log(`Sell order is maker (${new Date(sellOrder.createdAt).toISOString()}) vs buy order taker (${new Date(buyOrder.createdAt).toISOString()})`);
+              console.log(`🔑 Sell order is maker (${new Date(sellOrder.createdAt).toISOString()}) vs buy order taker (${new Date(buyOrder.createdAt).toISOString()})`);
             }
             
-            console.log(`Executing trade: ${tradeAmount} CES at ₽${tradePrice} (maker commission: ${makerCommissionInCES.toFixed(4)} CES = ₽${Math.max(buyerCommissionInRubles, sellerCommissionInRubles).toFixed(2)}, taker commission: ₽0)`);
+            // 🔧 FIX BUG #2: Race condition protection in order matching
+            // Double-check order availability before executing trade
+            const currentBuyOrder = await P2POrder.findById(buyOrder._id);
+            const currentSellOrder = await P2POrder.findById(sellOrder._id);
+            
+            if (!currentBuyOrder || !currentSellOrder || 
+                currentBuyOrder.status !== 'active' || currentSellOrder.status !== 'active' ||
+                currentBuyOrder.remainingAmount < tradeAmount || currentSellOrder.remainingAmount < tradeAmount) {
+              console.log('⚠️ Orders no longer available for matching, skipping...');
+              continue; // Skip this pair and try next
+            }
+            
+            console.log(`💰 Executing trade: ${tradeAmount} CES at ₽${tradePrice} (maker commission: ${makerCommissionInCES.toFixed(4)} CES = ₽${Math.max(buyerCommissionInRubles, sellerCommissionInRubles).toFixed(2)}, taker commission: ₽0)`);
             
             // Send smart notifications to both users
             await smartNotificationService.sendSmartOrderMatchNotification(
@@ -660,28 +788,52 @@ class P2PService {
             // Execute the trade with correct maker commission
             await this.executeTrade(buyOrder, sellOrder, tradeAmount, tradePrice, totalValue, buyerCommissionInRubles, sellerCommissionInRubles);
             
-            // Update order statuses
+            // 🔧 FIX BUG #4: Atomic order updates to prevent inconsistent state
+            const mongoose = require('mongoose');
+            const session = await mongoose.startSession();
+            
+            try {
+              await session.withTransaction(async () => {
+                // Update both orders atomically
+                await P2POrder.findByIdAndUpdate(
+                  buyOrder._id,
+                  {
+                    $inc: { remainingAmount: -tradeAmount, filledAmount: tradeAmount },
+                    $set: { 
+                      status: buyOrder.remainingAmount - tradeAmount === 0 ? 'completed' : 'partial',
+                      updatedAt: new Date()
+                    }
+                  },
+                  { session }
+                );
+                
+                await P2POrder.findByIdAndUpdate(
+                  sellOrder._id,
+                  {
+                    $inc: { remainingAmount: -tradeAmount, filledAmount: tradeAmount },
+                    $set: { 
+                      status: sellOrder.remainingAmount - tradeAmount === 0 ? 'completed' : 'partial',
+                      updatedAt: new Date()
+                    }
+                  },
+                  { session }
+                );
+              });
+            } catch (updateError) {
+              console.error('❌ Failed to update orders atomically:', updateError);
+              // The trade execution already happened, but order states may be inconsistent
+              // The cleanup service will handle this
+            } finally {
+              await session.endSession();
+            }
+            
+            // Update local order objects for loop continuation logic
             buyOrder.remainingAmount -= tradeAmount;
             buyOrder.filledAmount += tradeAmount;
             sellOrder.remainingAmount -= tradeAmount;
             sellOrder.filledAmount += tradeAmount;
             
-            if (buyOrder.remainingAmount === 0) {
-              buyOrder.status = 'completed';
-            } else if (buyOrder.filledAmount > 0) {
-              buyOrder.status = 'partial';
-            }
-            
-            if (sellOrder.remainingAmount === 0) {
-              sellOrder.status = 'completed';
-            } else if (sellOrder.filledAmount > 0) {
-              sellOrder.status = 'partial';
-            }
-            
-            await buyOrder.save();
-            await sellOrder.save();
-            
-            console.log(`Trade executed successfully`);
+            console.log(`✅ Trade executed successfully between ${buyOrder._id} and ${sellOrder._id}`);
             
             // If buy order is completed, break inner loop
             if (buyOrder.remainingAmount === 0) {
@@ -697,33 +849,79 @@ class P2PService {
     }
   }
 
-  // Check user trade limits
-  checkUserTradeLimits(user, amount, orderType) {
+  // 🔧 FIX BUG #8: Enhanced user trade limits validation
+  checkEnhancedTradeLimits(user, cesAmount, rubleValue, orderType) {
     try {
       const now = new Date();
       const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
       
-      // Check daily limit
-      if (user.tradingLimits && user.tradingLimits.dailyLimit) {
+      // Check verification level requirements for high-value trades
+      if (rubleValue > 50000 && (!user.verificationLevel || user.verificationLevel === 'unverified')) {
+        return { allowed: false, reason: 'Требуется верификация для сделок свыше ₽50,000' };
+      }
+      
+      // Check trust score requirements for very large trades
+      const trustScore = user.trustScore || 5.0; // Default to good score if not set
+      if (rubleValue > 100000 && trustScore < 4.0) {
+        return { allowed: false, reason: 'Низкий рейтинг доверия для крупных сделок' };
+      }
+      
+      // Check if user has too many failed trades recently
+      const recentFailures = user.tradeAnalytics?.failedTradesLast30Days || 0;
+      if (recentFailures > 10) { // Increased threshold to be less restrictive
+        return { allowed: false, reason: 'Слишком много неудачных сделок' };
+      }
+      
+      // Check daily limits if configured
+      if (user.tradingLimits && user.tradingLimits.dailyLimit && user.tradingLimits.dailyLimit > 0) {
         const dailyLimit = user.tradingLimits.dailyLimit;
-        // In a real implementation, you would check actual daily volume
-        // For now, we'll just check against the limit
-        if (amount * user.tradingLimits.maxSingleTrade > dailyLimit) {
+        if (rubleValue > dailyLimit) {
           return { allowed: false, reason: 'Превышен дневной лимит' };
         }
       }
       
-      // Check single trade limit
-      if (user.tradingLimits && user.tradingLimits.maxSingleTrade) {
-        if (amount > user.tradingLimits.maxSingleTrade) {
+      // Check single trade limit if configured
+      if (user.tradingLimits && user.tradingLimits.maxSingleTrade && user.tradingLimits.maxSingleTrade > 0) {
+        if (cesAmount > user.tradingLimits.maxSingleTrade) {
           return { allowed: false, reason: 'Превышен лимит одной сделки' };
         }
       }
       
+      // All checks passed
       return { allowed: true };
     } catch (error) {
-      console.error('Error checking user trade limits:', error);
-      return { allowed: true }; // Allow trade if there's an error
+      console.error('Error checking enhanced trade limits:', error);
+      return { allowed: true }; // Allow trade if there's an error to avoid blocking
+    }
+  }
+  
+  // 🔧 FIX BUG #10: Enhanced payment method compatibility check
+  checkPaymentMethodCompatibility(buyOrder, sellOrder) {
+    try {
+      // If no payment methods specified, assume compatible
+      if (!buyOrder.paymentMethods || !sellOrder.paymentMethods) {
+        return { compatible: true };
+      }
+      
+      // Check for exact matches
+      const compatibleMethods = buyOrder.paymentMethods.filter(method => 
+        sellOrder.paymentMethods.includes(method)
+      );
+      
+      if (compatibleMethods.length === 0) {
+        return { 
+          compatible: false, 
+          reason: 'Несовместимые способы оплаты' 
+        };
+      }
+      
+      // Additional business logic checks
+      // For example, some payment methods might have additional requirements
+      
+      return { compatible: true, methods: compatibleMethods };
+    } catch (error) {
+      console.error('Error checking payment method compatibility:', error);
+      return { compatible: true }; // Default to compatible if error
     }
   }
 
@@ -943,6 +1141,42 @@ class P2PService {
       
       if (!order) {
         throw new Error('Ордер не найден или уже завершен');
+      }
+      
+      // If it's a sell order with tokens locked in escrow, release them
+      if (order.type === 'sell' && order.escrowLocked && order.escrowAmount > 0) {
+        console.log(`🔓 Releasing ${order.escrowAmount} CES from escrow for cancelled sell order ${orderId}`);
+        
+        try {
+          await escrowService.refundTokensFromEscrow(
+            user._id,
+            null, // No trade ID for order cancellation
+            'CES',
+            order.escrowAmount,
+            'Sell order cancelled by maker'
+          );
+          
+          console.log(`✅ Successfully released ${order.escrowAmount} CES from escrow`);
+        } catch (escrowError) {
+          console.error('Error releasing escrow during order cancellation:', escrowError);
+          // Continue with order cancellation even if escrow release fails
+          // Log the error for manual intervention
+          console.error(`⚠️ MANUAL INTERVENTION REQUIRED: Failed to release ${order.escrowAmount} CES from escrow for order ${orderId}`);
+        }
+      }
+      
+      // Release ruble reserves for buy orders
+      if (order.type === 'buy') {
+        try {
+          const rubleReserveService = require('./rubleReserveService');
+          await rubleReserveService.releaseOrderReserve(
+            user._id.toString(),
+            orderId
+          );
+          console.log(`✅ Released ruble reserves for cancelled buy order ${orderId}`);
+        } catch (reserveError) {
+          console.error('Error releasing ruble reserves during order cancellation:', reserveError);
+        }
       }
       
       order.status = 'cancelled';

@@ -53,18 +53,39 @@ class EscrowService {
   // Lock tokens in escrow for a trade (SECURE VERSION)
   async lockTokensInEscrow(userId, tradeId, tokenType, amount) {
     try {
-      console.log(`🔒 Locking ${amount} ${tokenType} in escrow for user ${userId}, trade ${tradeId}`);
+      console.log(`🔒 [ESCROW-LOCK] Starting escrow lock: ${amount} ${tokenType} for user ${userId}, trade ${tradeId}`);
+      
+      // 🔧 ИСПРАВЛЕНИЕ: Дополнительная валидация
+      if (!userId) {
+        throw new Error('Отсутствует userId');
+      }
+      
+      if (amount <= 0) {
+        throw new Error('Количество должно быть больше 0');
+      }
+      
+      if (!['CES', 'POL'].includes(tokenType)) {
+        throw new Error('Неподдерживаемый тип токена');
+      }
       
       const user = await User.findById(userId);
       if (!user) {
         throw new Error('Пользователь не найден');
       }
+      
+      console.log(`🔍 [ESCROW-LOCK] User ${userId} (${user.chatId}) current balances:`);
+      console.log(`   Available: ${(tokenType === 'CES' ? user.cesBalance : user.polBalance) || 0} ${tokenType}`);
+      console.log(`   Escrowed: ${(tokenType === 'CES' ? user.escrowCESBalance : user.escrowPOLBalance) || 0} ${tokenType}`);
 
       // Check if user has enough balance
       const currentBalance = tokenType === 'CES' ? user.cesBalance : user.polBalance;
       if (currentBalance < amount) {
-        throw new Error(`Недостаточно средств. Доступно: ${currentBalance.toFixed(4)} ${tokenType}`);
+        const error = `Недостаточно средств. Доступно: ${currentBalance.toFixed(4)} ${tokenType}`;
+        console.log(`❌ [ESCROW-LOCK] ${error}`);
+        throw new Error(error);
       }
+      
+      console.log(`✅ [ESCROW-LOCK] Balance validation passed`);
 
       // БЕЗОПАСНЫЙ ПУТЬ: Используем смарт-контракт
       if (this.useSmartContract && tokenType === 'CES' && this.escrowContractAddress) {
@@ -91,8 +112,22 @@ class EscrowService {
       // Получаем приватный ключ пользователя
       const privateKey = await walletService.getUserPrivateKey(user.chatId);
       
-      // Получаем адрес покупателя (временно используем админский адрес как placeholder)
-      const buyerAddress = '0xC2D5FABd53F537A1225460AE30097198aB14FF32'; // TODO: получать из сделки
+      // TODO: ИСПРАВЛЕНИЕ - Получаем настоящий адрес покупателя из сделки
+      let buyerAddress;
+      
+      if (tradeId) {
+        // Если это для сделки, получаем адрес покупателя
+        const trade = await P2PTrade.findById(tradeId).populate('buyerId');
+        if (trade && trade.buyerId.walletAddress) {
+          buyerAddress = trade.buyerId.walletAddress;
+        } else {
+          throw new Error('Не удалось получить адрес покупателя из сделки');
+        }
+      } else {
+        // Для ордеров используем админский адрес как placeholder
+        buyerAddress = '0xC2D5FABd53F537A1225460AE30097198aB14FF32';
+        console.log('⚠️ Using admin address as buyer placeholder for order escrow');
+      }
       
       // Создаем эскроу в смарт-контракте
       const escrowResult = await smartContractService.createSmartEscrow(
@@ -254,17 +289,26 @@ class EscrowService {
   // Refund tokens from escrow (cancel trade)
   async refundTokensFromEscrow(userId, tradeId, tokenType, amount, reason = 'Trade cancelled') {
     try {
-      console.log(`↩️ Refunding ${amount} ${tokenType} from escrow for user ${userId}`);
+      console.log(`↩️ [ESCROW-REFUND] Starting refund: ${amount} ${tokenType} for user ${userId}, trade ${tradeId}`);
+      console.log(`🔍 [ESCROW-REFUND] Reason: ${reason}`);
       
       const user = await User.findById(userId);
       if (!user) {
-        throw new Error('Пользователь не найден');
+        const error = 'Пользователь не найден';
+        console.log(`❌ [ESCROW-REFUND] ${error}`);
+        throw new Error(error);
       }
+      
+      console.log(`🔍 [ESCROW-REFUND] User ${userId} (${user.chatId}) current balances:`);
+      console.log(`   Available: ${(tokenType === 'CES' ? user.cesBalance : user.polBalance) || 0} ${tokenType}`);
+      console.log(`   Escrowed: ${(tokenType === 'CES' ? user.escrowCESBalance : user.escrowPOLBalance) || 0} ${tokenType}`);
 
       // Check escrow balance
       const escrowBalance = tokenType === 'CES' ? user.escrowCESBalance : user.escrowPOLBalance;
       if (escrowBalance < amount) {
-        throw new Error(`Недостаточно средств в эскроу для возврата`);
+        const error = `Недостаточно средств в эскроу для возврата. Доступно: ${escrowBalance.toFixed(4)} ${tokenType}, требуется: ${amount.toFixed(4)} ${tokenType}`;
+        console.log(`❌ [ESCROW-REFUND] ${error}`);
+        throw new Error(error);
       }
 
       // Move tokens back from escrow to regular balance

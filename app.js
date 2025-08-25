@@ -8,6 +8,7 @@ const { connectDatabase, disconnectDatabase } = require('./src/database/models')
 const bot = require('./src/bot/telegramBot');
 const server = require('./src/server/expressServer');
 const schedulerService = require('./src/services/schedulerService');
+const escrowCleanupService = require('./src/services/escrowCleanupService');
 const Utils = require('./src/utils/helpers');
 const smartNotificationService = require('./src/services/smartNotificationService');
 
@@ -70,7 +71,11 @@ class Application {
       schedulerService.setBot(bot.getInstance());
       schedulerService.startScheduler();
       
-      // 6. Setup self-ping (after 1 minute)
+      // 6. 🔧 ИСПРАВЛЕНИЕ: Start escrow cleanup service
+      Utils.log('info', 'Starting escrow cleanup service...');
+      escrowCleanupService.startAutoCleanup();
+      
+      // 7. Setup self-ping (after 1 minute)
       setTimeout(() => {
         Utils.log('info', 'Starting self-ping service...');
         server.setupSelfPing();
@@ -106,6 +111,9 @@ class Application {
       
       // Stop scheduler
       schedulerService.stopScheduler();
+      
+      // 🔧 ИСПРАВЛЕНИЕ: Stop escrow cleanup service
+      escrowCleanupService.stopAutoCleanup();
       
       // Stop self-ping
       server.stopSelfPing();
