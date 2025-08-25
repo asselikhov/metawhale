@@ -360,6 +360,24 @@ class P2PHandler {
       const typeEmoji = orderType === 'buy' ? '📈' : '📉';
       const typeText = orderType === 'buy' ? 'покупку' : 'продажу';
       
+      // Check if smart contract escrow is enabled for sell orders
+      const useSmartContract = process.env.USE_SMART_CONTRACT_ESCROW === 'true';
+      const escrowContractAddress = process.env.ESCROW_CONTRACT_ADDRESS;
+      const isSecureEscrow = orderType === 'sell' && useSmartContract && escrowContractAddress;
+      
+      // Security status message
+      let securityMessage = '🛡️ Безопасность:';
+      if (isSecureEscrow) {
+        securityMessage += '\n✅ МАКСИМАЛЬНАЯ - смарт-контракт эскроу\n' +
+                           '🔒 Токены будут реально заблокированы\n' +
+                           '❌ Никто не сможет их потратить';
+      } else if (orderType === 'sell') {
+        securityMessage += '\n⚠️ БАЗОВАЯ - база данных эскроу\n' +
+                           '🔓 Токены могут быть потрачены через MetaMask';
+      } else {
+        securityMessage += '\n✅ Все сделки защищены эскроу-системой';
+      }
+      
       const message = `${typeEmoji} Подтверждение ордера на ${typeText}\n` +
                      `➖➖➖➖➖➖➖➖➖➖➖\n` +
                      `Количество: ${amount} CES\n` +
@@ -368,8 +386,7 @@ class P2PHandler {
                      `Мин. сумма: ${minRubles.toFixed(0)} ₽\n` +
                      `Макс. сумма: ${maxRubles.toFixed(0)} ₽\n` +
                      `Комиссия: ${commissionCES.toFixed(2)} CES (1%)\n\n` +
-                     `🛡️ Безопасность:\n` +
-                     `Все сделки защищены эскроу-системой\n\n` +
+                     `${securityMessage}\n\n` +
                      `⚠️ Подтвердить создание ордера?`;
       
       // Store order data in session

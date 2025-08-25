@@ -162,12 +162,12 @@ class P2PService {
         };
       }
       
-      // Проверяем баланс CES у тейкера
-      const cesBalance = await walletService.getCESBalance(taker.walletAddress);
-      if (cesBalance < cesAmount) {
+      // Проверяем доступный баланс CES у тейкера (исключая эскроу)
+      const walletInfo = await walletService.getUserWallet(taker.chatId);
+      if (walletInfo.cesBalance < cesAmount) {
         return { 
           success: false, 
-          error: `Недостаточно CES. Доступно: ${cesBalance.toFixed(4)} CES` 
+          error: `Недостаточно доступных CES. Доступно: ${walletInfo.cesBalance.toFixed(4)} CES` 
         };
       }
       
@@ -476,11 +476,11 @@ class P2PService {
         throw new Error(`Количество должно быть от ${this.minOrderAmount} до ${this.maxOrderAmount} CES`);
       }
       
-      // Check CES balance
-      const cesBalance = await walletService.getCESBalance(user.walletAddress);
-      if (cesBalance < amount) {
-        console.log(`Insufficient CES balance: ${cesBalance} < ${amount}`);
-        throw new Error(`Недостаточно CES токенов. Доступно: ${cesBalance.toFixed(4)} CES`);
+      // Check available CES balance (excluding escrowed tokens)
+      const walletInfo = await walletService.getUserWallet(user.chatId);
+      if (walletInfo.cesBalance < amount) {
+        console.log(`Insufficient available CES balance: ${walletInfo.cesBalance} < ${amount}`);
+        throw new Error(`Недостаточно доступных CES токенов. Доступно: ${walletInfo.cesBalance.toFixed(4)} CES`);
       }
       
       const totalValue = amount * pricePerToken;
@@ -1199,10 +1199,10 @@ class P2PService {
         return { success: false, error: 'Пользователи не найдены' };
       }
       
-      // Check seller's CES balance
+      // Check seller's available CES balance (excluding escrowed tokens)
       const walletInfo = await walletService.getUserWallet(sellerChatId);
       if (walletInfo.cesBalance < cesAmount) {
-        return { success: false, error: 'Недостаточно CES для продажи' };
+        return { success: false, error: 'Недостаточно доступных CES для продажи. Некоторые средства могут быть заблокированы в эскроу' };
       }
       
       // Lock CES tokens in escrow

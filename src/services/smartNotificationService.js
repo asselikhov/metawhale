@@ -127,6 +127,10 @@ class SmartNotificationService {
           message = this.generatePaymentPendingMessage(user, trade);
           break;
           
+        case 'payment_completed':
+          message = this.generatePaymentCompletedMessage(user, trade);
+          break;
+          
         case 'payment_confirmed':
           message = this.generatePaymentConfirmedMessage(user, trade);
           break;
@@ -185,6 +189,26 @@ class SmartNotificationService {
           `Сделка #${trade._id.toString().substr(0, 8)}\n` +
           `Токены будут переведены в ближайшее время\n\n` +
           `Спасибо за использование нашей P2P биржи!`;
+  }
+
+  // Generate payment completed message
+  generatePaymentCompletedMessage(user, trade) {
+    const isBuyer = trade.buyerId._id.toString() === user._id.toString();
+    
+    if (isBuyer) {
+      // Message for buyer (maker) - seller marked payment as completed
+      return `💰 Платёж отмечен как выполненный!\n\n` +
+            `Сделка #${trade._id.toString().substr(0, 8)}\n` +
+            `💰 Количество: ${trade.amount.toFixed(2)} CES\n` +
+            `💵 Сумма: ₽${trade.totalValue.toFixed(2)}\n\n` +
+            `Продавец отметил, что получил оплату.\n` +
+            `CES будут освобождены с эскроу автоматически.`;
+    } else {
+      // Message for seller - this shouldn't happen as seller marks payment
+      return `✅ Платёж отмечен как выполненный\n\n` +
+            `Сделка #${trade._id.toString().substr(0, 8)}\n` +
+            `Ожидаем подтверждения от покупателя.`;
+    }
   }
 
   // Generate trade completed message

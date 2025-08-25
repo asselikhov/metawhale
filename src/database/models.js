@@ -305,6 +305,7 @@ const escrowTransactionSchema = new mongoose.Schema({
   amount: { type: Number, required: true },
   status: { type: String, enum: ['pending', 'completed', 'failed'], default: 'pending' },
   txHash: String,
+  smartContractEscrowId: String, // ID эскроу в смарт-контракте
   reason: String,
   createdAt: { type: Date, default: Date.now },
   completedAt: Date

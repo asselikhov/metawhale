@@ -187,6 +187,31 @@ class WalletService {
     }
   }
 
+  // Get available balance (excluding escrow)
+  async getAvailableBalance(user, tokenType) {
+    try {
+      // Get real blockchain balance
+      const realBalance = tokenType === 'CES' 
+        ? await this.getCESBalance(user.walletAddress)
+        : await this.getPOLBalance(user.walletAddress);
+      
+      // Subtract escrowed amount
+      const escrowedAmount = tokenType === 'CES' 
+        ? (user.escrowCESBalance || 0)
+        : (user.escrowPOLBalance || 0);
+      
+      const availableBalance = Math.max(0, realBalance - escrowedAmount);
+      
+      console.log(`🔍 ${tokenType} balance for user ${user.chatId}: Real: ${realBalance}, Escrowed: ${escrowedAmount}, Available: ${availableBalance}`);
+      
+      return availableBalance;
+      
+    } catch (error) {
+      console.error(`Error getting available ${tokenType} balance:`, error);
+      return 0;
+    }
+  }
+
   // Get user's wallet info
   async getUserWallet(chatId) {
     try {
@@ -205,17 +230,25 @@ class WalletService {
         this.getPOLBalance(user.walletAddress)
       ]);
       
+      // Calculate available balances (excluding escrowed amounts)
+      const availableCESBalance = await this.getAvailableBalance(user, 'CES');
+      const availablePOLBalance = await this.getAvailableBalance(user, 'POL');
+      
       // Update balances in database
       user.cesBalance = cesBalance;
-      user.polBalance = polBalance; // We need to add this field to schema
+      user.polBalance = polBalance;
       user.lastBalanceUpdate = new Date();
       await user.save();
 
       return {
         hasWallet: true,
         address: user.walletAddress,
-        cesBalance: cesBalance,
-        polBalance: polBalance,
+        cesBalance: availableCESBalance, // Return available balance instead of total
+        polBalance: availablePOLBalance, // Return available balance instead of total
+        totalCESBalance: cesBalance, // Keep total for reference
+        totalPOLBalance: polBalance, // Keep total for reference
+        escrowCESBalance: user.escrowCESBalance || 0,
+        escrowPOLBalance: user.escrowPOLBalance || 0,
         lastUpdate: user.lastBalanceUpdate,
         user
       };
@@ -291,10 +324,10 @@ class WalletService {
         throw new Error('Сумма должна быть больше 0');
       }
       
-      // Check balance
-      const currentBalance = await this.getPOLBalance(fromUser.walletAddress);
-      if (currentBalance < amount) {
-        throw new Error(`Недостаточно POL. Доступно: ${currentBalance.toFixed(4)} POL`);
+      // Check balance - use available balance excluding escrow
+      const availableBalance = await this.getAvailableBalance(fromUser, 'POL');
+      if (availableBalance < amount) {
+        throw new Error(`Недостаточно POL. Доступно: ${availableBalance.toFixed(4)} POL`);
       }
       
       // Reserve some POL for gas (0.001 POL minimum)
@@ -422,10 +455,10 @@ class WalletService {
         throw new Error('Сумма должна быть больше 0');
       }
       
-      // Check balance
-      const currentBalance = await this.getCESBalance(fromUser.walletAddress);
-      if (currentBalance < amount) {
-        throw new Error(`Недостаточно средств. Доступно: ${currentBalance.toFixed(4)} CES`);
+      // Check balance - use available balance excluding escrow
+      const availableBalance = await this.getAvailableBalance(fromUser, 'CES');
+      if (availableBalance < amount) {
+        throw new Error(`Недостаточно доступных средств. Доступно: ${availableBalance.toFixed(4)} CES (некоторые средства могут быть заблокированы в эскроу)`);
       }
       
       // Validate recipient address

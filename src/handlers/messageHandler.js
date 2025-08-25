@@ -294,14 +294,23 @@ class MessageHandler {
         return await ctx.reply('❌ Сначала создайте кошелек.');
       }
       
-      // For sell orders, check CES balance
+      // Check if this is a sell order and smart contract escrow is enabled
+      const useSmartContract = process.env.USE_SMART_CONTRACT_ESCROW === 'true';
+      const escrowContractAddress = process.env.ESCROW_CONTRACT_ADDRESS;
+      
+      if (orderType === 'sell' && useSmartContract && escrowContractAddress) {
+        // Show smart contract approval flow for sell orders
+        return await this.handleSmartContractApprovalFlow(ctx, pendingOrder, user);
+      }
+      
+      // For buy orders, check CES balance
       if (orderType === 'sell') {
         if (walletInfo.cesBalance < amount) {
           return await ctx.reply(`❌ Недостаточно CES токенов. Доступно: ${walletInfo.cesBalance.toFixed(4)} CES`);
         }
       }
       
-      // Create order
+      // Create order (legacy database-only escrow)
       const p2pService = require('../services/p2pService');
       let order;
       
@@ -335,8 +344,223 @@ class MessageHandler {
     }
   }
 
-  async handleP2PMyProfile(ctx) {
-    await ctx.reply('🚧 Функция просмотра профиля в разработке');
+  // Handle smart contract approval flow for secure escrow
+  async handleSmartContractApprovalFlow(ctx, pendingOrder, user) {
+    try {
+      const { amount } = pendingOrder;
+      const chatId = ctx.chat.id.toString();
+      const escrowContractAddress = process.env.ESCROW_CONTRACT_ADDRESS;
+      
+      // Check current allowance for the escrow contract
+      const { ethers } = require('ethers');
+      const config = require('../config/configuration');
+      const provider = new ethers.JsonRpcProvider(config.wallet.polygonRpcUrl);
+      
+      const cesTokenAddress = process.env.CES_TOKEN_ADDRESS;
+      const erc20Abi = [
+        "function allowance(address owner, address spender) view returns (uint256)",
+        "function approve(address spender, uint256 amount) returns (bool)",
+        "function balanceOf(address account) view returns (uint256)"
+      ];
+      
+      const cesContract = new ethers.Contract(cesTokenAddress, erc20Abi, provider);
+      const currentAllowance = await cesContract.allowance(user.walletAddress, escrowContractAddress);
+      const requiredAmount = ethers.parseEther(amount.toString());
+      
+      console.log(`🔍 Smart contract approval check:`);
+      console.log(`Required: ${ethers.formatEther(requiredAmount)} CES`);
+      console.log(`Current allowance: ${ethers.formatEther(currentAllowance)} CES`);
+      
+      if (currentAllowance >= requiredAmount) {
+        // Sufficient allowance, proceed with order creation
+        return await this.proceedWithSecureOrderCreation(ctx, pendingOrder, user);
+      }
+      
+      // Need approval, show approval UI
+      const message = `🔐 БЕЗОПАСНЫЙ ЭСКРОУ\n` +
+                     `➖➖➖➖➖➖➖➖➖➖➖\n\n` +
+                     `🛡️ МАКСИМАЛЬНАЯ БЕЗОПАСНОСТЬ\n` +
+                     `Ваши CES токены будут реально заблокированы \nв смарт-контракте. Никто не сможет \nих потратить, даже вы сами!\n\n` +
+                     `📋 К одобрению: ${amount} CES\n` +
+                     `📍 Контракт: ${escrowContractAddress.slice(0,6)}...${escrowContractAddress.slice(-4)}\n\n` +
+                     `⚠️ Для создания ордера нужно:\n` +
+                     `1️⃣ Одобрить траты CES токенов\n` +
+                     `2️⃣ Подписать транзакцию\n` +
+                     `3️⃣ Дождаться подтверждения\n\n` +
+                     `🚀 Продолжить?`;
+      
+      const keyboard = Markup.inlineKeyboard([
+        [Markup.button.callback('✅ Одобрить и создать', 'approve_and_create_order')],
+        [Markup.button.callback('❌ Отмена', 'p2p_menu')]
+      ]);
+      
+      await ctx.reply(message, keyboard);
+      
+    } catch (error) {
+      console.error('Smart contract approval flow error:', error);
+      await ctx.reply('❌ Ошибка проверки одобрения токенов.');
+    }
+  }
+
+  // Proceed with creating order using secure smart contract escrow
+  async proceedWithSecureOrderCreation(ctx, pendingOrder, user) {
+    try {
+      const chatId = ctx.chat.id.toString();
+      const { orderType, amount, pricePerToken, minAmount, maxAmount } = pendingOrder;
+      
+      const message = `🚀 СОЗДАНИЕ БЕЗОПАСНОГО ОРДЕРА\n` +
+                     `➖➖➖➖➖➖➖➖➖➖➖\n\n` +
+                     `⏳ Ожидайте, обрабатываем запрос...\n\n` +
+                     `🔐 Токены будут заблокированы в смарт-контракте`;
+      
+      await ctx.reply(message);
+      
+      // Create order with smart contract escrow
+      const p2pService = require('../services/p2pService');
+      let order;
+      
+      try {
+        if (orderType === 'buy') {
+          order = await p2pService.createBuyOrder(chatId, amount, pricePerToken, minAmount, maxAmount);
+        } else {
+          // Get payment methods for sell order
+          const paymentMethods = user.p2pProfile?.paymentMethods?.filter(pm => pm.isActive) || [];
+          order = await p2pService.createSellOrder(chatId, amount, pricePerToken, paymentMethods, minAmount, maxAmount);
+        }
+        
+        // Clear pending order from session
+        const sessionManager = require('./SessionManager');
+        sessionManager.clearUserSession(chatId);
+        
+        // Send success message
+        const successMessage = `✅ ОРДЕР УСПЕШНО СОЗДАН!\n\n` +
+                               `🛡️ Безопасность: МАКСИМАЛЬНАЯ\n` +
+                               `🔒 Токены заблокированы в смарт-контракте\n` +
+                               `❌ Никто не может их потратить`;
+        
+        await ctx.reply(successMessage);
+        
+        // Automatically return to P2P exchange page
+        const P2PHandler = require('./P2PHandler');
+        const p2pHandler = new P2PHandler();
+        await p2pHandler.handleP2PMenu(ctx);
+        
+      } catch (error) {
+        console.error('Secure order creation error:', error);
+        await ctx.reply(`❌ Ошибка создания безопасного ордера: ${error.message}`);
+      }
+      
+    } catch (error) {
+      console.error('Proceed with secure order creation error:', error);
+      await ctx.reply('❌ Ошибка создания ордера.');
+    }
+  }
+
+  // Handle approve and create order for smart contract escrow
+  async handleApproveAndCreateOrder(ctx) {
+    try {
+      const chatId = ctx.chat.id.toString();
+      const sessionManager = require('./SessionManager');
+      const pendingOrder = sessionManager.getPendingP2POrder(chatId);
+      
+      if (!pendingOrder) {
+        return await ctx.reply('❌ Ордер не найден. Попробуйте создать ордер заново.');
+      }
+      
+      const { amount } = pendingOrder;
+      
+      // Get user
+      const { User } = require('../database/models');
+      const user = await User.findOne({ chatId });
+      if (!user) {
+        return await ctx.reply('❌ Пользователь не найден.');
+      }
+      
+      // Get user's private key
+      const walletService = require('../services/walletService');
+      const privateKey = await walletService.getUserPrivateKey(chatId);
+      
+      if (!privateKey) {
+        return await ctx.reply('❌ Не удалось получить ключ кошелька.');
+      }
+      
+      // Show approval transaction UI
+      const escrowContractAddress = process.env.ESCROW_CONTRACT_ADDRESS;
+      const cesTokenAddress = process.env.CES_TOKEN_ADDRESS;
+      
+      const message = `🔐 ОДОБРЕНИЕ ТОКЕНОВ\n` +
+                     `➖➖➖➖➖➖➖➖➖➖➖\n\n` +
+                     `✅ Подготавливаем транзакцию...\n\n` +
+                     `🎯 Количество: ${amount} CES\n` +
+                     `📍 Контракт: ${escrowContractAddress.slice(0,6)}...${escrowContractAddress.slice(-4)}\n\n` +
+                     `⏳ Ожидайте выполнения транзакции...`;
+      
+      await ctx.reply(message);
+      
+      try {
+        // Execute the approval transaction
+        const { ethers } = require('ethers');
+        const config = require('../config/configuration');
+        const provider = new ethers.JsonRpcProvider(config.wallet.polygonRpcUrl);
+        const wallet = new ethers.Wallet(privateKey, provider);
+        
+        const erc20Abi = [
+          "function approve(address spender, uint256 amount) returns (bool)"
+        ];
+        
+        const cesContract = new ethers.Contract(cesTokenAddress, erc20Abi, wallet);
+        const approvalAmount = ethers.parseEther(amount.toString());
+        
+        console.log(`🔐 Executing approval transaction:`);
+        console.log(`Amount: ${amount} CES`);
+        console.log(`Spender: ${escrowContractAddress}`);
+        
+        const tx = await cesContract.approve(escrowContractAddress, approvalAmount, {
+          gasLimit: 100000,
+          gasPrice: ethers.parseUnits('30', 'gwei')
+        });
+        
+        console.log(`⏳ Approval transaction sent: ${tx.hash}`);
+        
+        const progressMessage = `✅ ТРАНЗАКЦИЯ ОТПРАВЛЕНА!\n\n` +
+                               `🔗 TX: ${tx.hash.slice(0,6)}...${tx.hash.slice(-4)}\n` +
+                               `⏳ Ожидаем подтверждение...`;
+        
+        await ctx.reply(progressMessage);
+        
+        // Wait for transaction confirmation
+        const receipt = await tx.wait();
+        
+        console.log(`✅ Approval transaction confirmed: ${receipt.transactionHash}`);
+        
+        // Now proceed with order creation
+        await this.proceedWithSecureOrderCreation(ctx, pendingOrder, user);
+        
+      } catch (error) {
+        console.error('Token approval error:', error);
+        
+        let errorMessage = '❌ Ошибка одобрения токенов';
+        
+        if (error.code === 'INSUFFICIENT_FUNDS') {
+          errorMessage = '❌ Недостаточно MATIC для оплаты газа';
+        } else if (error.code === 'CALL_EXCEPTION') {
+          errorMessage = '❌ Ошибка вызова смарт-контракта';
+        } else if (error.message.includes('insufficient funds')) {
+          errorMessage = '❌ Недостаточно средств на балансе';
+        }
+        
+        const keyboard = Markup.inlineKeyboard([
+          [Markup.button.callback('🔄 Повторить', 'approve_and_create_order')],
+          [Markup.button.callback('❌ Отмена', 'p2p_menu')]
+        ]);
+        
+        await ctx.reply(`${errorMessage}\n\nПодробности: ${error.message}`, keyboard);
+      }
+      
+    } catch (error) {
+      console.error('Approve and create order error:', error);
+      await ctx.reply('❌ Ошибка обработки запроса.');
+    }
   }
 
   async handleCreateOrderWithUser(ctx, userId) {

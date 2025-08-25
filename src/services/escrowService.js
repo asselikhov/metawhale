@@ -6,14 +6,48 @@
 
 const { User, P2PTrade, EscrowTransaction } = require('../database/models');
 const walletService = require('./walletService');
+const smartContractService = require('./smartContractService');
 
 class EscrowService {
   constructor() {
     this.escrowTimeoutMinutes = 30; // Default timeout for escrow
     this.disputeTimeoutMinutes = 24 * 60; // 24 hours for dispute resolution
+    
+    // Check smart contract configuration
+    this.useSmartContract = process.env.USE_SMART_CONTRACT_ESCROW === 'true';
+    this.escrowContractAddress = process.env.ESCROW_CONTRACT_ADDRESS;
+    
+    // Log current configuration
+    this.logConfiguration();
   }
 
-  // Lock tokens in escrow for a trade
+  // Log current escrow configuration
+  logConfiguration() {
+    console.log('\n🔧 Escrow Service Configuration:');
+    console.log('================================');
+    
+    if (this.useSmartContract) {
+      if (this.escrowContractAddress && this.escrowContractAddress !== '') {
+        console.log('✅ SECURE MODE: Smart contract escrow ENABLED');
+        console.log(`📋 Contract address: ${this.escrowContractAddress}`);
+        console.log('🛡️ Tokens will be physically locked in smart contract');
+        console.log('🚫 Users CANNOT bypass escrow security');
+      } else {
+        console.log('⚠️ WARNING: Smart contract enabled but no contract address!');
+        console.log('❌ Falling back to DATABASE-ONLY mode (NOT SECURE)');
+        this.useSmartContract = false;
+      }
+    } else {
+      console.log('🚨 INSECURE MODE: Database-only escrow');
+      console.log('⚠️ Users CAN bypass escrow by exporting private key');
+      console.log('🔧 To enable secure mode: SET USE_SMART_CONTRACT_ESCROW=true');
+    }
+    
+    console.log(`⏰ Escrow timeout: ${this.escrowTimeoutMinutes} minutes`);
+    console.log('================================\n');
+  }
+
+  // Lock tokens in escrow for a trade (SECURE VERSION)
   async lockTokensInEscrow(userId, tradeId, tokenType, amount) {
     try {
       console.log(`🔒 Locking ${amount} ${tokenType} in escrow for user ${userId}, trade ${tradeId}`);
@@ -29,6 +63,91 @@ class EscrowService {
         throw new Error(`Недостаточно средств. Доступно: ${currentBalance.toFixed(4)} ${tokenType}`);
       }
 
+      // БЕЗОПАСНЫЙ ПУТЬ: Используем смарт-контракт
+      if (this.useSmartContract && tokenType === 'CES' && this.escrowContractAddress) {
+        console.log(`🔐 Using SECURE smart contract escrow at ${this.escrowContractAddress}`);
+        return await this.lockTokensInSmartContract(userId, tradeId, amount, user);
+      }
+      
+      // НЕБЕЗОПАСНЫЙ ПУТЬ: Только обновление БД (для совместимости)
+      console.log('⚠️ WARNING: Using DATABASE-ONLY escrow (NOT SECURE)');
+      console.log('⚠️ Users can bypass this escrow by exporting private key!');
+      return await this.lockTokensInDatabase(userId, tradeId, tokenType, amount, user);
+
+    } catch (error) {
+      console.error('Error locking tokens in escrow:', error);
+      throw error;
+    }
+  }
+
+  // БЕЗОПАСНАЯ блокировка через смарт-контракт
+  async lockTokensInSmartContract(userId, tradeId, amount, user) {
+    try {
+      console.log(`🔐 SECURE: Locking ${amount} CES in smart contract escrow`);
+      
+      // Получаем приватный ключ пользователя
+      const privateKey = await walletService.getUserPrivateKey(user.chatId);
+      
+      // Получаем адрес покупателя (временно используем админский адрес как placeholder)
+      const buyerAddress = '0xC2D5FABd53F537A1225460AE30097198aB14FF32'; // TODO: получать из сделки
+      
+      // Создаем эскроу в смарт-контракте
+      const escrowResult = await smartContractService.createSmartEscrow(
+        privateKey,
+        buyerAddress,
+        amount,
+        this.escrowTimeoutMinutes
+      );
+      
+      if (!escrowResult.success) {
+        throw new Error('Ошибка создания смарт-контракт эскроу');
+      }
+      
+      // Обновляем БД (токены уже реально заблокированы в контракте)
+      user.cesBalance -= amount;
+      user.escrowCESBalance += amount;
+      await user.save();
+
+      // Создаем запись транзакции эскроу
+      const escrowTx = new EscrowTransaction({
+        userId: userId,
+        tradeId: tradeId,
+        type: 'lock',
+        tokenType: 'CES',
+        amount: amount,
+        status: 'completed',
+        txHash: escrowResult.txHash,
+        smartContractEscrowId: escrowResult.escrowId,
+        reason: 'Locked in smart contract for P2P trade',
+        completedAt: new Date()
+      });
+
+      await escrowTx.save();
+
+      console.log(`✅ SECURE: Successfully locked ${amount} CES in smart contract escrow`);
+      console.log(`📄 Smart contract escrow ID: ${escrowResult.escrowId}`);
+      console.log(`🔗 Transaction hash: ${escrowResult.txHash}`);
+      
+      return {
+        success: true,
+        escrowTxId: escrowTx._id,
+        smartContractEscrowId: escrowResult.escrowId,
+        txHash: escrowResult.txHash,
+        newBalance: user.cesBalance,
+        escrowBalance: user.escrowCESBalance
+      };
+      
+    } catch (error) {
+      console.error('Error in smart contract escrow:', error);
+      throw new Error(`Ошибка безопасного эскроу: ${error.message}`);
+    }
+  }
+
+  // НЕБЕЗОПАСНАЯ блокировка только в БД (для совместимости)
+  async lockTokensInDatabase(userId, tradeId, tokenType, amount, user) {
+    try {
+      console.log(`⚠️ DATABASE-ONLY: Locking ${amount} ${tokenType} (NOT SECURE)`);
+      
       // Move tokens from regular balance to escrow
       if (tokenType === 'CES') {
         user.cesBalance -= amount;
@@ -48,22 +167,22 @@ class EscrowService {
         tokenType: tokenType,
         amount: amount,
         status: 'completed',
-        reason: 'Locked for P2P trade',
+        reason: 'Locked in database only (NOT SECURE)',
         completedAt: new Date()
       });
 
       await escrowTx.save();
 
-      console.log(`✅ Successfully locked ${amount} ${tokenType} in escrow`);
+      console.log(`⚠️ Successfully locked ${amount} ${tokenType} in database only`);
       return {
         success: true,
         escrowTxId: escrowTx._id,
         newBalance: tokenType === 'CES' ? user.cesBalance : user.polBalance,
         escrowBalance: tokenType === 'CES' ? user.escrowCESBalance : user.escrowPOLBalance
       };
-
+      
     } catch (error) {
-      console.error('Error locking tokens in escrow:', error);
+      console.error('Error in database escrow:', error);
       throw error;
     }
   }

@@ -276,6 +276,12 @@ class TelegramBot {
       return messageHandler.handleP2POrderConfirmation(ctx);
     });
     
+    // Handle smart contract approval and order creation
+    this.bot.action('approve_and_create_order', (ctx) => {
+      console.log('Received approve_and_create_order callback');
+      return messageHandler.handleApproveAndCreateOrder(ctx);
+    });
+    
     // Handle user messaging (dynamic callbacks)
     this.bot.action(/^message_user_/, (ctx) => {
       const userId = ctx.callbackQuery.data.split('_')[2];
