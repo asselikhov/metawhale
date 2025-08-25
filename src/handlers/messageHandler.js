@@ -504,6 +504,8 @@ class MessageHandler {
         availableAmount: buyOrder.remainingAmount,
         minAmount: minAmount,
         maxAmount: maxAmount,
+        minRubles: parseFloat(minRubles),
+        maxRubles: parseFloat(maxRubles),
         tradeTimeLimit: buyOrder.tradeTimeLimit || 30
       });
       
@@ -606,6 +608,8 @@ class MessageHandler {
         availableAmount: buyOrder.remainingAmount,
         minAmount: minAmount,
         maxAmount: maxAmount,
+        minRubles: parseFloat(minRubles),
+        maxRubles: parseFloat(maxRubles),
         tradeTimeLimit: buyOrder.tradeTimeLimit || 30
       });
       
@@ -633,8 +637,8 @@ class MessageHandler {
     }
     
     const message = `Введите количество CES которое вы хотите продать:\n\n` +
-                   `Минимум: ${orderData.minAmount} CES\n` +
-                   `Максимум: ${orderData.maxAmount} CES`;
+                   `Минимум: ${orderData.minAmount} CES (${orderData.minRubles} ₽)\n` +
+                   `Максимум: ${orderData.maxAmount} CES (${orderData.maxRubles} ₽)`;
     
     sessionManager.setSessionData(chatId, 'waitingForAmount', true);
     
@@ -665,7 +669,7 @@ class MessageHandler {
     try {
       const chatId = ctx.chat.id.toString();
       const sessionManager = require('./SessionManager');
-      const orderData = sessionManager.getSessionData(chatId, 'currentOrder');
+      const orderData = sessionManager.getSessionData(chatId, 'currentBuyOrder');
       
       if (!orderData) {
         return await ctx.reply('❌ Данные ордера не найдены.');
@@ -697,6 +701,15 @@ class MessageHandler {
       
       // Calculate transaction details
       const totalPrice = amount * orderData.pricePerToken;
+      
+      // Check against maker's ruble limits
+      if (orderData.minRubles && totalPrice < orderData.minRubles) {
+        return await ctx.reply(`❌ Минимальная сумма мейкера: ${orderData.minRubles.toFixed(2)} ₽`);
+      }
+      
+      if (orderData.maxRubles && totalPrice > orderData.maxRubles) {
+        return await ctx.reply(`❌ Максимальная сумма мейкера: ${orderData.maxRubles.toFixed(2)} ₽`);
+      }
       
       // Store confirmed amount in session
       sessionManager.setSessionData(chatId, 'confirmedAmount', amount);
@@ -734,7 +747,7 @@ class MessageHandler {
   async handleBackToAmountConfirmation(ctx) {
     const chatId = ctx.chat.id.toString();
     const sessionManager = require('./SessionManager');
-    const orderData = sessionManager.getSessionData(chatId, 'currentOrder');
+    const orderData = sessionManager.getSessionData(chatId, 'currentBuyOrder');
     const confirmedAmount = sessionManager.getSessionData(chatId, 'confirmedAmount');
     const totalPrice = sessionManager.getSessionData(chatId, 'totalPrice');
     
@@ -761,7 +774,7 @@ class MessageHandler {
     try {
       const chatId = ctx.chat.id.toString();
       const sessionManager = require('./SessionManager');
-      const orderData = sessionManager.getSessionData(chatId, 'currentOrder');
+      const orderData = sessionManager.getSessionData(chatId, 'currentBuyOrder');
       const confirmedAmount = sessionManager.getSessionData(chatId, 'confirmedAmount');
       
       if (!orderData || !confirmedAmount) {
@@ -814,7 +827,7 @@ class MessageHandler {
     try {
       const chatId = ctx.chat.id.toString();
       const sessionManager = require('./SessionManager');
-      const orderData = sessionManager.getSessionData(chatId, 'currentOrder');
+      const orderData = sessionManager.getSessionData(chatId, 'currentBuyOrder');
       const confirmedAmount = sessionManager.getSessionData(chatId, 'confirmedAmount');
       const totalPrice = sessionManager.getSessionData(chatId, 'totalPrice');
       
@@ -896,7 +909,7 @@ class MessageHandler {
     try {
       const chatId = ctx.chat.id.toString();
       const sessionManager = require('./SessionManager');
-      const orderData = sessionManager.getSessionData(chatId, 'currentOrder');
+      const orderData = sessionManager.getSessionData(chatId, 'currentBuyOrder');
       const confirmedAmount = sessionManager.getSessionData(chatId, 'confirmedAmount');
       const totalPrice = sessionManager.getSessionData(chatId, 'totalPrice');
       const selectedPaymentMethod = sessionManager.getSessionData(chatId, 'selectedPaymentMethod');
@@ -927,7 +940,7 @@ class MessageHandler {
         paymentMethod: selectedPaymentMethod,
         tradeTimeLimit: orderData.tradeTimeLimit || 30,
         orderNumber: orderNumber,
-        buyOrderId: orderData.orderId // Include the buy order ID
+        buyOrderId: orderData.buyOrderId // Include the buy order ID
       });
       
       if (!tradeResult.success) {
