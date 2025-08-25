@@ -230,7 +230,101 @@ class MessageHandler {
   }
 
   async handleP2POrderConfirmation(ctx) {
-    await ctx.reply('🚧 Функция подтверждения ордеров в разработке');
+    try {
+      const chatId = ctx.chat.id.toString();
+      const sessionManager = require('./SessionManager');
+      const pendingOrder = sessionManager.getPendingP2POrder(chatId);
+      
+      if (!pendingOrder) {
+        return await ctx.reply('❌ Ордер не найден. Попробуйте создать ордер заново.');
+      }
+      
+      const { orderType, amount, pricePerToken, minAmount, maxAmount } = pendingOrder;
+      
+      // Validate user profile completion before order creation
+      const validation = await this.dataHandler.validateUserForP2POperations(chatId);
+      
+      if (!validation.valid) {
+        const keyboard = Markup.inlineKeyboard(validation.keyboard || [[Markup.button.callback('🔙 Назад', 'p2p_menu')]]);
+        return await ctx.reply(validation.message, keyboard);
+      }
+      
+      // Get user
+      const { User } = require('../database/models');
+      const user = await User.findOne({ chatId });
+      if (!user) {
+        return await ctx.reply('❌ Пользователь не найден.');
+      }
+      
+      // Check wallet
+      const walletService = require('../services/walletService');
+      const walletInfo = await walletService.getUserWallet(chatId);
+      if (!walletInfo || !walletInfo.hasWallet) {
+        return await ctx.reply('❌ Сначала создайте кошелек.');
+      }
+      
+      // For sell orders, check CES balance
+      if (orderType === 'sell') {
+        if (walletInfo.cesBalance < amount) {
+          return await ctx.reply(`❌ Недостаточно CES токенов. Доступно: ${walletInfo.cesBalance.toFixed(4)} CES`);
+        }
+      }
+      
+      // Create order
+      const p2pService = require('../services/p2pService');
+      let order;
+      
+      try {
+        if (orderType === 'buy') {
+          order = await p2pService.createBuyOrder(chatId, amount, pricePerToken, minAmount, maxAmount);
+        } else {
+          // Get payment methods for sell order
+          const paymentMethods = user.p2pProfile?.paymentMethods?.filter(pm => pm.isActive) || [];
+          order = await p2pService.createSellOrder(chatId, amount, pricePerToken, paymentMethods, minAmount, maxAmount);
+        }
+      } catch (error) {
+        console.error('Order creation error:', error);
+        return await ctx.reply(`❌ Ошибка создания ордера: ${error.message}`);
+      }
+      
+      // Clear pending order from session
+      sessionManager.clearUserSession(chatId);
+      
+      // Calculate values for display
+      const totalValue = amount * pricePerToken;
+      const commissionCES = amount * 0.01; // 1% commission in CES
+      const commissionRubles = totalValue * 0.01; // For display purposes
+      const minRubles = minAmount * pricePerToken;
+      const maxRubles = maxAmount * pricePerToken;
+      
+      // Create success message with exact formatting requested
+      const typeEmoji = orderType === 'buy' ? '📈' : '📉';
+      const typeText = orderType === 'buy' ? 'покупку' : 'продажу';
+      
+      const message = `${typeEmoji} Подтверждение ордера на ${typeText}\n` +
+                     `➖➖➖➖➖➖➖➖➖➖➖\n` +
+                     `Количество: ${amount} CES\n` +
+                     `Цена за токен: ${pricePerToken.toFixed(2)} ₽\n` +
+                     `Общая сумма: ${totalValue.toFixed(2)} ₽\n` +
+                     `Мин. сумма: ${minRubles.toFixed(0)} ₽\n` +
+                     `Макс. сумма: ${maxRubles.toFixed(0)} ₽\n` +
+                     `Комиссия: 1 % | ${commissionCES.toFixed(2)} CES\n\n` +
+                     `🛡️ Безопасность:\n` +
+                     `Все сделки защищены эскроу-системой\n\n` +
+                     `✅ Ордер успешно создан!`;
+      
+      const keyboard = Markup.inlineKeyboard([
+        [Markup.button.callback('📈 Мои ордера', 'p2p_my_orders')],
+        [Markup.button.callback('📉 Рынок', 'p2p_market_orders')],
+        [Markup.button.callback('🔙 К P2P меню', 'p2p_menu')]
+      ]);
+      
+      await ctx.reply(message, keyboard);
+      
+    } catch (error) {
+      console.error('P2P order confirmation error:', error);
+      await ctx.reply('❌ Ошибка подтверждения ордера.');
+    }
   }
 
   async handleP2PMyProfile(ctx) {
