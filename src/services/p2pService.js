@@ -1507,8 +1507,8 @@ class P2PService {
         buyerCommission: 0, // Seller is maker, so buyer pays no commission
         sellerCommission: 0, // Commission is handled separately
         commission: 0, // Will be calculated later if needed
-        status: 'creating',
-        escrowStatus: 'pending',
+        status: 'escrow_locked', // Исправлено: используем допустимое значение
+        escrowStatus: 'locked', // Исправлено: используем допустимое значение
         paymentMethod: mappedPaymentMethod,
         timeTracking: {
           createdAt: new Date(),
@@ -1527,9 +1527,7 @@ class P2PService {
         return { success: false, error: 'Ошибка блокировки средств в эскроу' };
       }
       
-      // Update trade status after successful escrow
-      trade.status = 'escrow_locked';
-      trade.escrowStatus = 'locked';
+      // Update escrow locked timestamp after successful escrow
       trade.timeTracking.escrowLockedAt = new Date();
       await trade.save();
       

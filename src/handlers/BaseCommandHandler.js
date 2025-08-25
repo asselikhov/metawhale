@@ -55,9 +55,9 @@ class BaseCommandHandler {
       const welcomeMessage = 'Добро пожаловать в Rustling Grass 🌾 assistant !';
       console.log(`💬 Welcome message: ${welcomeMessage}`);
       
-      // Main menu with regular keyboard buttons (only 2 buttons as requested)
+      // Main menu with regular keyboard buttons (3 buttons in 1 row)
       const mainMenu = Markup.keyboard([
-        ['👤 Личный кабинет', '🔄 P2P Биржа']
+        ['👤 ЛК', '🔄 P2P', '💠 Matrix']
       ]).resize();
       
       console.log(`📤 Sending welcome message to user ${chatId}`);
@@ -222,7 +222,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
       }
       
       // Handle main menu buttons
-      if (text.includes('Личный кабинет')) {
+      if (text.includes('ЛК') || text.includes('Личный кабинет')) {
         console.log(`🏠 Handling Personal Cabinet request from ${chatId}`);
         if (!this.walletHandler) {
           // Fallback - create WalletHandler instance
@@ -233,12 +233,17 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
         return await this.walletHandler.handlePersonalCabinetText(ctx);
       }
       
-      if (text.includes('P2P Биржа') || text.includes('🔄 P2P')) {
+      if (text.includes('P2P Биржа') || text.includes('🔄 P2P') || text.includes('P2P')) {
         console.log(`🔄 Handling P2P Menu request from ${chatId}`);
         if (!this.p2pHandler) {
           return await ctx.reply('❌ Ошибка: P2P handler не инициализирован');
         }
         return await this.p2pHandler.handleP2PMenu(ctx);
+      }
+      
+      if (text.includes('Matrix CES') || text.includes('💠 Matrix') || text.includes('Matrix')) {
+        console.log(`💠 Handling Matrix request from ${chatId}`);
+        return await ctx.reply('🙧 Этот раздел находится в разработке.\nСовсем скоро вы сможете:\n\nоткрыть уровни матрицы,\nзарабатывать в CES,\nполучать реинвесты и автоапгрейды,\nучаствовать в бонусных пулах.\n🔔 Следите за обновлениями — запуск уже скоро!');
       }
       
       // Check if message looks like a transfer command (address amount)
@@ -275,7 +280,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
   async handleBackToMenu(ctx) {
     try {
       const mainMenu = Markup.keyboard([
-        ['👤 Личный кабинет', '🔄 P2P']
+        ['👤 ЛК', '🔄 P2P', '💠 Matrix']
       ]).resize();
       
       await ctx.reply('🌾 Главное меню', mainMenu);
