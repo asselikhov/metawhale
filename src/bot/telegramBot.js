@@ -388,6 +388,11 @@ class TelegramBot {
       console.log('Received continue_sell_order callback');
       return messageHandler.handleContinueSellOrder(ctx);
     });
+
+    this.bot.action('continue_buy_order', (ctx) => {
+      console.log('Received continue_buy_order callback');
+      return messageHandler.handleContinueBuyOrder(ctx);
+    });
     
     this.bot.action('confirm_sell_amount', (ctx) => {
       console.log('Received confirm_sell_amount callback');

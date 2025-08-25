@@ -519,12 +519,112 @@ class MessageHandler {
       await ctx.reply('❌ Ошибка отображения деталей ордера.');
     }
   }
+
+  async handleSellOrderDetails(ctx, userId, orderId) {
+    try {
+      const chatId = ctx.chat.id.toString();
+      
+      // Проверяем завершённость профиля перед взаимодействием с мейкерами
+      const validation = await this.dataHandler.validateUserForP2POperations(chatId);
+      
+      if (!validation.valid) {
+        const keyboard = Markup.inlineKeyboard(validation.keyboard || [[Markup.button.callback('🔙 Назад', 'p2p_buy_orders')]]);
+        return await ctx.reply(validation.message, keyboard);
+      }
+      
+      // Получаем ордер мейкера (ордер на продажу CES)
+      const { P2POrder, User } = require('../database/models');
+      const reputationService = require('../services/reputationService');
+      
+      const sellOrder = await P2POrder.findById(orderId).populate('userId');
+      if (!sellOrder || sellOrder.type !== 'sell' || sellOrder.status !== 'active') {
+        return await ctx.reply('❌ Ордер не найден или неактивен.');
+      }
+      
+      const maker = sellOrder.userId; // Мейкер (продавец CES)
+      
+      // Проверяем, что пользователь не пытается торговать со своим ордером
+      const currentUser = await User.findOne({ chatId });
+      if (!currentUser) {
+        return await ctx.reply('❌ Пользователь не найден.');
+      }
+      
+      if (maker._id.toString() === currentUser._id.toString()) {
+        const keyboard = Markup.inlineKeyboard([
+          [Markup.button.callback('🔙 Назад', 'p2p_buy_orders')]
+        ]);
+        return await ctx.reply('⚠️ Вы не можете купить у самого себя', keyboard);
+      }
+      
+      const stats = await reputationService.getStandardizedUserStats(maker._id);
+      
+      // Получаем имя мейкера
+      let makerName = 'Пользователь';
+      if (maker.p2pProfile && maker.p2pProfile.fullName) {
+        makerName = maker.p2pProfile.fullName;
+      } else if (maker.firstName) {
+        makerName = maker.firstName;
+        if (maker.lastName) {
+          makerName += ` ${maker.lastName}`;
+        }
+      }
+      
+      // Рассчитываем лимиты
+      const minAmount = sellOrder.minTradeAmount || 1;
+      const maxAmount = Math.min(sellOrder.maxTradeAmount || sellOrder.remainingAmount, sellOrder.remainingAmount);
+      const minRubles = (minAmount * sellOrder.pricePerToken).toFixed(2);
+      const maxRubles = (maxAmount * sellOrder.pricePerToken).toFixed(2);
+      
+      // Получаем условия мейкера
+      const makerConditions = (maker.p2pProfile && maker.p2pProfile.makerConditions) ? 
+                              maker.p2pProfile.makerConditions : 'Не указано';
+      
+      const message = `Цена: ${sellOrder.pricePerToken.toFixed(2)} ₽ за CES\n` +
+                     `Количество: ${sellOrder.remainingAmount.toFixed(2)} CES\n` +
+                     `Лимиты: ${minRubles}-${maxRubles} ₽\n` +
+                     `Способ оплаты: Банковский перевод\n` +
+                     `Длительность оплаты: ${sellOrder.tradeTimeLimit || 30} мин.\n\n` +
+                     `Условия мейкера:\n` +
+                     `${makerConditions}\n\n` +
+                     `Сведения о мейкере:\n` +
+                     `${makerName}\n` +
+                     `Исполненные ордера за 30 дней: ${stats.ordersLast30Days} шт.\n` +
+                     `Процент исполнения за 30 дней: ${stats.completionRateLast30Days}%\n` +
+                     `Среднее время перевода: ${stats.avgTransferTime} мин.\n` +
+                     `Среднее время оплаты: ${stats.avgPaymentTime} мин.\n` +
+                     `Рейтинг: ${stats.rating}`;
+      
+      // Сохраняем информацию о заказе в сессии
+      const sessionManager = require('./SessionManager');
+      sessionManager.setSessionData(chatId, 'currentSellOrder', {
+        sellOrderId: sellOrder._id,
+        makerId: maker._id,
+        makerChatId: maker.chatId,
+        pricePerToken: sellOrder.pricePerToken,
+        availableAmount: sellOrder.remainingAmount,
+        minAmount: minAmount,
+        maxAmount: maxAmount,
+        tradeTimeLimit: sellOrder.tradeTimeLimit || 30
+      });
+      
+      const keyboard = Markup.inlineKeyboard([
+        [Markup.button.callback('Продолжить', 'continue_buy_order')],
+        [Markup.button.callback('🔙 Назад', 'p2p_buy_orders')]
+      ]);
+      
+      await ctx.reply(message, keyboard);
+      
+    } catch (error) {
+      console.error('Ошибка отображения деталей ордера на продажу:', error);
+      await ctx.reply('❌ Ошибка отображения деталей ордера.');
+    }
+  }
   
   // New handlers for sell CES flow
   async handleContinueSellOrder(ctx) {
     const chatId = ctx.chat.id.toString();
     const sessionManager = require('./SessionManager');
-    const orderData = sessionManager.getSessionData(chatId, 'currentOrder');
+    const orderData = sessionManager.getSessionData(chatId, 'currentBuyOrder');
     
     if (!orderData) {
       return await ctx.reply('❌ Данные ордера не найдены.');
@@ -537,6 +637,25 @@ class MessageHandler {
     sessionManager.setSessionData(chatId, 'waitingForAmount', true);
     
     const keyboard = Markup.inlineKeyboard([[Markup.button.callback('🔙 Назад', 'p2p_sell_orders')]]);
+    await ctx.reply(message, keyboard);
+  }
+
+  async handleContinueBuyOrder(ctx) {
+    const chatId = ctx.chat.id.toString();
+    const sessionManager = require('./SessionManager');
+    const orderData = sessionManager.getSessionData(chatId, 'currentSellOrder');
+    
+    if (!orderData) {
+      return await ctx.reply('❌ Данные ордера не найдены.');
+    }
+    
+    const message = `Введите количество CES которое вы хотите купить:\n\n` +
+                   `Минимум: ${orderData.minAmount} CES\n` +
+                   `Максимум: ${orderData.maxAmount} CES`;
+    
+    sessionManager.setSessionData(chatId, 'waitingForBuyAmount', true);
+    
+    const keyboard = Markup.inlineKeyboard([[Markup.button.callback('🔙 Назад', 'p2p_buy_orders')]]);
     await ctx.reply(message, keyboard);
   }
   

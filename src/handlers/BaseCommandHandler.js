@@ -134,15 +134,15 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
       })} • 🅐🅣🅗 ${athDisplay}
 
 ⚡️ Торгуй CES удобно и безопасно  
-💱 P2P Биржа: Покупка и продажа за ₽  
-🌍 Свобода без посредников — только ты и рынок !`;
+💱 [P2P Биржа](https://t.me/rogassistant_bot): Покупка и продажа за ₽`;
       
       // Edit the original message instead of sending new one
       await ctx.telegram.editMessageText(
         sentMessage.chat.id,
         sentMessage.message_id,
         null,
-        message
+        message,
+        { parse_mode: 'Markdown' }
       );
       
     } catch (error) {

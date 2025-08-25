@@ -101,12 +101,11 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
       })} • 🅐🅣🅗 ${athDisplay}
 
 ⚡️ Торгуй CES удобно и безопасно  
-💱 P2P Биржа: Покупка и продажа за ₽  
-🌍 Свобода без посредников — только ты и рынок !`;
+💱 [P2P Биржа](https://t.me/rogassistant_bot): Покупка и продажа за ₽`;
       
       // Send message to group
       if (this.bot) {
-        await this.bot.telegram.sendMessage(targetGroupId, message);
+        await this.bot.telegram.sendMessage(targetGroupId, message, { parse_mode: 'Markdown' });
         this.lastMessageSent = now; // Update last message timestamp
         console.log(`✅ Price message sent to group ${targetGroupId}`);
       } else {
