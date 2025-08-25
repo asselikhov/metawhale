@@ -879,6 +879,235 @@ class P2PService {
     }
   }
 
+  // Create a trade with escrow for the selling flow
+  async createTradeWithEscrow(tradeData) {
+    try {
+      const { buyerChatId, sellerChatId, cesAmount, pricePerToken, totalPrice, paymentMethod, tradeTimeLimit, orderNumber } = tradeData;
+      
+      console.log(`Creating trade with escrow: ${cesAmount} CES for ₽${totalPrice}`);
+      
+      // Get buyer and seller
+      const buyer = await User.findOne({ chatId: buyerChatId });
+      const seller = await User.findOne({ chatId: sellerChatId });
+      
+      if (!buyer || !seller) {
+        return { success: false, error: 'Пользователи не найдены' };
+      }
+      
+      // Check seller's CES balance
+      const walletInfo = await walletService.getUserWallet(sellerChatId);
+      if (walletInfo.cesBalance < cesAmount) {
+        return { success: false, error: 'Недостаточно CES для продажи' };
+      }
+      
+      // Lock CES tokens in escrow
+      const escrowResult = await escrowService.lockTokensInEscrow(seller._id, null, 'CES', cesAmount);
+      if (!escrowResult.success) {
+        return { success: false, error: 'Ошибка блокировки средств в эскроу' };
+      }
+      
+      // Create trade record
+      const trade = new P2PTrade({
+        buyerId: buyer._id,
+        sellerId: seller._id,
+        amount: cesAmount,
+        pricePerToken: pricePerToken,
+        totalValue: totalPrice,
+        buyerCommission: 0, // Seller is maker, so buyer pays no commission
+        sellerCommission: 0, // Commission is handled separately
+        commission: 0, // Will be calculated later if needed
+        status: 'escrow_locked',
+        escrowStatus: 'locked',
+        paymentMethod: paymentMethod.bank || 'bank_transfer',
+        paymentDetails: {
+          bankName: paymentMethod.bank,
+          cardNumber: paymentMethod.cardNumber,
+          orderNumber: orderNumber
+        },
+        timeTracking: {
+          createdAt: new Date(),
+          escrowLockedAt: new Date(),
+          expiresAt: new Date(Date.now() + (tradeTimeLimit || 30) * 60 * 1000)
+        }
+      });
+      
+      await trade.save();
+      
+      console.log(`Trade created with escrow: ${trade._id}`);
+      return { success: true, tradeId: trade._id };
+      
+    } catch (error) {
+      console.error('Error creating trade with escrow:', error);
+      return { success: false, error: error.message };
+    }
+  }
+  
+  // Mark payment as completed
+  async markPaymentCompleted(tradeId, userChatId) {
+    try {
+      console.log(`Marking payment as completed for trade ${tradeId}`);
+      
+      const trade = await P2PTrade.findById(tradeId)
+        .populate('buyerId')
+        .populate('sellerId');
+      
+      if (!trade) {
+        return { success: false, error: 'Сделка не найдена' };
+      }
+      
+      // Check if user is the seller (who marks payment as completed)
+      if (trade.sellerId.chatId !== userChatId) {
+        return { success: false, error: 'Только продавец может отметить платеж как выполненный' };
+      }
+      
+      if (trade.status !== 'escrow_locked') {
+        return { success: false, error: 'Нельзя отметить платеж для этой сделки' };
+      }
+      
+      // Update trade status to payment pending confirmation
+      trade.status = 'payment_pending';
+      trade.timeTracking.paymentMadeAt = new Date();
+      
+      await trade.save();
+      
+      // Notify buyer about payment completion
+      try {
+        await smartNotificationService.sendSmartTradeStatusNotification(
+          trade.buyerId._id,
+          trade,
+          'payment_completed'
+        );
+      } catch (notifyError) {
+        console.log('Warning: Could not send notification');
+      }
+      
+      console.log(`Payment marked as completed for trade ${tradeId}`);
+      return { success: true };
+      
+    } catch (error) {
+      console.error('Error marking payment as completed:', error);
+      return { success: false, error: error.message };
+    }
+  }
+  
+  // Cancel trade by user request
+  async cancelTradeByUser(tradeId, userChatId) {
+    try {
+      console.log(`Cancelling trade ${tradeId} by user request`);
+      
+      const trade = await P2PTrade.findById(tradeId)
+        .populate('buyerId')
+        .populate('sellerId');
+      
+      if (!trade) {
+        return { success: false, error: 'Сделка не найдена' };
+      }
+      
+      // Check if user is participant
+      const isParticipant = trade.buyerId.chatId === userChatId || trade.sellerId.chatId === userChatId;
+      if (!isParticipant) {
+        return { success: false, error: 'Вы не являетесь участником этой сделки' };
+      }
+      
+      if (!['escrow_locked', 'payment_pending'].includes(trade.status)) {
+        return { success: false, error: 'Нельзя отменить эту сделку' };
+      }
+      
+      // Refund tokens from escrow to seller
+      await escrowService.refundTokensFromEscrow(
+        trade.sellerId._id,
+        tradeId,
+        'CES',
+        trade.amount,
+        'Отменено пользователем'
+      );
+      
+      // Update trade status
+      trade.status = 'cancelled';
+      trade.escrowStatus = 'refunded';
+      trade.disputeReason = 'Отменено пользователем';
+      
+      await trade.save();
+      
+      // Notify other participant
+      try {
+        const otherUserId = trade.buyerId.chatId === userChatId ? trade.sellerId._id : trade.buyerId._id;
+        await smartNotificationService.sendSmartTradeStatusNotification(
+          otherUserId,
+          trade,
+          'cancelled'
+        );
+      } catch (notifyError) {
+        console.log('Warning: Could not send notification');
+      }
+      
+      console.log(`Trade ${tradeId} cancelled by user`);
+      return { success: true };
+      
+    } catch (error) {
+      console.error('Error cancelling trade by user:', error);
+      return { success: false, error: error.message };
+    }
+  }
+  
+  // Cancel trade with timeout (automatic cancellation)
+  async cancelTradeWithTimeout(tradeId) {
+    try {
+      console.log(`Cancelling trade ${tradeId} due to timeout`);
+      
+      const trade = await P2PTrade.findById(tradeId)
+        .populate('buyerId')
+        .populate('sellerId');
+      
+      if (!trade) {
+        console.log(`Trade ${tradeId} not found for timeout cancellation`);
+        return;
+      }
+      
+      if (!['escrow_locked', 'payment_pending'].includes(trade.status)) {
+        console.log(`Trade ${tradeId} cannot be cancelled (status: ${trade.status})`);
+        return;
+      }
+      
+      // Refund tokens from escrow to seller
+      await escrowService.refundTokensFromEscrow(
+        trade.sellerId._id,
+        tradeId,
+        'CES',
+        trade.amount,
+        'Время оплаты истекло'
+      );
+      
+      // Update trade status
+      trade.status = 'cancelled';
+      trade.escrowStatus = 'refunded';
+      trade.disputeReason = 'Время оплаты истекло';
+      
+      await trade.save();
+      
+      // Notify both participants
+      try {
+        await smartNotificationService.sendSmartTradeStatusNotification(
+          trade.buyerId._id,
+          trade,
+          'timeout'
+        );
+        await smartNotificationService.sendSmartTradeStatusNotification(
+          trade.sellerId._id,
+          trade,
+          'timeout'
+        );
+      } catch (notifyError) {
+        console.log('Warning: Could not send notifications');
+      }
+      
+      console.log(`Trade ${tradeId} cancelled due to timeout`);
+      
+    } catch (error) {
+      console.error('Error cancelling trade with timeout:', error);
+    }
+  }
+
   // Update user trading statistics
   async updateUserStats(buyerId, sellerId, tradeValue, tradeStatus) {
     try {

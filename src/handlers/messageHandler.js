@@ -52,6 +52,14 @@ class MessageHandler {
   }
 
   async handleTextMessage(ctx) {
+    const chatId = ctx.chat.id.toString();
+    const sessionData = sessionManager.getUserSession(chatId);
+    
+    // Handle CES amount input in selling flow
+    if (sessionData && sessionData.waitingForAmount) {
+      return this.handleCESAmountInput(ctx, ctx.message.text);
+    }
+    
     return this.baseHandler.handleTextMessage(ctx);
   }
 
@@ -286,12 +294,566 @@ class MessageHandler {
         return await ctx.reply(validation.message, keyboard);
       }
       
-      // TODO: Implement full order details view
-      await ctx.reply('🚧 Функция просмотра деталей ордера на продажу в разработке');
+      // Get order and maker details
+      const { P2POrder, User } = require('../database/models');
+      const reputationService = require('../services/reputationService');
+      
+      const order = await P2POrder.findById(orderId).populate('userId');
+      if (!order) {
+        return await ctx.reply('❌ Ордер не найден.');
+      }
+      
+      const maker = order.userId;
+      const stats = await reputationService.getStandardizedUserStats(maker._id);
+      
+      // Get maker's P2P profile name
+      let makerName = 'Пользователь';
+      if (maker.p2pProfile && maker.p2pProfile.fullName) {
+        makerName = maker.p2pProfile.fullName;
+      } else if (maker.firstName) {
+        makerName = maker.firstName;
+        if (maker.lastName) {
+          makerName += ` ${maker.lastName}`;
+        }
+      }
+      
+      // Get payment methods
+      const bankNames = {
+        'sberbank': 'Сбербанк',
+        'vtb': 'ВТБ',
+        'gazprombank': 'Газпромбанк',
+        'alfabank': 'Альфа-Банк',
+        'rshb': 'Россельхозбанк (РСХБ)',
+        'mkb': 'Московский кредитный банк (МКБ)',
+        'sovcombank': 'Совкомбанк',
+        'tbank': 'Т-банк',
+        'domrf': 'ДОМ.РФ',
+        'otkritie': 'Открытие',
+        'raiffeisenbank': 'Райффайзенбанк',
+        'rosbank': 'Росбанк'
+      };
+      
+      let paymentMethods = 'Не указано';
+      if (maker.p2pProfile && maker.p2pProfile.paymentMethods) {
+        const activeMethods = maker.p2pProfile.paymentMethods.filter(pm => pm.isActive);
+        if (activeMethods.length > 0) {
+          paymentMethods = activeMethods.map(pm => bankNames[pm.bank] || pm.bank).join(', ');
+        }
+      }
+      
+      // Calculate limits
+      const minAmount = order.minTradeAmount || 1;
+      const maxAmount = order.maxTradeAmount || order.remainingAmount;
+      const minRubles = (minAmount * order.pricePerToken).toFixed(2);
+      const maxRubles = (maxAmount * order.pricePerToken).toFixed(2);
+      
+      // Get maker conditions
+      const makerConditions = (maker.p2pProfile && maker.p2pProfile.makerConditions) ? 
+                              maker.p2pProfile.makerConditions : 'Не указано';
+      
+      const message = `Цена: ${order.pricePerToken.toFixed(2)} ₽\n` +
+                     `Количество: ${order.remainingAmount.toFixed(2)} CES\n` +
+                     `Лимиты: ${minRubles}-${maxRubles} ₽\n` +
+                     `Способ оплаты: ${paymentMethods}\n` +
+                     `Длительность оплаты: ${order.tradeTimeLimit || 30} мин.\n\n` +
+                     `Условия мейкера:\n` +
+                     `${makerConditions}\n\n` +
+                     `Сведения о мейкере:\n` +
+                     `${makerName}\n` +
+                     `Исполненные ордера за 30 дней: ${stats.ordersLast30Days} шт.\n` +
+                     `Процент исполнения за 30 дней: ${stats.completionRateLast30Days}%\n` +
+                     `Среднее время перевода: ${stats.avgTransferTime} мин.\n` +
+                     `Среднее время оплаты: ${stats.avgPaymentTime} мин.\n` +
+                     `Рейтинг: ${stats.rating}`;
+      
+      // Store order info in session for next steps
+      const sessionManager = require('./SessionManager');
+      sessionManager.setSessionData(chatId, 'currentOrder', {
+        orderId: order._id,
+        makerId: maker._id,
+        orderType: 'sell', // User wants to sell to this buy order
+        amount: order.remainingAmount,
+        pricePerToken: order.pricePerToken,
+        minAmount: minAmount,
+        maxAmount: maxAmount,
+        paymentMethods: maker.p2pProfile?.paymentMethods || [],
+        tradeTimeLimit: order.tradeTimeLimit || 30
+      });
+      
+      const keyboard = Markup.inlineKeyboard([
+        [Markup.button.callback('Продолжить', 'continue_sell_order')],
+        [Markup.button.callback('🔙 Назад', 'p2p_sell_orders')]
+      ]);
+      
+      await ctx.reply(message, keyboard);
       
     } catch (error) {
       console.error('Sell order details error:', error);
       await ctx.reply('❌ Ошибка отображения деталей ордера.');
+    }
+  }
+  
+  // New handlers for sell CES flow
+  async handleContinueSellOrder(ctx) {
+    const chatId = ctx.chat.id.toString();
+    const sessionManager = require('./SessionManager');
+    const orderData = sessionManager.getSessionData(chatId, 'currentOrder');
+    
+    if (!orderData) {
+      return await ctx.reply('❌ Данные ордера не найдены.');
+    }
+    
+    const message = `Введите количество CES которое вы хотите продать:\n\n` +
+                   `Минимум: ${orderData.minAmount} CES\n` +
+                   `Максимум: ${orderData.maxAmount} CES`;
+    
+    sessionManager.setSessionData(chatId, 'waitingForAmount', true);
+    
+    const keyboard = Markup.inlineKeyboard([[Markup.button.callback('🔙 Назад', 'p2p_sell_orders')]]);
+    await ctx.reply(message, keyboard);
+  }
+  
+  async handleCESAmountInput(ctx, amountText) {
+    try {
+      const chatId = ctx.chat.id.toString();
+      const sessionManager = require('./SessionManager');
+      const orderData = sessionManager.getSessionData(chatId, 'currentOrder');
+      
+      if (!orderData) {
+        return await ctx.reply('❌ Данные ордера не найдены.');
+      }
+      
+      // Parse and validate amount
+      const amount = parseFloat(amountText.replace(',', '.'));
+      
+      if (isNaN(amount) || amount <= 0) {
+        return await ctx.reply('❌ Неверный формат. Введите число больше 0.');
+      }
+      
+      // Check against order limits
+      if (amount < orderData.minAmount) {
+        return await ctx.reply(`❌ Минимальная сумма: ${orderData.minAmount} CES`);
+      }
+      
+      if (amount > orderData.maxAmount) {
+        return await ctx.reply(`❌ Максимальная сумма: ${orderData.maxAmount} CES`);
+      }
+      
+      // Check user's CES balance
+      const walletService = require('../services/walletService');
+      const walletInfo = await walletService.getUserWallet(chatId);
+      
+      if (walletInfo.cesBalance < amount) {
+        return await ctx.reply(`❌ Недостаточно CES. Ваш баланс: ${walletInfo.cesBalance.toFixed(4)} CES`);
+      }
+      
+      // Calculate transaction details
+      const totalPrice = amount * orderData.pricePerToken;
+      
+      // Store confirmed amount in session
+      sessionManager.setSessionData(chatId, 'confirmedAmount', amount);
+      sessionManager.setSessionData(chatId, 'totalPrice', totalPrice);
+      sessionManager.setSessionData(chatId, 'waitingForAmount', false);
+      
+      // Show confirmation screen
+      const message = `Продажа CES\n` +
+                     `Сумма ${totalPrice.toFixed(2)} ₽\n` +
+                     `Цена: ${orderData.pricePerToken.toFixed(2)} ₽\n` +
+                     `Общее количество: ${amount} CES\n` +
+                     `Комиссия за транзакцию: 0 %`;
+      
+      const keyboard = Markup.inlineKeyboard([
+        [Markup.button.callback('Продолжить', 'continue_with_payment')],
+        [Markup.button.callback('🔙 Назад', 'back_to_amount_input')]
+      ]);
+      
+      await ctx.reply(message, keyboard);
+      
+    } catch (error) {
+      console.error('CES amount input error:', error);
+      await ctx.reply('❌ Ошибка обработки суммы.');
+    }
+  }
+  
+  async handleConfirmSellAmount(ctx) {
+    await ctx.reply('🚧 В разработке');
+  }
+  
+  async handleBackToAmountInput(ctx) {
+    return this.handleContinueSellOrder(ctx);
+  }
+  
+  async handleBackToAmountConfirmation(ctx) {
+    const chatId = ctx.chat.id.toString();
+    const sessionManager = require('./SessionManager');
+    const orderData = sessionManager.getSessionData(chatId, 'currentOrder');
+    const confirmedAmount = sessionManager.getSessionData(chatId, 'confirmedAmount');
+    const totalPrice = sessionManager.getSessionData(chatId, 'totalPrice');
+    
+    if (!orderData || !confirmedAmount || !totalPrice) {
+      return await ctx.reply('❌ Данные сделки не найдены.');
+    }
+    
+    // Show confirmation screen again
+    const message = `Продажа CES\n` +
+                   `Сумма ${totalPrice.toFixed(2)} ₽\n` +
+                   `Цена: ${orderData.pricePerToken.toFixed(2)} ₽\n` +
+                   `Общее количество: ${confirmedAmount} CES\n` +
+                   `Комиссия за транзакцию: 0 %`;
+    
+    const keyboard = Markup.inlineKeyboard([
+      [Markup.button.callback('Продолжить', 'continue_with_payment')],
+      [Markup.button.callback('🔙 Назад', 'back_to_amount_input')]
+    ]);
+    
+    await ctx.reply(message, keyboard);
+  }
+  
+  async handleContinueWithPayment(ctx) {
+    try {
+      const chatId = ctx.chat.id.toString();
+      const sessionManager = require('./SessionManager');
+      const orderData = sessionManager.getSessionData(chatId, 'currentOrder');
+      const confirmedAmount = sessionManager.getSessionData(chatId, 'confirmedAmount');
+      
+      if (!orderData || !confirmedAmount) {
+        return await ctx.reply('❌ Данные сделки не найдены.');
+      }
+      
+      // Get available payment methods from maker
+      const paymentMethods = orderData.paymentMethods || [];
+      const activeMethods = paymentMethods.filter(pm => pm.isActive);
+      
+      if (activeMethods.length === 0) {
+        return await ctx.reply('❌ У мейкера нет доступных способов оплаты.');
+      }
+      
+      const bankNames = {
+        'sberbank': 'Сбербанк',
+        'vtb': 'ВТБ',
+        'gazprombank': 'Газпромбанк',
+        'alfabank': 'Альфа-Банк',
+        'rshb': 'Россельхозбанк',
+        'mkb': 'МКБ',
+        'sovcombank': 'Совкомбанк',
+        'tbank': 'Т-Банк',
+        'domrf': 'ДОМ.РФ',
+        'otkritie': 'Открытие',
+        'raiffeisenbank': 'Райффайзенбанк',
+        'rosbank': 'Росбанк'
+      };
+      
+      const message = `Выберите способ оплаты:`;
+      
+      // Create payment method buttons
+      const paymentButtons = activeMethods.map(pm => [
+        Markup.button.callback(bankNames[pm.bank] || pm.bank, `select_payment_${pm.bank}`)
+      ]);
+      
+      // Add back button
+      paymentButtons.push([Markup.button.callback('🔙 Назад', 'back_to_amount_confirmation')]);
+      
+      const keyboard = Markup.inlineKeyboard(paymentButtons);
+      await ctx.reply(message, keyboard);
+      
+    } catch (error) {
+      console.error('Continue with payment error:', error);
+      await ctx.reply('❌ Ошибка выбора способа оплаты.');
+    }
+  }
+  
+  async handleSelectPayment(ctx, bankCode) {
+    try {
+      const chatId = ctx.chat.id.toString();
+      const sessionManager = require('./SessionManager');
+      const orderData = sessionManager.getSessionData(chatId, 'currentOrder');
+      const confirmedAmount = sessionManager.getSessionData(chatId, 'confirmedAmount');
+      const totalPrice = sessionManager.getSessionData(chatId, 'totalPrice');
+      
+      if (!orderData || !confirmedAmount || !totalPrice) {
+        return await ctx.reply('❌ Данные сделки не найдены.');
+      }
+      
+      // Find selected payment method
+      const selectedMethod = orderData.paymentMethods.find(pm => pm.bank === bankCode && pm.isActive);
+      if (!selectedMethod) {
+        return await ctx.reply('❌ Выбранный способ оплаты недоступен.');
+      }
+      
+      // Store selected payment method
+      sessionManager.setSessionData(chatId, 'selectedPaymentMethod', selectedMethod);
+      
+      // Generate order number
+      const orderNumber = `CES${Date.now().toString().slice(-8)}`;
+      const currentTime = new Date().toLocaleString('ru-RU', {
+        timeZone: 'Europe/Moscow',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+      });
+      
+      sessionManager.setSessionData(chatId, 'orderNumber', orderNumber);
+      
+      const bankNames = {
+        'sberbank': 'Сбербанк',
+        'vtb': 'ВТБ',
+        'gazprombank': 'Газпромбанк',
+        'alfabank': 'Альфа-Банк',
+        'rshb': 'Россельхозбанк',
+        'mkb': 'МКБ',
+        'sovcombank': 'Совкомбанк',
+        'tbank': 'Т-Банк',
+        'domrf': 'ДОМ.РФ',
+        'otkritie': 'Открытие',
+        'raiffeisenbank': 'Райффайзенбанк',
+        'rosbank': 'Росбанк'
+      };
+      
+      const message = `Ордер на продажу\n` +
+                     `⁠⁠⁠⁠⁠⁠⁠⁠⁠⁠\n` +
+                     `Номер ордера: ${orderNumber}\n` +
+                     `Время создания: ${currentTime}\n` +
+                     `Количество: ${confirmedAmount} CES\n` +
+                     `Цена: ${orderData.pricePerToken.toFixed(2)} ₽\n` +
+                     `Общая сумма: ${totalPrice.toFixed(2)} ₽\n` +
+                     `Способ оплаты: ${bankNames[bankCode]}\n\n` +
+                     `Правила платежа:\n` +
+                     `1. Оплатите точную сумму в указанные сроки\n` +
+                     `2. Не указывайте CES в комментариях к переводу\n` +
+                     `3. Оплачивайте с того же счёта, который указан в профиле\n` +
+                     `4. Не отменяйте сделку после оплаты\n` +
+                     `5. Обращайтесь в поддержку при любых проблемах`;
+      
+      const keyboard = Markup.inlineKeyboard([
+        [Markup.button.callback('💳 Оплатить', 'make_payment')],
+        [Markup.button.callback('❌ Отменить', 'cancel_trade')]
+      ]);
+      
+      await ctx.reply(message, keyboard);
+      
+    } catch (error) {
+      console.error('Select payment error:', error);
+      await ctx.reply('❌ Ошибка подтверждения ордера.');
+    }
+  }
+  
+  async handleBackToPaymentSelection(ctx) {
+    return this.handleContinueWithPayment(ctx);
+  }
+  
+  async handleMakePayment(ctx) {
+    try {
+      const chatId = ctx.chat.id.toString();
+      const sessionManager = require('./SessionManager');
+      const orderData = sessionManager.getSessionData(chatId, 'currentOrder');
+      const confirmedAmount = sessionManager.getSessionData(chatId, 'confirmedAmount');
+      const totalPrice = sessionManager.getSessionData(chatId, 'totalPrice');
+      const selectedPaymentMethod = sessionManager.getSessionData(chatId, 'selectedPaymentMethod');
+      const orderNumber = sessionManager.getSessionData(chatId, 'orderNumber');
+      
+      if (!orderData || !confirmedAmount || !totalPrice || !selectedPaymentMethod || !orderNumber) {
+        return await ctx.reply('❌ Данные сделки не найдены.');
+      }
+      
+      // Create trade in P2P service and escrow CES tokens
+      const p2pService = require('../services/p2pService');
+      const { User } = require('../database/models');
+      
+      const buyer = await User.findById(orderData.makerId);
+      const seller = await User.findOne({ chatId });
+      
+      if (!buyer || !seller) {
+        return await ctx.reply('❌ Ошибка получения данных пользователей.');
+      }
+      
+      // Create P2P trade with escrow
+      const tradeResult = await p2pService.createTradeWithEscrow({
+        buyerChatId: buyer.chatId,
+        sellerChatId: seller.chatId,
+        cesAmount: confirmedAmount,
+        pricePerToken: orderData.pricePerToken,
+        totalPrice: totalPrice,
+        paymentMethod: selectedPaymentMethod,
+        tradeTimeLimit: orderData.tradeTimeLimit || 30,
+        orderNumber: orderNumber
+      });
+      
+      if (!tradeResult.success) {
+        return await ctx.reply(`❌ Ошибка создания сделки: ${tradeResult.error}`);
+      }
+      
+      // Store trade ID in session
+      sessionManager.setSessionData(chatId, 'tradeId', tradeResult.tradeId);
+      
+      // Set payment timer (30 minutes)
+      const timeLimit = orderData.tradeTimeLimit || 30;
+      const expiryTime = new Date(Date.now() + timeLimit * 60 * 1000);
+      const expiryTimeStr = expiryTime.toLocaleTimeString('ru-RU', {
+        timeZone: 'Europe/Moscow',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+      
+      sessionManager.setSessionData(chatId, 'paymentExpiryTime', expiryTime.getTime());
+      
+      // Get maker's payment details
+      let makerName = 'Пользователь';
+      if (buyer.p2pProfile && buyer.p2pProfile.fullName) {
+        makerName = buyer.p2pProfile.fullName;
+      } else if (buyer.firstName) {
+        makerName = buyer.firstName;
+        if (buyer.lastName) {
+          makerName += ` ${buyer.lastName}`;
+        }
+      }
+      
+      const bankNames = {
+        'sberbank': 'Сбербанк',
+        'vtb': 'ВТБ',
+        'gazprombank': 'Газпромбанк',
+        'alfabank': 'Альфа-Банк',
+        'rshb': 'Россельхозбанк',
+        'mkb': 'МКБ',
+        'sovcombank': 'Совкомбанк',
+        'tbank': 'Т-Банк',
+        'domrf': 'ДОМ.РФ',
+        'otkritie': 'Открытие',
+        'raiffeisenbank': 'Райффайзенбанк',
+        'rosbank': 'Росбанк'
+      };
+      
+      // Mask card number for display
+      let displayCardNumber = selectedPaymentMethod.cardNumber || 'Не указано';
+      if (displayCardNumber !== 'Не указано' && displayCardNumber.length > 4) {
+        displayCardNumber = '*'.repeat(displayCardNumber.length - 4) + displayCardNumber.slice(-4);
+      }
+      
+      const message = `💳 ОПЛАТА\n` +
+                     `⁠⁠⁠⁠⁠⁠⁠⁠⁠⁠\n` +
+                     `Ордер: ${orderNumber}\n` +
+                     `Время оплаты: ${timeLimit} мин. (до ${expiryTimeStr})\n` +
+                     `Сумма: ${totalPrice.toFixed(2)} ₽\n\n` +
+                     `Данные для оплаты:\n` +
+                     `Банк: ${bankNames[selectedPaymentMethod.bank]}\n` +
+                     `Карта: ${displayCardNumber}\n` +
+                     `Получатель: ${makerName}\n\n` +
+                     `⚠️ Оплатите точную сумму в указанные сроки.\n` +
+                     `После оплаты нажмите "Платёж выполнен".`;
+      
+      const keyboard = Markup.inlineKeyboard([
+        [Markup.button.callback('✅ Платёж выполнен', 'payment_completed')],
+        [Markup.button.callback('❌ Отменить сделку', 'cancel_payment')]
+      ]);
+      
+      await ctx.reply(message, keyboard);
+      
+      // Schedule automatic cancellation
+      setTimeout(async () => {
+        try {
+          const currentSession = sessionManager.getSessionData(chatId, 'tradeId');
+          if (currentSession === tradeResult.tradeId) {
+            // Trade is still active, cancel it
+            await p2pService.cancelTradeWithTimeout(tradeResult.tradeId);
+            sessionManager.clearUserSession(chatId);
+            
+            await ctx.reply('⏰ Время оплаты истекло. Сделка автоматически отменена. CES возвращены на ваш баланс.');
+          }
+        } catch (timeoutError) {
+          console.error('Timeout cancellation error:', timeoutError);
+        }
+      }, timeLimit * 60 * 1000);
+      
+    } catch (error) {
+      console.error('Make payment error:', error);
+      await ctx.reply('❌ Ошибка создания платежа.');
+    }
+  }
+  
+  async handleCancelTrade(ctx) {
+    await ctx.reply('🚧 В разработке');
+  }
+  
+  async handlePaymentCompleted(ctx) {
+    try {
+      const chatId = ctx.chat.id.toString();
+      const sessionManager = require('./SessionManager');
+      const tradeId = sessionManager.getSessionData(chatId, 'tradeId');
+      const orderNumber = sessionManager.getSessionData(chatId, 'orderNumber');
+      
+      if (!tradeId || !orderNumber) {
+        return await ctx.reply('❌ Данные сделки не найдены.');
+      }
+      
+      // Mark payment as completed in P2P service
+      const p2pService = require('../services/p2pService');
+      const result = await p2pService.markPaymentCompleted(tradeId, chatId);
+      
+      if (!result.success) {
+        return await ctx.reply(`❌ Ошибка: ${result.error}`);
+      }
+      
+      // Clear session
+      sessionManager.clearUserSession(chatId);
+      
+      const message = `✅ ПЛАТЁЖ ОТМЕЧЕН КАК ВЫПОЛНЕННЫЙ\n` +
+                     `⁠⁠⁠⁠⁠⁠⁠⁠⁠⁠\n` +
+                     `Ордер: ${orderNumber}\n\n` +
+                     `Мы уведомили покупателя о выполненном платеже.\n` +
+                     `Ожидайте подтверждения и освобождения CES с эскроу.\n\n` +
+                     `Сделка будет завершена после подтверждения получения платежа.`;
+      
+      const keyboard = Markup.inlineKeyboard([
+        [Markup.button.callback('🔙 К P2P меню', 'p2p_menu')]
+      ]);
+      
+      await ctx.reply(message, keyboard);
+      
+    } catch (error) {
+      console.error('Payment completed error:', error);
+      await ctx.reply('❌ Ошибка обработки платежа.');
+    }
+  }
+  
+  async handleCancelPayment(ctx) {
+    try {
+      const chatId = ctx.chat.id.toString();
+      const sessionManager = require('./SessionManager');
+      const tradeId = sessionManager.getSessionData(chatId, 'tradeId');
+      const orderNumber = sessionManager.getSessionData(chatId, 'orderNumber');
+      
+      if (!tradeId || !orderNumber) {
+        return await ctx.reply('❌ Данные сделки не найдены.');
+      }
+      
+      // Cancel trade and release escrow
+      const p2pService = require('../services/p2pService');
+      const result = await p2pService.cancelTradeByUser(tradeId, chatId);
+      
+      if (!result.success) {
+        return await ctx.reply(`❌ Ошибка отмены: ${result.error}`);
+      }
+      
+      // Clear session
+      sessionManager.clearUserSession(chatId);
+      
+      const message = `❌ СДЕЛКА ОТМЕНЕНА\n` +
+                     `⁠⁠⁠⁠⁠⁠⁠⁠⁠⁠\n` +
+                     `Ордер: ${orderNumber}\n\n` +
+                     `Сделка была отменена по вашему запросу.\n` +
+                     `CES возвращены на ваш баланс.`;
+      
+      const keyboard = Markup.inlineKeyboard([
+        [Markup.button.callback('🔙 К P2P меню', 'p2p_menu')]
+      ]);
+      
+      await ctx.reply(message, keyboard);
+      
+    } catch (error) {
+      console.error('Cancel payment error:', error);
+      await ctx.reply('❌ Ошибка отмены сделки.');
     }
   }
 }

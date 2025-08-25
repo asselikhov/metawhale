@@ -383,6 +383,63 @@ class TelegramBot {
       return messageHandler.handleSellOrderDetails(ctx, userId, orderId);
     });
     
+    // New handlers for sell CES flow
+    this.bot.action('continue_sell_order', (ctx) => {
+      console.log('Received continue_sell_order callback');
+      return messageHandler.handleContinueSellOrder(ctx);
+    });
+    
+    this.bot.action('confirm_sell_amount', (ctx) => {
+      console.log('Received confirm_sell_amount callback');
+      return messageHandler.handleConfirmSellAmount(ctx);
+    });
+    
+    this.bot.action('back_to_amount_input', (ctx) => {
+      console.log('Received back_to_amount_input callback');
+      return messageHandler.handleBackToAmountInput(ctx);
+    });
+    
+    this.bot.action('continue_with_payment', (ctx) => {
+      console.log('Received continue_with_payment callback');
+      return messageHandler.handleContinueWithPayment(ctx);
+    });
+    
+    this.bot.action(/^select_payment_(.+)$/, (ctx) => {
+      const bankCode = ctx.match[1];
+      console.log('Received select_payment callback:', bankCode);
+      return messageHandler.handleSelectPayment(ctx, bankCode);
+    });
+    
+    this.bot.action('back_to_payment_selection', (ctx) => {
+      console.log('Received back_to_payment_selection callback');
+      return messageHandler.handleBackToPaymentSelection(ctx);
+    });
+    
+    this.bot.action('back_to_amount_confirmation', (ctx) => {
+      console.log('Received back_to_amount_confirmation callback');
+      return messageHandler.handleBackToAmountConfirmation(ctx);
+    });
+    
+    this.bot.action('make_payment', (ctx) => {
+      console.log('Received make_payment callback');
+      return messageHandler.handleMakePayment(ctx);
+    });
+    
+    this.bot.action('cancel_trade', (ctx) => {
+      console.log('Received cancel_trade callback');
+      return messageHandler.handleCancelTrade(ctx);
+    });
+    
+    this.bot.action('payment_completed', (ctx) => {
+      console.log('Received payment_completed callback');
+      return messageHandler.handlePaymentCompleted(ctx);
+    });
+    
+    this.bot.action('cancel_payment', (ctx) => {
+      console.log('Received cancel_payment callback');
+      return messageHandler.handleCancelPayment(ctx);
+    });
+    
     // Error handling for the bot
     this.bot.catch((err, ctx) => {
       console.error(`❌ Telegram bot error for ${ctx.updateType}:`, err);
