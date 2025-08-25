@@ -205,7 +205,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
           }
           const orderType = sessionManager.getSessionData(chatId, 'p2pOrderType') || 'buy';
           console.log(`🔄 Processing P2P order: type=${orderType}, text="${text}"`);
-          sessionManager.clearUserSession(chatId);
+          // NOTE: Don't clear session here - let processP2POrder handle it after successful processing
           return await this.p2pHandler.processP2POrder(ctx, text, orderType);
           
         case 'user_message':
