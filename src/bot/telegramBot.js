@@ -440,6 +440,18 @@ class TelegramBot {
       return messageHandler.handleCancelPayment(ctx);
     });
     
+    // Handle real-time price refresh for buy orders
+    this.bot.action('refresh_price_buy', (ctx) => {
+      console.log('Received refresh_price_buy callback');
+      return messageHandler.handlePriceRefresh(ctx, 'buy');
+    });
+    
+    // Handle real-time price refresh for sell orders
+    this.bot.action('refresh_price_sell', (ctx) => {
+      console.log('Received refresh_price_sell callback');
+      return messageHandler.handlePriceRefresh(ctx, 'sell');
+    });
+    
     // Error handling for the bot
     this.bot.catch((err, ctx) => {
       console.error(`❌ Telegram bot error for ${ctx.updateType}:`, err);

@@ -23,10 +23,10 @@ Telegram бот для отслеживания цены токена CES в р�
 - Убрано получение ненужной истории цен при каждом запросе
 
 ### 📈 Умное отслеживание ATH
-- 🥇 **CoinMarketCap API** - надежные данные ATH
+- 🦎 **CoinGecko API** - надежные данные ATH
 - 🗄️ Автоматическое определение ATH из базы данных
 - 🏆 Отображение 🏆 при достижении нового ATH
-- 📊 Индикаторы источника данных (🅲🅼🅲 / 🗄️)
+- 📊 Индикаторы источника данных (🦎 / 🗄️)
 - 📝 Логирование обновлений ATH в реальном времени
 
 ### 🔄 Реальное время
@@ -53,7 +53,7 @@ yarn install
 ```env
 TELEGRAM_BOT_TOKEN=your_telegram_bot_token_here
 MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/ces-bot
-CMC_API_KEY=your_coinmarketcap_api_key_here
+COINGECKO_API_KEY=CG-BPfsJZGKQVqocFQv3EJwS3H2
 WEBHOOK_URL=https://your-app-name.onrender.com
 PORT=3000
 API_CALL_INTERVAL=10000

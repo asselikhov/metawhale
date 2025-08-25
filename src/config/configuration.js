@@ -27,9 +27,9 @@ const config = {
 
   // External APIs
   apis: {
-    coinMarketCap: {
-      apiKey: process.env.CMC_API_KEY,
-      baseUrl: 'https://pro-api.coinmarketcap.com'
+    coinGecko: {
+      apiKey: process.env.COINGECKO_API_KEY || 'CG-BPfsJZGKQVqocFQv3EJwS3H2',
+      baseUrl: 'https://api.coingecko.com/api/v3'
     },
     exchangeRate: {
       baseUrl: 'https://api.exchangerate-api.com/v4/latest'

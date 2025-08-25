@@ -157,6 +157,11 @@ class MessageHandler {
   async handleP2PMyData(ctx) {
     return this.p2pHandler.handleP2PMyData(ctx);
   }
+  
+  // Handle real-time price refresh
+  async handlePriceRefresh(ctx, orderType) {
+    return this.p2pHandler.handlePriceRefresh(ctx, orderType);
+  }
 
   // Delegate P2P data operations
   async handleP2PEditData(ctx) {

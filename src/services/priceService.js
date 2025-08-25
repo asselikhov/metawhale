@@ -1,5 +1,5 @@
 /**
- * Price Service
+ * Price Service with CoinGecko API
  * Handles all price-related API calls and data aggregation
  */
 
@@ -18,7 +18,6 @@ class PriceService {
   // Get USD to RUB exchange rate with caching
   async getUSDToRUBRate() {
     const now = Date.now();
-    // Cache for 1 minute
     if (this.lastRUBRateTime && (now - this.lastRUBRateTime) < 60000) {
       return this.cachedRUBRate;
     }
@@ -31,13 +30,11 @@ class PriceService {
       if (response.data?.rates?.RUB) {
         const rate = response.data.rates.RUB;
         console.log(`💱 USD/RUB rate: ${rate}`);
-        // Cache the rate
         this.cachedRUBRate = rate;
         this.lastRUBRateTime = now;
         return rate;
       }
       
-      console.log('⚠️ RUB rate not found in API response');
       return 100; // Fallback rate
     } catch (error) {
       console.log('⚠️ Error getting USD/RUB rate:', error.message);
@@ -45,7 +42,7 @@ class PriceService {
     }
   }
 
-  // Format number for display (add commas)
+  // Format number for display
   formatNumber(num) {
     if (num >= 1000000) {
       return (num / 1000000).toFixed(1) + 'M';
@@ -55,161 +52,162 @@ class PriceService {
     return num.toFixed(2);
   }
 
-  // Get POL price data from CoinMarketCap API
-  async getPOLPriceFromCMC() {
+  // Get CES token price from CoinGecko API
+  async getCESPriceFromCoinGecko() {
     try {
-      if (!config.apis.coinMarketCap.apiKey) {
-        console.log('⚠️ CMC API key not found, skipping CoinMarketCap for POL');
-        return null;
-      }
-
-      console.log('🔍 Getting POL token data from CoinMarketCap...');
+      console.log('🦎 Getting CES token data from CoinGecko...');
       
-      // Method 1: Direct request by POL ID 3890 (Polygon native token)
+      // Try detailed endpoint first
       try {
         const response = await axios.get(
-          `${config.apis.coinMarketCap.baseUrl}/v2/cryptocurrency/quotes/latest`,
+          `${config.apis.coinGecko.baseUrl}/coins/whalebit`,
           {
             headers: {
-              'X-CMC_PRO_API_KEY': config.apis.coinMarketCap.apiKey,
+              'X-CG-Demo-API-Key': config.apis.coinGecko.apiKey,
               'Accept': 'application/json'
             },
             params: {
-              id: '3890', // Polygon (POL) ID on CoinMarketCap
-              convert: 'USD'
+              localization: false,
+              tickers: false,
+              market_data: true,
+              community_data: false,
+              developer_data: false,
+              sparkline: false
             },
             timeout: 10000
           }
         );
         
-        if (response.data?.data?.['3890']?.quote?.USD) {
-          const quote = response.data.data['3890'].quote.USD;
-          
-          // Get USD/RUB conversion rate
+        if (response.data?.market_data) {
+          const marketData = response.data.market_data;
           const usdToRubRate = await this.getUSDToRUBRate();
-          const priceRub = quote.price * usdToRubRate;
+          const priceUSD = marketData.current_price?.usd || 0;
+          const priceRub = priceUSD * usdToRubRate;
           
-          console.log(`💎 POL price from CMC: $${quote.price.toFixed(4)}`);
+          console.log(`🦎 CES price from CoinGecko: $${priceUSD.toFixed(6)}`);
           
           return {
-            price: quote.price,
+            price: priceUSD,
             priceRub: priceRub,
-            change24h: quote.percent_change_24h,
-            marketCap: quote.market_cap,
-            volume24h: quote.volume_24h,
-            source: 'coinmarketcap'
+            change24h: marketData.price_change_percentage_24h || 0,
+            marketCap: marketData.market_cap?.usd || 0,
+            volume24h: marketData.total_volume?.usd || 0,
+            ath: marketData.ath?.usd || priceUSD,
+            athDate: marketData.ath_date?.usd ? new Date(marketData.ath_date.usd) : new Date(),
+            source: 'coingecko'
           };
         }
-      } catch (idError) {
-        console.log('⚠️ POL search by ID 3890 failed:', idError.message);
+      } catch (detailError) {
+        console.log('⚠️ Detailed endpoint failed, trying simple price...');
       }
       
-      // Method 2: Fallback - search by symbol POL
-      console.log('🔄 Fallback: searching POL by symbol...');
-      
-      try {
-        const response = await axios.get(
-          `${config.apis.coinMarketCap.baseUrl}/v2/cryptocurrency/quotes/latest`,
-          {
-            headers: {
-              'X-CMC_PRO_API_KEY': config.apis.coinMarketCap.apiKey,
-              'Accept': 'application/json'
-            },
-            params: {
-              symbol: 'POL',
-              convert: 'USD'
-            },
-            timeout: 10000
-          }
-        );
-        
-        if (response.data?.data?.POL) {
-          const polTokens = response.data.data.POL;
-          
-          // Find the main Polygon token (should be the first one)
-          const mainPOL = Array.isArray(polTokens) ? polTokens[0] : polTokens;
-          
-          if (mainPOL?.quote?.USD) {
-            const quote = mainPOL.quote.USD;
-            
-            // Get USD/RUB conversion rate
-            const usdToRubRate = await this.getUSDToRUBRate();
-            const priceRub = quote.price * usdToRubRate;
-            
-            console.log(`💎 POL price from CMC (symbol): $${quote.price.toFixed(4)}`);
-            
-            return {
-              price: quote.price,
-              priceRub: priceRub,
-              change24h: quote.percent_change_24h,
-              marketCap: quote.market_cap,
-              volume24h: quote.volume_24h,
-              source: 'coinmarketcap'
-            };
-          }
-        }
-      } catch (symbolError) {
-        console.log('⚠️ POL search by symbol failed:', symbolError.message);
-      }
-
-      console.log('⚠️ POL token not found in CoinMarketCap with all methods');
-      return null;
-    } catch (error) {
-      console.log('⚠️ General CoinMarketCap API error for POL:', error.message);
-      return null;
-    }
-  }
-
-  // Get POL (Polygon) token price from CoinGecko
-  // Main function to get POL price with multiple sources
-  async getPOLPrice() {
-    try {
-      console.log('🔍 Getting POL price from multiple sources...');
-      
-      // Method 1: Get data from CoinMarketCap (primary source)
-      const cmcData = await this.getPOLPriceFromCMC();
-      if (cmcData) {
-        console.log(`✅ POL price from CoinMarketCap: $${cmcData.price.toFixed(4)}`);
-        return cmcData;
-      }
-      
-      // Method 2: Fallback to CoinGecko
-      console.log('🔄 Fallback to CoinGecko for POL price...');
-      
+      // Fallback to simple price endpoint
       const response = await axios.get(
-        'https://api.coingecko.com/api/v3/simple/price',
+        `${config.apis.coinGecko.baseUrl}/simple/price`,
         {
+          headers: {
+            'X-CG-Demo-API-Key': config.apis.coinGecko.apiKey,
+            'Accept': 'application/json'
+          },
           params: {
-            ids: 'polygon-ecosystem-token',
+            ids: 'whalebit',
             vs_currencies: 'usd',
-            include_24hr_change: 'true'
+            include_24hr_change: true,
+            include_market_cap: true,
+            include_24hr_vol: true
           },
           timeout: 8000
         }
       );
       
-      if (response.data?.['polygon-ecosystem-token']?.usd) {
-        const polPrice = response.data['polygon-ecosystem-token'].usd;
-        const change24h = response.data['polygon-ecosystem-token'].usd_24h_change || 0;
-        
-        // Get USD/RUB conversion rate
+      if (response.data?.whalebit) {
+        const data = response.data.whalebit;
         const usdToRubRate = await this.getUSDToRUBRate();
-        const priceRub = polPrice * usdToRubRate;
+        const priceUSD = data.usd;
+        const priceRub = priceUSD * usdToRubRate;
         
-        console.log(`✅ POL price from CoinGecko: $${polPrice.toFixed(4)} | ₽${priceRub.toFixed(2)}`);
+        console.log(`🦎 CES price from CoinGecko (simple): $${priceUSD.toFixed(6)}`);
         
         return {
-          price: polPrice,
+          price: priceUSD,
           priceRub: priceRub,
-          change24h: change24h,
+          change24h: data.usd_24h_change || 0,
+          marketCap: data.usd_market_cap || 0,
+          volume24h: data.usd_24h_vol || 0,
+          ath: null, // ATH not available in simple endpoint
           source: 'coingecko'
         };
       }
       
-      throw new Error('POL price not found in both CoinMarketCap and CoinGecko');
-      
+      return null;
     } catch (error) {
-      console.error('Error getting POL price from all sources:', error.message);
+      console.log('⚠️ CoinGecko API error for CES:', error.message);
+      return null;
+    }
+  }
+
+  // Get POL token price from CoinGecko API
+  async getPOLPriceFromCoinGecko() {
+    try {
+      console.log('🦎 Getting POL token data from CoinGecko...');
+      
+      const response = await axios.get(
+        `${config.apis.coinGecko.baseUrl}/simple/price`,
+        {
+          headers: {
+            'X-CG-Demo-API-Key': config.apis.coinGecko.apiKey,
+            'Accept': 'application/json'
+          },
+          params: {
+            ids: 'polygon-ecosystem-token',
+            vs_currencies: 'usd',
+            include_24hr_change: true,
+            include_market_cap: true,
+            include_24hr_vol: true
+          },
+          timeout: 8000
+        }
+      );
+      
+      if (response.data?.['polygon-ecosystem-token']) {
+        const data = response.data['polygon-ecosystem-token'];
+        const usdToRubRate = await this.getUSDToRUBRate();
+        const priceUSD = data.usd;
+        const priceRub = priceUSD * usdToRubRate;
+        
+        console.log(`🦎 POL price from CoinGecko: $${priceUSD.toFixed(4)}`);
+        
+        return {
+          price: priceUSD,
+          priceRub: priceRub,
+          change24h: data.usd_24h_change || 0,
+          marketCap: data.usd_market_cap || 0,
+          volume24h: data.usd_24h_vol || 0,
+          source: 'coingecko'
+        };
+      }
+      
+      return null;
+    } catch (error) {
+      console.log('⚠️ CoinGecko API error for POL:', error.message);
+      return null;
+    }
+  }
+
+  // Main function to get POL price
+  async getPOLPrice() {
+    try {
+      console.log('🔍 Getting POL price from CoinGecko...');
+      
+      const coinGeckoData = await this.getPOLPriceFromCoinGecko();
+      if (coinGeckoData) {
+        console.log(`✅ POL price from CoinGecko: $${coinGeckoData.price.toFixed(4)}`);
+        return coinGeckoData;
+      }
+      
+      throw new Error('Failed to get POL data from CoinGecko');
+    } catch (error) {
+      console.error('Error getting POL price:', error.message);
       
       // Return fallback price as last resort
       console.log('⚠️ Using fallback POL price values');
@@ -222,199 +220,7 @@ class PriceService {
     }
   }
 
-  // Scrape ATH from CoinMarketCap web page
-  async scrapeATHFromWeb() {
-    try {
-      console.log('🌐 Attempting to get ATH via web scraping...');
-      
-      const response = await axios.get('https://coinmarketcap.com/currencies/whalebit/', {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-          'Accept-Language': 'en-US,en;q=0.5'
-        },
-        timeout: 10000
-      });
-      
-      const html = response.data;
-      
-      // Priority patterns for finding ATH
-      const athPatterns = [
-        {
-          pattern: /All-Time High[^$]*\$([0-9,]+\.?[0-9]*)/gi,
-          priority: 1,
-          name: 'All-Time High text'
-        },
-        {
-          pattern: /All Time High[^$]*\$([0-9,]+\.?[0-9]*)/gi,
-          priority: 2,
-          name: 'All Time High text'
-        },
-        {
-          pattern: /"allTimeHigh"[^}]*"price"[^0-9]*([0-9\.]+)/gi,
-          priority: 3,
-          name: 'JSON allTimeHigh'
-        },
-        {
-          pattern: /ATH[^$]*\$([0-9,]+\.?[0-9]*)/gi,
-          priority: 4,
-          name: 'ATH abbreviation'
-        }
-      ];
-      
-      let candidateValues = [];
-      
-      for (const {pattern, priority, name} of athPatterns) {
-        let match;
-        pattern.lastIndex = 0; // Reset regex
-        
-        while ((match = pattern.exec(html)) !== null && candidateValues.length < 10) {
-          const athValue = parseFloat(match[1].replace(',', ''));
-          
-          // Filter reasonable ATH values
-          if (athValue >= 1 && athValue <= 100) { // ATH for CES should be in this range
-            candidateValues.push({
-              value: athValue,
-              priority: priority,
-              source: name,
-              context: match[0].substring(0, 80)
-            });
-            
-            console.log(`🔍 ATH candidate: $${athValue} (priority ${priority}, ${name})`);
-          }
-        }
-      }
-      
-      if (candidateValues.length > 0) {
-        // Sort by priority, then by value (maximum)
-        candidateValues.sort((a, b) => {
-          if (a.priority !== b.priority) {
-            return a.priority - b.priority; // Lower priority = better
-          }
-          return b.value - a.value; // Higher value = better
-        });
-        
-        const bestCandidate = candidateValues[0];
-        console.log(`✅ Best ATH: $${bestCandidate.value} (source: ${bestCandidate.source})`);
-        return bestCandidate.value;
-      }
-      
-      console.log('❌ ATH not found via web scraping');
-      return null;
-      
-    } catch (error) {
-      console.log('⚠️ ATH web scraping error:', error.message);
-      return null;
-    }
-  }
-
-  // Get price data from CoinMarketCap API
-  async getCMCPrice() {
-    try {
-      if (!config.apis.coinMarketCap.apiKey) {
-        console.log('⚠️ CMC API key not found, skipping CoinMarketCap');
-        return null;
-      }
-
-      console.log('🔍 Getting CES token data from Polygon...');
-      
-      // Method 1: Direct request by ID 36465 (Whalebit CES on Polygon)
-      try {
-        const response = await axios.get(
-          `${config.apis.coinMarketCap.baseUrl}/v2/cryptocurrency/quotes/latest`,
-          {
-            headers: {
-              'X-CMC_PRO_API_KEY': config.apis.coinMarketCap.apiKey,
-              'Accept': 'application/json'
-            },
-            params: {
-              id: '36465',
-              convert: 'USD'
-            },
-            timeout: 10000
-          }
-        );
-        
-        if (response.data?.data?.['36465']?.quote?.USD) {
-          const quote = response.data.data['36465'].quote.USD;
-          
-          // Get USD/RUB conversion rate
-          const usdToRubRate = await this.getUSDToRUBRate();
-          const priceRub = quote.price * usdToRubRate;
-          
-          return {
-            price: quote.price,
-            priceRub: priceRub,
-            change24h: quote.percent_change_24h,
-            marketCap: quote.market_cap,
-            volume24h: quote.volume_24h,
-            ath: null, // ATH not available in free plan
-            source: 'coinmarketcap'
-          };
-        }
-      } catch (idError) {
-        console.log('⚠️ Search by ID 36465 failed:', idError.message);
-      }
-      
-      // Method 2: Fallback - search by symbol with filtering
-      console.log('🔄 Fallback: searching by CES symbol...');
-      
-      try {
-        const response = await axios.get(
-          `${config.apis.coinMarketCap.baseUrl}/v2/cryptocurrency/quotes/latest`,
-          {
-            headers: {
-              'X-CMC_PRO_API_KEY': config.apis.coinMarketCap.apiKey,
-              'Accept': 'application/json'
-            },
-            params: {
-              symbol: config.constants.cesSymbol,
-              convert: 'USD'
-            },
-            timeout: 10000
-          }
-        );
-        
-        if (response.data?.data?.CES) {
-          const cesTokens = response.data.data.CES;
-          
-          // Find Polygon CES token
-          const polygonCES = cesTokens.find(token => 
-            token.platform?.name?.toLowerCase().includes('polygon') || 
-            token.platform?.symbol?.toLowerCase() === 'matic'
-          );
-          
-          if (polygonCES?.quote?.USD) {
-            const quote = polygonCES.quote.USD;
-            
-            // Get USD/RUB conversion rate
-            const usdToRubRate = await this.getUSDToRUBRate();
-            const priceRub = quote.price * usdToRubRate;
-            
-            return {
-              price: quote.price,
-              priceRub: priceRub,
-              change24h: quote.percent_change_24h,
-              marketCap: quote.market_cap,
-              volume24h: quote.volume_24h,
-              ath: null,
-              source: 'coinmarketcap'
-            };
-          }
-        }
-      } catch (symbolError) {
-        console.log('⚠️ Search by CES symbol failed:', symbolError.message);
-      }
-
-      console.log('⚠️ CES token not found in CoinMarketCap with all methods');
-      return null;
-    } catch (error) {
-      console.log('⚠️ General CoinMarketCap API error:', error.message);
-      return null;
-    }
-  }
-
-  // Main function to get CES price with all sources
+  // Main function to get CES price
   async getCESPrice() {
     try {
       // Check API call interval
@@ -429,57 +235,46 @@ class PriceService {
       
       this.lastApiCall = Date.now();
       
-      // Get data from CoinMarketCap
-      const cmcData = await this.getCMCPrice();
-      if (cmcData) {
+      // Get data from CoinGecko
+      const coinGeckoData = await this.getCESPriceFromCoinGecko();
+      if (coinGeckoData) {
         // Get ATH from multiple sources for maximum accuracy
         console.log('🔍 Getting ATH from multiple sources...');
         
         // 1. ATH from database
         const maxPriceRecord = await PriceHistory.findOne().sort({ price: -1 });
-        const databaseATH = maxPriceRecord ? maxPriceRecord.price : cmcData.price;
+        const databaseATH = maxPriceRecord ? maxPriceRecord.price : coinGeckoData.price;
         console.log(`📊 Database ATH: $${databaseATH.toFixed(2)}`);
         
-        // 2. Attempt to get ATH via web scraping
-        let webATH = null;
-        try {
-          webATH = await this.scrapeATHFromWeb();
-          if (webATH) {
-            console.log(`🌐 Web scraping ATH: $${webATH.toFixed(2)}`);
-          }
-        } catch (error) {
-          console.log('⚠️ Web scraping ATH unavailable:', error.message);
+        // 2. ATH from CoinGecko (if available)
+        let finalATH = databaseATH;
+        if (coinGeckoData.ath && coinGeckoData.ath > databaseATH) {
+          finalATH = coinGeckoData.ath;
+          console.log(`🦎 CoinGecko ATH: $${coinGeckoData.ath.toFixed(2)}`);
         }
         
-        // 3. Determine final ATH (maximum from all sources)
-        const athSources = [databaseATH, cmcData.price];
-        if (webATH && webATH > 0) {
-          athSources.push(webATH);
+        // 3. Current price could be new ATH
+        if (coinGeckoData.price > finalATH) {
+          finalATH = coinGeckoData.price;
+          console.log(`🏆 New ATH detected! $${coinGeckoData.price.toFixed(2)}`);
         }
         
-        const finalATH = Math.max(...athSources);
-        
-        if (cmcData.price >= finalATH) {
-          console.log(`🏆 New ATH detected! $${cmcData.price.toFixed(2)}`);
-        }
-        
-        console.log(`📊 ATH sources: Database=${databaseATH.toFixed(2)}, Web=${webATH ? webATH.toFixed(2) : 'N/A'}`);
         console.log(`📊 Final ATH: $${finalATH.toFixed(2)}`);
         
         return {
-          price: cmcData.price,
-          priceRub: cmcData.priceRub,
-          change24h: cmcData.change24h,
-          changeRub24h: 0, // CMC doesn't provide ruble data
-          marketCap: cmcData.marketCap,
-          volume24h: cmcData.volume24h,
-          ath: finalATH, // Best ATH from all sources
-          athSource: webATH ? 'web+database' : 'database',
-          source: 'coinmarketcap'
+          price: coinGeckoData.price,
+          priceRub: coinGeckoData.priceRub,
+          change24h: coinGeckoData.change24h,
+          changeRub24h: 0, // Not directly available
+          marketCap: coinGeckoData.marketCap,
+          volume24h: coinGeckoData.volume24h,
+          ath: finalATH,
+          athSource: coinGeckoData.ath ? 'coingecko+database' : 'database',
+          source: 'coingecko'
         };
       }
 
-      throw new Error('Failed to get CES data from CoinMarketCap');
+      throw new Error('Failed to get CES data from CoinGecko');
     } catch (error) {
       console.error('Error getting CES price:', error.message);
       
@@ -511,20 +306,6 @@ class PriceService {
       
       throw error;
     }
-  }
-
-  // Format number for display
-  formatNumber(num) {
-    if (num >= 1e9) {
-      return (num / 1e9).toFixed(2) + 'B';
-    }
-    if (num >= 1e6) {
-      return (num / 1e6).toFixed(2) + 'M';
-    }
-    if (num >= 1e3) {
-      return (num / 1e3).toFixed(2) + 'K';
-    }
-    return num.toFixed(2);
   }
 }
 
