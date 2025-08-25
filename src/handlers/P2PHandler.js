@@ -273,6 +273,24 @@ class P2PHandler {
         return;
       }
       
+      // Check for main menu buttons - handle them instead of treating as order data
+      if (orderData.includes('Личный кабинет') || orderData.includes('👤')) {
+        console.log('📝 P2PHandler: Detected main menu button - Personal Cabinet');
+        sessionManager.clearUserSession(chatId);
+        const BaseCommandHandler = require('./BaseCommandHandler');
+        const handler = new BaseCommandHandler();
+        if (handler.walletHandler) {
+          return await handler.walletHandler.handlePersonalCabinetText(ctx);
+        }
+        return;
+      }
+      
+      if (orderData.includes('P2P Биржа') || orderData.includes('🔄 P2P')) {
+        console.log('📝 P2PHandler: Detected main menu button - P2P Exchange');
+        sessionManager.clearUserSession(chatId);
+        return await this.handleP2PMenu(ctx);
+      }
+      
       // Check if orderData looks like button text (contains emojis or common button phrases)
       const buttonPatterns = [
         /🔙/, // Back arrow emoji
@@ -398,7 +416,7 @@ class P2PHandler {
 
       // Show complete profile
       let message = '📑 МОИ ДАННЫЕ\n' +
-                   '➖➖➖➖➖➖➖➖➖➖➖\n\n';
+                   '➖➖➖➖➖➖➖➖➖➖➖\n';
       
       // Add profile data in new format
       if (profile.fullName) {
@@ -424,9 +442,8 @@ class P2PHandler {
         const activeMethods = profile.paymentMethods.filter(pm => pm.isActive);
         
         if (activeMethods.length > 0) {
-          message += 'Способы оплаты: \n';
           const methodNames = activeMethods.map(pm => bankNames[pm.bank]).join(', ');
-          message += `${methodNames}\n`;
+          message += `Способы оплаты: ${methodNames} \n`;
           
           message += 'Реквизиты:\n';
           activeMethods.forEach(pm => {
@@ -447,9 +464,9 @@ class P2PHandler {
         message += `Контакт: ${profile.contactInfo}\n`;
       }
       
-      // Add empty line before conditions if it exists
+      // Add conditions without empty line before if it exists
       if (profile.makerConditions) {
-        message += `\nУсловия: ${profile.makerConditions}`;
+        message += `\nУсловия: \n${profile.makerConditions}`;
       }
       
       const keyboard = Markup.inlineKeyboard([

@@ -14,8 +14,7 @@ class P2PDataHandler {
       const chatId = ctx.chat.id.toString();
       
       const message = '✏️ РЕДАКТИРОВАНИЕ ДАННЫХ\n' +
-                     '➖➖➖➖➖➖➖➖➖➖➖\n\n' +
-                     'Выберите, что хотите изменить:';
+                     '➖➖➖➖➖➖➖➖➖➖➖\n';
       
       const keyboard = Markup.inlineKeyboard([
         [Markup.button.callback('👤 ФИО', 'p2p_edit_fullname')],
@@ -87,8 +86,7 @@ class P2PDataHandler {
       };
       
       let message = '💳 СПОСОБЫ ОПЛАТЫ\n' +
-                   '➖➖➖➖➖➖➖➖➖➖➖\n\n' +
-                   'Выберите банки, через которые вы готовы принимать оплату:\n\n';
+                   '➖➖➖➖➖➖➖➖➖➖➖\n';
       
       const buttons = [];
       
@@ -327,8 +325,7 @@ class P2PDataHandler {
       const profile = user.p2pProfile;
       
       let message = '👀 КАК ВИДЯТ ПОКУПАТЕЛИ\n' +
-                   '➖➖➖➖➖➖➖➖➖➖➖\n\n' +
-                   '📋 Данные мейкера:\n' +
+                   '➖➖➖➖➖➖➖➖➖➖➖\n' +
                    `ФИО: ${profile.fullName || 'Не указано'}\n` +
                    `Контакт: ${profile.contactInfo || 'Не указано'}\n\n` +
                    '💳 Способы оплаты:\n';
@@ -386,6 +383,28 @@ class P2PDataHandler {
       // Skip processing if no actual text message
       if (!ctx.message || !ctx.message.text) {
         return false;
+      }
+      
+      // Check for main menu buttons - handle them instead of treating as text input
+      if (text.includes('Личный кабинет') || text.includes('👤')) {
+        console.log('📝 P2PDataHandler: Detected main menu button - Personal Cabinet');
+        const chatId = ctx.chat.id.toString();
+        sessionManager.clearUserSession(chatId);
+        const BaseCommandHandler = require('./BaseCommandHandler');
+        const handler = new BaseCommandHandler();
+        if (handler.walletHandler) {
+          return await handler.walletHandler.handlePersonalCabinetText(ctx);
+        }
+        return true;
+      }
+      
+      if (text.includes('P2P Биржа') || text.includes('🔄 P2P')) {
+        console.log('📝 P2PDataHandler: Detected main menu button - P2P Exchange');
+        const chatId = ctx.chat.id.toString();
+        sessionManager.clearUserSession(chatId);
+        const P2PHandler = require('./P2PHandler');
+        const handler = new P2PHandler();
+        return await handler.handleP2PMenu(ctx);
       }
       
       const chatId = ctx.chat.id.toString();

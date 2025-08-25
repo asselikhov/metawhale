@@ -179,6 +179,28 @@ class TransferHandler {
     try {
       const chatId = ctx.chat.id.toString();
       
+      // Check for main menu buttons - handle them instead of treating as transfer data
+      if (transferData.includes('Личный кабинет') || transferData.includes('👤')) {
+        console.log('📝 TransferHandler: Detected main menu button - Personal Cabinet');
+        const sessionManager = require('./SessionManager');
+        sessionManager.clearUserSession(chatId);
+        const BaseCommandHandler = require('./BaseCommandHandler');
+        const handler = new BaseCommandHandler();
+        if (handler.walletHandler) {
+          return await handler.walletHandler.handlePersonalCabinetText(ctx);
+        }
+        return;
+      }
+      
+      if (transferData.includes('P2P Биржа') || transferData.includes('🔄 P2P')) {
+        console.log('📝 TransferHandler: Detected main menu button - P2P Exchange');
+        const sessionManager = require('./SessionManager');
+        sessionManager.clearUserSession(chatId);
+        const P2PHandler = require('./P2PHandler');
+        const handler = new P2PHandler();
+        return await handler.handleP2PMenu(ctx);
+      }
+      
       // Parse transfer data (address amount)
       const parts = transferData.trim().split(/\s+/);
       
