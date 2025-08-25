@@ -130,11 +130,17 @@ class EscrowService {
       }
       
       // Создаем эскроу в смарт-контракте
+      // ИСПРАВЛЕНИЕ: Гарантируем минимум 30 минут для смарт-контракта
+      const smartContractMinMinutes = 30; // Минимум по требованиям смарт-контракта
+      const actualTimeoutMinutes = Math.max(this.escrowTimeoutMinutes, smartContractMinMinutes);
+      
+      console.log(`⏰ Escrow timeout: requested ${this.escrowTimeoutMinutes} min, using ${actualTimeoutMinutes} min (min: ${smartContractMinMinutes})`);
+      
       const escrowResult = await smartContractService.createSmartEscrow(
         privateKey,
         buyerAddress,
         amount,
-        this.escrowTimeoutMinutes
+        actualTimeoutMinutes
       );
       
       if (!escrowResult.success) {
