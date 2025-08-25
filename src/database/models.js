@@ -138,6 +138,22 @@ const userSchema = new mongoose.Schema({
       timestamp: { type: Date, default: Date.now },
       resolved: { type: Boolean, default: false }
     }]
+  },
+  // P2P Profile Data
+  p2pProfile: {
+    fullName: String, // ФИО
+    contactInfo: String, // Контакт (Telegram/телефон)
+    paymentMethods: [{
+      bank: {
+        type: String,
+        enum: ['sberbank', 'vtb', 'gazprombank', 'alfabank', 'rshb', 'mkb', 'sovcombank', 'tbank', 'domrf', 'otkritie', 'raiffeisenbank', 'rosbank']
+      },
+      cardNumber: String,
+      isActive: { type: Boolean, default: true }
+    }],
+    makerConditions: String, // Условия мейкера
+    isProfileComplete: { type: Boolean, default: false },
+    useInOrders: { type: Boolean, default: false }
   }
 });
 

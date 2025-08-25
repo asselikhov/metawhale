@@ -8,6 +8,7 @@ const WalletHandler = require('./WalletHandler');
 const TransferHandler = require('./TransferHandler');
 const P2PHandler = require('./P2PHandler');
 const P2POrdersHandler = require('./P2POrdersHandler');
+const P2PDataHandler = require('./P2PDataHandler');
 const sessionManager = require('./SessionManager');
 
 class MessageHandler {
@@ -17,9 +18,10 @@ class MessageHandler {
     this.transferHandler = new TransferHandler();
     this.p2pHandler = new P2PHandler();
     this.ordersHandler = new P2POrdersHandler();
+    this.dataHandler = new P2PDataHandler();
     
     // Inject handlers into baseHandler to avoid circular imports
-    this.baseHandler.setHandlers(this.walletHandler, this.p2pHandler, this.transferHandler);
+    this.baseHandler.setHandlers(this.walletHandler, this.p2pHandler, this.transferHandler, this.dataHandler);
   }
 
   // Session management methods (backward compatibility)
@@ -141,6 +143,47 @@ class MessageHandler {
 
   async handleP2PTopTraders(ctx) {
     return this.p2pHandler.handleP2PTopTraders(ctx);
+  }
+
+  async handleP2PMyData(ctx) {
+    return this.p2pHandler.handleP2PMyData(ctx);
+  }
+
+  // Delegate P2P data operations
+  async handleP2PEditData(ctx) {
+    return this.dataHandler.handleP2PEditData(ctx);
+  }
+
+  async handleP2PEditFullName(ctx) {
+    return this.dataHandler.handleP2PEditFullName(ctx);
+  }
+
+  async handleP2PEditPaymentMethods(ctx) {
+    return this.dataHandler.handleP2PEditPaymentMethods(ctx);
+  }
+
+  async handleP2PToggleBank(ctx, bankCode) {
+    return this.dataHandler.handleP2PToggleBank(ctx, bankCode);
+  }
+
+  async handleP2PSavePaymentMethods(ctx) {
+    return this.dataHandler.handleP2PSavePaymentMethods(ctx);
+  }
+
+  async handleP2PEditContact(ctx) {
+    return this.dataHandler.handleP2PEditContact(ctx);
+  }
+
+  async handleP2PEditConditions(ctx) {
+    return this.dataHandler.handleP2PEditConditions(ctx);
+  }
+
+  async handleP2PToggleUseInOrders(ctx) {
+    return this.dataHandler.handleP2PToggleUseInOrders(ctx);
+  }
+
+  async handleP2PBuyerView(ctx) {
+    return this.dataHandler.handleP2PBuyerView(ctx);
   }
 
   async processP2POrder(ctx, orderData, orderType) {

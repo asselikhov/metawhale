@@ -17,10 +17,11 @@ class BaseCommandHandler {
   }
 
   // Method to inject handlers (called from MessageHandler)
-  setHandlers(walletHandler, p2pHandler, transferHandler) {
+  setHandlers(walletHandler, p2pHandler, transferHandler, dataHandler) {
     this.walletHandler = walletHandler;
     this.p2pHandler = p2pHandler;
     this.transferHandler = transferHandler;
+    this.dataHandler = dataHandler;
   }
 
   // Handle /start command
@@ -174,6 +175,14 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
       
       // Check user state and delegate to appropriate handler
       const userState = sessionManager.getUserState(chatId);
+      
+      // Check if P2P data handler can process this text input
+      if (this.dataHandler) {
+        const handled = await this.dataHandler.processTextInput(ctx, text);
+        if (handled) {
+          return; // Text was processed by P2P data handler
+        }
+      }
       
       switch (userState) {
         case 'transfer':

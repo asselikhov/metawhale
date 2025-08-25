@@ -52,7 +52,8 @@ class P2PHandler {
       const keyboard = Markup.inlineKeyboard([
         [Markup.button.callback('📈 Купить CES', 'p2p_buy_ces'), Markup.button.callback('📉 Продать CES', 'p2p_sell_ces')],
         [Markup.button.callback('📊 Рынок', 'p2p_market_orders'), Markup.button.callback('📋 Мои ордера', 'p2p_my_orders')],
-        [Markup.button.callback('🏆 Топ трейдеров', 'p2p_top_traders'), Markup.button.callback('🧮 Аналитика', 'p2p_analytics')]
+        [Markup.button.callback('📁 Мои данные', 'p2p_my_data'), Markup.button.callback('🏆 Топ трейдеров', 'p2p_top_traders')],
+        [Markup.button.callback('🧮 Аналитика', 'p2p_analytics')]
       ]);
       
       console.log(`📤 Sending P2P menu text with buttons to user ${chatId}`);
@@ -303,6 +304,95 @@ class P2PHandler {
     } catch (error) {
       console.error('User message processing error:', error);
       await ctx.reply('❌ Ошибка обработки сообщения.');
+    }
+  }
+
+  // Handle P2P My Data
+  async handleP2PMyData(ctx) {
+    try {
+      const chatId = ctx.chat.id.toString();
+      const { User } = require('../database/models');
+      
+      const user = await User.findOne({ chatId });
+      if (!user) {
+        return await ctx.reply('❌ Пользователь не найден.');
+      }
+
+      const profile = user.p2pProfile || {};
+      
+      if (!profile.isProfileComplete) {
+        // Profile not set up
+        const message = '📑 МОИ ДАННЫЕ\n' +
+                       '➖➖➖➖➖➖➖➖➖➖➖\n' +
+                       '⚠️ Профиль не заполнен\n\n' +
+                       '💡 Для безопасной торговли необходимо заполнить данные:';
+        
+        const keyboard = Markup.inlineKeyboard([
+          [Markup.button.callback('✏️ Заполнить данные', 'p2p_edit_data')],
+          [Markup.button.callback('🔙 Назад', 'p2p_menu')]
+        ]);
+        
+        return await ctx.reply(message, keyboard);
+      }
+
+      // Show complete profile
+      let message = '📑 МОИ ДАННЫЕ\n' +
+                   '➖➖➖➖➖➖➖➖➖➖➖\n' +
+                   'Ваши данные для сделок\n\n';
+      
+      // Add profile data
+      if (profile.fullName) {
+        message += `👤 ФИО: ${profile.fullName}\n`;
+      }
+      
+      if (profile.paymentMethods && profile.paymentMethods.length > 0) {
+        const bankNames = {
+          'sberbank': 'Сбербанк',
+          'vtb': 'ВТБ',
+          'gazprombank': 'Газпромбанк',
+          'alfabank': 'Альфа-Банк',
+          'rshb': 'Россельхозбанк',
+          'mkb': 'МКБ',
+          'sovcombank': 'Совкомбанк',
+          'tbank': 'Т-банк',
+          'domrf': 'ДОМ.РФ',
+          'otkritie': 'Открытие',
+          'raiffeisenbank': 'Райффайзенбанк',
+          'rosbank': 'Росбанк'
+        };
+        
+        const activeMethods = profile.paymentMethods.filter(pm => pm.isActive);
+        const methodNames = activeMethods.map(pm => bankNames[pm.bank]).join(', ');
+        message += `💳 Способы оплаты: ${methodNames}\n`;
+        
+        message += '🏦 Реквизиты:\n';
+        activeMethods.forEach(pm => {
+          const bankName = bankNames[pm.bank];
+          const maskedCard = pm.cardNumber ? pm.cardNumber.replace(/.(?=.{4})/g, '*') : '';
+          message += `${bankName}: ${maskedCard}\n`;
+        });
+      }
+      
+      if (profile.contactInfo) {
+        message += `📞 Контакт: ${profile.contactInfo}\n`;
+      }
+      
+      if (profile.makerConditions) {
+        message += `⚙️ Условия: ${profile.makerConditions}\n`;
+      }
+      
+      const keyboard = Markup.inlineKeyboard([
+        [Markup.button.callback('✏️ Изменить', 'p2p_edit_data')],
+        [Markup.button.callback(profile.useInOrders ? '✅ Используется в ордерах' : '✅ Использовать в ордерах', 'p2p_toggle_use_in_orders')],
+        [Markup.button.callback('👀 Как видят покупатели', 'p2p_buyer_view')],
+        [Markup.button.callback('🔙 Назад', 'p2p_menu')]
+      ]);
+      
+      await ctx.reply(message, keyboard);
+      
+    } catch (error) {
+      console.error('P2P My Data error:', error);
+      await ctx.reply('❌ Ошибка загрузки данных.');
     }
   }
 }

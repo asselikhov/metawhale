@@ -210,6 +210,59 @@ class TelegramBot {
       console.log('Received p2p_top_traders callback');
       return messageHandler.handleP2PTopTraders(ctx);
     });
+
+    // P2P Data Management handlers
+    this.bot.action('p2p_my_data', (ctx) => {
+      console.log('Received p2p_my_data callback');
+      return messageHandler.handleP2PMyData(ctx);
+    });
+
+    this.bot.action('p2p_edit_data', (ctx) => {
+      console.log('Received p2p_edit_data callback');
+      return messageHandler.handleP2PEditData(ctx);
+    });
+
+    this.bot.action('p2p_edit_fullname', (ctx) => {
+      console.log('Received p2p_edit_fullname callback');
+      return messageHandler.handleP2PEditFullName(ctx);
+    });
+
+    this.bot.action('p2p_edit_payment_methods', (ctx) => {
+      console.log('Received p2p_edit_payment_methods callback');
+      return messageHandler.handleP2PEditPaymentMethods(ctx);
+    });
+
+    this.bot.action('p2p_save_payment_methods', (ctx) => {
+      console.log('Received p2p_save_payment_methods callback');
+      return messageHandler.handleP2PSavePaymentMethods(ctx);
+    });
+
+    this.bot.action('p2p_edit_contact', (ctx) => {
+      console.log('Received p2p_edit_contact callback');
+      return messageHandler.handleP2PEditContact(ctx);
+    });
+
+    this.bot.action('p2p_edit_conditions', (ctx) => {
+      console.log('Received p2p_edit_conditions callback');
+      return messageHandler.handleP2PEditConditions(ctx);
+    });
+
+    this.bot.action('p2p_toggle_use_in_orders', (ctx) => {
+      console.log('Received p2p_toggle_use_in_orders callback');
+      return messageHandler.handleP2PToggleUseInOrders(ctx);
+    });
+
+    this.bot.action('p2p_buyer_view', (ctx) => {
+      console.log('Received p2p_buyer_view callback');
+      return messageHandler.handleP2PBuyerView(ctx);
+    });
+
+    // Handle bank toggles (dynamic callbacks)
+    this.bot.action(/^p2p_toggle_bank_(.+)$/, (ctx) => {
+      const bankCode = ctx.match[1];
+      console.log('Received p2p_toggle_bank callback:', bankCode);
+      return messageHandler.handleP2PToggleBank(ctx, bankCode);
+    });
     
     // Handle transfer confirmations
     this.bot.action('confirm_transfer', (ctx) => {
