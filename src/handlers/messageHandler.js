@@ -389,55 +389,42 @@ class MessageHandler {
     await ctx.reply('🚧 Функция ввода суммы в разработке');
   }
 
+  async handleContinueSellOrder(ctx) {
+    try {
+      const chatId = ctx.chat.id.toString();
+      const sessionManager = require('./SessionManager');
+      const buyOrderData = sessionManager.getSessionData(chatId, 'currentBuyOrder');
+      
+      if (!buyOrderData) {
+        return await ctx.reply('❌ Данные ордера не найдены.');
+      }
+      
+      const message = `💰 ВВОД КОЛИЧЕСТВА\n` +
+                     `➖➖➖➖➖➖➖➖➖➖➖\n` +
+                     `Цена: ${buyOrderData.pricePerToken.toFixed(2)} ₽ за CES\n` +
+                     `Доступно: ${buyOrderData.availableAmount.toFixed(2)} CES\n` +
+                     `Лимиты: ${buyOrderData.minAmount}-${buyOrderData.maxAmount} CES\n\n` +
+                     `Введите количество CES:`;
+      
+      sessionManager.setSessionData(chatId, 'waitingForCESAmount', true);
+      
+      const keyboard = Markup.inlineKeyboard([
+        [Markup.button.callback('❌ Отмена', 'p2p_sell_orders')]
+      ]);
+      
+      await ctx.reply(message, keyboard);
+      
+    } catch (error) {
+      console.error('Ошибка продолжения продажи:', error);
+      await ctx.reply('❌ Ошибка обработки запроса.');
+    }
+  }
+
   async handleBuyOrderDetails(ctx, userId, orderId) {
     try {
       const chatId = ctx.chat.id.toString();
       
-      // Validate user profile completion before allowing interaction with makers
-      const validation = await this.dataHandler.validateUserForP2POperations(chatId);
-      
-      if (!validation.valid) {
-        const keyboard = Markup.inlineKeyboard(validation.keyboard || [[Markup.button.callback('🔙 Назад', 'p2p_buy_orders')]]);
-        return await ctx.reply(validation.message, keyboard);
-      }
-      
-      // Get order and maker details to check for self-trading
-      const { P2POrder, User } = require('../database/models');
-      
-      const order = await P2POrder.findById(orderId).populate('userId');
-      if (!order) {
-        return await ctx.reply('❌ Ордер не найден.');
-      }
-      
-      const maker = order.userId;
-      
-      // Check if user is trying to trade with their own order
-      const currentUser = await User.findOne({ chatId });
-      if (!currentUser) {
-        return await ctx.reply('❌ Пользователь не найден.');
-      }
-      
-      if (maker._id.toString() === currentUser._id.toString()) {
-        const keyboard = Markup.inlineKeyboard([
-          [Markup.button.callback('🔙 Назад', 'p2p_buy_orders')]
-        ]);
-        return await ctx.reply('⚠️ Вы не можете исполнить свой собственный ордер', keyboard);
-      }
-      
-      // TODO: Implement full order details view
-      await ctx.reply('🚧 Функция просмотра деталей ордера на покупку в разработке');
-      
-    } catch (error) {
-      console.error('Buy order details error:', error);
-      await ctx.reply('❌ Ошибка отображения деталей ордера.');
-    }
-  }
-
-  async handleSellOrderDetails(ctx, userId, orderId) {
-    try {
-      const chatId = ctx.chat.id.toString();
-      
-      // Validate user profile completion before allowing interaction with makers
+      // Проверяем завершённость профиля перед взаимодействием с мейкерами
       const validation = await this.dataHandler.validateUserForP2POperations(chatId);
       
       if (!validation.valid) {
@@ -445,18 +432,18 @@ class MessageHandler {
         return await ctx.reply(validation.message, keyboard);
       }
       
-      // Get order and maker details
+      // Получаем ордер мейкера (ордер на покупку CES)
       const { P2POrder, User } = require('../database/models');
       const reputationService = require('../services/reputationService');
       
-      const order = await P2POrder.findById(orderId).populate('userId');
-      if (!order) {
-        return await ctx.reply('❌ Ордер не найден.');
+      const buyOrder = await P2POrder.findById(orderId).populate('userId');
+      if (!buyOrder || buyOrder.type !== 'buy' || buyOrder.status !== 'active') {
+        return await ctx.reply('❌ Ордер не найден или неактивен.');
       }
       
-      const maker = order.userId;
+      const maker = buyOrder.userId; // Мейкер (покупатель CES)
       
-      // Check if user is trying to trade with their own order
+      // Проверяем, что пользователь не пытается торговать со своим ордером
       const currentUser = await User.findOne({ chatId });
       if (!currentUser) {
         return await ctx.reply('❌ Пользователь не найден.');
@@ -471,7 +458,7 @@ class MessageHandler {
       
       const stats = await reputationService.getStandardizedUserStats(maker._id);
       
-      // Get maker's P2P profile name
+      // Получаем имя мейкера
       let makerName = 'Пользователь';
       if (maker.p2pProfile && maker.p2pProfile.fullName) {
         makerName = maker.p2pProfile.fullName;
@@ -482,45 +469,21 @@ class MessageHandler {
         }
       }
       
-      // Get payment methods
-      const bankNames = {
-        'sberbank': 'Сбербанк',
-        'vtb': 'ВТБ',
-        'gazprombank': 'Газпромбанк',
-        'alfabank': 'Альфа-Банк',
-        'rshb': 'Россельхозбанк (РСХБ)',
-        'mkb': 'Московский кредитный банк (МКБ)',
-        'sovcombank': 'Совкомбанк',
-        'tbank': 'Т-банк',
-        'domrf': 'ДОМ.РФ',
-        'otkritie': 'Открытие',
-        'raiffeisenbank': 'Райффайзенбанк',
-        'rosbank': 'Росбанк'
-      };
+      // Рассчитываем лимиты
+      const minAmount = buyOrder.minTradeAmount || 1;
+      const maxAmount = Math.min(buyOrder.maxTradeAmount || buyOrder.remainingAmount, buyOrder.remainingAmount);
+      const minRubles = (minAmount * buyOrder.pricePerToken).toFixed(2);
+      const maxRubles = (maxAmount * buyOrder.pricePerToken).toFixed(2);
       
-      let paymentMethods = 'Не указано';
-      if (maker.p2pProfile && maker.p2pProfile.paymentMethods) {
-        const activeMethods = maker.p2pProfile.paymentMethods.filter(pm => pm.isActive);
-        if (activeMethods.length > 0) {
-          paymentMethods = activeMethods.map(pm => bankNames[pm.bank] || pm.bank).join(', ');
-        }
-      }
-      
-      // Calculate limits
-      const minAmount = order.minTradeAmount || 1;
-      const maxAmount = order.maxTradeAmount || order.remainingAmount;
-      const minRubles = (minAmount * order.pricePerToken).toFixed(2);
-      const maxRubles = (maxAmount * order.pricePerToken).toFixed(2);
-      
-      // Get maker conditions
+      // Получаем условия мейкера
       const makerConditions = (maker.p2pProfile && maker.p2pProfile.makerConditions) ? 
                               maker.p2pProfile.makerConditions : 'Не указано';
       
-      const message = `Цена: ${order.pricePerToken.toFixed(2)} ₽\n` +
-                     `Количество: ${order.remainingAmount.toFixed(2)} CES\n` +
+      const message = `Цена: ${buyOrder.pricePerToken.toFixed(2)} ₽ за CES\n` +
+                     `Количество: ${buyOrder.remainingAmount.toFixed(2)} CES\n` +
                      `Лимиты: ${minRubles}-${maxRubles} ₽\n` +
-                     `Способ оплаты: ${paymentMethods}\n` +
-                     `Длительность оплаты: ${order.tradeTimeLimit || 30} мин.\n\n` +
+                     `Способ оплаты: Банковский перевод\n` +
+                     `Длительность оплаты: ${buyOrder.tradeTimeLimit || 30} мин.\n\n` +
                      `Условия мейкера:\n` +
                      `${makerConditions}\n\n` +
                      `Сведения о мейкере:\n` +
@@ -531,18 +494,17 @@ class MessageHandler {
                      `Среднее время оплаты: ${stats.avgPaymentTime} мин.\n` +
                      `Рейтинг: ${stats.rating}`;
       
-      // Store order info in session for next steps
+      // Сохраняем информацию о заказе в сессии
       const sessionManager = require('./SessionManager');
-      sessionManager.setSessionData(chatId, 'currentOrder', {
-        orderId: order._id,
+      sessionManager.setSessionData(chatId, 'currentBuyOrder', {
+        buyOrderId: buyOrder._id,
         makerId: maker._id,
-        orderType: 'sell', // User wants to sell to this buy order
-        amount: order.remainingAmount,
-        pricePerToken: order.pricePerToken,
+        makerChatId: maker.chatId,
+        pricePerToken: buyOrder.pricePerToken,
+        availableAmount: buyOrder.remainingAmount,
         minAmount: minAmount,
         maxAmount: maxAmount,
-        paymentMethods: maker.p2pProfile?.paymentMethods || [],
-        tradeTimeLimit: order.tradeTimeLimit || 30
+        tradeTimeLimit: buyOrder.tradeTimeLimit || 30
       });
       
       const keyboard = Markup.inlineKeyboard([
@@ -553,7 +515,7 @@ class MessageHandler {
       await ctx.reply(message, keyboard);
       
     } catch (error) {
-      console.error('Sell order details error:', error);
+      console.error('Ошибка отображения деталей ордера:', error);
       await ctx.reply('❌ Ошибка отображения деталей ордера.');
     }
   }
@@ -891,11 +853,8 @@ class MessageHandler {
         'rosbank': 'Росбанк'
       };
       
-      // Mask card number for display
+      // Display full card number for payment
       let displayCardNumber = selectedPaymentMethod.cardNumber || 'Не указано';
-      if (displayCardNumber !== 'Не указано' && displayCardNumber.length > 4) {
-        displayCardNumber = '*'.repeat(displayCardNumber.length - 4) + displayCardNumber.slice(-4);
-      }
       
       const message = `💳 ОПЛАТА\n` +
                      `⁠⁠⁠⁠⁠⁠⁠⁠⁠⁠\n` +

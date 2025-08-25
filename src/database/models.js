@@ -218,18 +218,27 @@ p2pOrderSchema.index({ createdAt: -1 });
 const p2pTradeSchema = new mongoose.Schema({
   buyOrderId: { type: mongoose.Schema.Types.ObjectId, ref: 'P2POrder', required: true },
   sellOrderId: { type: mongoose.Schema.Types.ObjectId, ref: 'P2POrder', required: true },
-  buyerId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-  sellerId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  buyerId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true }, // Мейкер (создатель ордера на покупку)
+  sellerId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true }, // Тейкер (продавец CES)
   amount: { type: Number, required: true }, // CES amount traded
   pricePerToken: { type: Number, required: true }, // Price per CES token in rubles
   totalValue: { type: Number, required: true }, // Total value in rubles
-  buyerCommission: { type: Number, default: 0 }, // 1% commission from buyer in rubles
-  sellerCommission: { type: Number, default: 0 }, // 1% commission from seller in rubles
-  commission: { type: Number, required: true }, // Total commission in rubles (for backward compatibility)
+  buyerCommission: { type: Number, default: 0 }, // 1% commission from buyer in CES
+  sellerCommission: { type: Number, default: 0 }, // No commission from seller
+  commission: { type: Number, required: true }, // Total commission in CES (for backward compatibility)
   status: { 
     type: String, 
-    enum: ['pending', 'escrow_locked', 'payment_pending', 'payment_confirmed', 'completed', 'disputed', 'cancelled', 'failed'], 
-    default: 'pending' 
+    enum: [
+      'escrow_locked',      // CES заморожены у тейкера
+      'payment_pending',    // Мейкер должен оплатить
+      'payment_made',       // Мейкер нажал "Платёж выполнен"
+      'payment_confirmed',  // Тейкер подтвердил получение
+      'completed',          // Сделка завершена, CES переданы
+      'disputed',           // Спор открыт
+      'cancelled',          // Отменена
+      'expired'             // Истекло время
+    ], 
+    default: 'escrow_locked' 
   },
   escrowStatus: {
     type: String,
@@ -237,10 +246,16 @@ const p2pTradeSchema = new mongoose.Schema({
     default: 'locked'
   },
   paymentMethod: { type: String, enum: ['bank_transfer', 'sbp', 'qiwi', 'yoomoney'] },
-  buyerPaymentConfirmed: { type: Boolean, default: false },
-  sellerPaymentConfirmed: { type: Boolean, default: false },
-  buyerReleaseConfirmed: { type: Boolean, default: false },
-  sellerReleaseConfirmed: { type: Boolean, default: false },
+  // Детали оплаты
+  paymentDetails: {
+    bankName: String,           // Название банка тейкера
+    cardNumber: String,         // Номер карты тейкера
+    recipientName: String,      // ФИО тейкера
+    amount: Number              // Сумма к переводу
+  },
+  // Подтверждения
+  buyerPaymentMade: { type: Boolean, default: false },      // Мейкер нажал "Платёж выполнен"
+  sellerPaymentReceived: { type: Boolean, default: false }, // Тейкер подтвердил получение
   disputeReason: String,
   disputeOpenedAt: Date,
   disputeResolvedAt: Date,
@@ -248,14 +263,13 @@ const p2pTradeSchema = new mongoose.Schema({
   timeTracking: {
     createdAt: { type: Date, default: Date.now },
     escrowLockedAt: Date,
-    paymentConfirmedAt: Date,
+    paymentMadeAt: Date,        // Когда мейкер нажал "Платёж выполнен"
+    paymentConfirmedAt: Date,   // Когда тейкер подтвердил получение
     escrowReleasedAt: Date,
     completedAt: Date,
-    expiresAt: Date, // Auto-cancel after 30 minutes if no action
-    buyerConfirmedAt: Date,
-    sellerConfirmedAt: Date
+    expiresAt: Date             // Автоотмена через 30 минут
   },
-  // Communication between buyer and seller
+  // Связь между покупателем и продавцом
   messages: [{
     senderId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     message: String,
@@ -296,10 +310,29 @@ const escrowTransactionSchema = new mongoose.Schema({
   completedAt: Date
 });
 
+// Ruble Reserve Schema (for maker's reserved rubles)
+const rubleReserveSchema = new mongoose.Schema({
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  orderId: { type: mongoose.Schema.Types.ObjectId, ref: 'P2POrder' },
+  tradeId: { type: mongoose.Schema.Types.ObjectId, ref: 'P2PTrade' },
+  amount: { type: Number, required: true }, // Amount of rubles reserved
+  type: { type: String, enum: ['order_reserve', 'trade_reserve'], required: true },
+  status: { type: String, enum: ['reserved', 'used', 'released'], default: 'reserved' },
+  reason: String,
+  createdAt: { type: Date, default: Date.now },
+  releasedAt: Date
+});
+
 // Add indexes for faster queries
 escrowTransactionSchema.index({ userId: 1, type: 1 });
 escrowTransactionSchema.index({ tradeId: 1 });
 escrowTransactionSchema.index({ createdAt: -1 });
+
+// Add indexes for ruble reserves
+rubleReserveSchema.index({ userId: 1, status: 1 });
+rubleReserveSchema.index({ orderId: 1 });
+rubleReserveSchema.index({ tradeId: 1 });
+rubleReserveSchema.index({ createdAt: -1 });
 
 // Models
 const User = mongoose.models.User || mongoose.model('User', userSchema);
@@ -309,6 +342,7 @@ const P2POrder = mongoose.models.P2POrder || mongoose.model('P2POrder', p2pOrder
 const P2PTrade = mongoose.models.P2PTrade || mongoose.model('P2PTrade', p2pTradeSchema);
 const PriceHistory = mongoose.models.PriceHistory || mongoose.model('PriceHistory', priceHistorySchema);
 const EscrowTransaction = mongoose.models.EscrowTransaction || mongoose.model('EscrowTransaction', escrowTransactionSchema);
+const RubleReserve = mongoose.models.RubleReserve || mongoose.model('RubleReserve', rubleReserveSchema);
 
 module.exports = {
   connectDatabase,
@@ -320,5 +354,6 @@ module.exports = {
   P2POrder,
   P2PTrade,
   PriceHistory,
-  EscrowTransaction
+  EscrowTransaction,
+  RubleReserve
 };
