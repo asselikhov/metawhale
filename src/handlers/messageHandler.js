@@ -298,7 +298,6 @@ class MessageHandler {
       // Calculate values for display
       const totalValue = amount * pricePerToken;
       const commissionCES = amount * 0.01; // 1% commission in CES
-      const commissionRubles = totalValue * 0.01; // For display purposes
       const minRubles = minAmount * pricePerToken;
       const maxRubles = maxAmount * pricePerToken;
       
@@ -309,11 +308,11 @@ class MessageHandler {
       const message = `${typeEmoji} Подтверждение ордера на ${typeText}\n` +
                      `➖➖➖➖➖➖➖➖➖➖➖\n` +
                      `Количество: ${amount} CES\n` +
-                     `Цена за токен: ${pricePerToken.toFixed(2)} ₽\n` +
-                     `Общая сумма: ${totalValue.toFixed(2)} ₽\n` +
+                     `Цена за токен: ₽${pricePerToken.toFixed(2)}\n` +
+                     `Общая сумма: ₽${totalValue.toFixed(2)}\n` +
                      `Мин. сумма: ${minRubles.toFixed(0)} ₽\n` +
                      `Макс. сумма: ${maxRubles.toFixed(0)} ₽\n` +
-                     `Комиссия: 1 % | ${commissionCES.toFixed(2)} CES\n\n` +
+                     `Комиссия: ${commissionCES.toFixed(2)} CES (1%)\n\n` +
                      `🛡️ Безопасность:\n` +
                      `Все сделки защищены эскроу-системой\n\n` +
                      `✅ Ордер успешно создан!`;

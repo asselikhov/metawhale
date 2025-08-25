@@ -105,7 +105,7 @@ class P2PHandler {
                             `⚠️ Введите [кол-во, CES] [цена_за_токен, ₽] [мин_сумма, ₽] [макс_сумма, ₽]\n` +
                             `💡 Пример: 10 245 1000 2500\n\n` +
                             `Информация:\n` +
-                            `• Минимальная сумма: 0.1 CES\n` +
+                            `• Минимальная сумма: 10 ₽\n` +
                             `• Комиссия платформы: 1% (только с мейкеров)`;
       
       const keyboard = Markup.inlineKeyboard([
@@ -170,7 +170,7 @@ class P2PHandler {
                             `⚠️ Введите  [кол-во, CES] [цена_за_токен, ₽] [мин_сумма, ₽] [макс_сумма, ₽]\n` +
                             `💡 Пример: 50 253.5 1000 9000\n\n` +
                             `Информация:\n` +
-                            `• Минимальная сумма: 0.1 CES\n` +
+                            `• Минимальная сумма: 10 ₽\n` +
                             `• Комиссия платформы: 1% (только с мейкеров)`;
       
       const keyboard = Markup.inlineKeyboard([
@@ -322,27 +322,39 @@ class P2PHandler {
       const parts = orderData.trim().split(/\s+/);
       
       if (parts.length < 2 || parts.length > 4) {
-        return await ctx.reply(`⚠️ Неверный формат. \n💡 Используйте: количество цена_за_токен [мин_сумма макс_сумма]\n\nПример: 10 250.50 или 10 250.50 1 5`);
+        return await ctx.reply(`⚠️ Неверный формат. \n💡 Используйте: количество цена_за_токен [мин_сумма_₽ макс_сумма_₽]\n\nПример: 10 250.50 или 10 250.50 1000 2500`);
       }
       
-      const [amountStr, priceStr, minAmountStr, maxAmountStr] = parts;
+      const [amountStr, priceStr, minRublesStr, maxRublesStr] = parts;
       
       // Normalize decimal separators
       const amount = parseFloat(amountStr.replace(',', '.'));
       const pricePerToken = parseFloat(priceStr.replace(',', '.'));
-      const minAmount = minAmountStr ? parseFloat(minAmountStr.replace(',', '.')) : 1;
-      const maxAmount = maxAmountStr ? parseFloat(maxAmountStr.replace(',', '.')) : amount;
+      const minRubles = minRublesStr ? parseFloat(minRublesStr.replace(',', '.')) : pricePerToken; // Default to price of 1 CES
+      const maxRubles = maxRublesStr ? parseFloat(maxRublesStr.replace(',', '.')) : amount * pricePerToken; // Default to total order value
+      
+      // Convert ruble amounts to CES amounts
+      const minAmount = minRubles / pricePerToken;
+      const maxAmount = maxRubles / pricePerToken;
       
       if (isNaN(amount) || amount <= 0 || isNaN(pricePerToken) || pricePerToken <= 0) {
         return await ctx.reply('❌ Неверные значения. Укажите положительные числа.');
       }
       
-      if (amount < 1) {
-        return await ctx.reply('❌ Минимальное количество: 1 CES');
+      if (amount < 0.1) {
+        return await ctx.reply('❌ Минимальное количество: 0.1 CES');
+      }
+      
+      if (minRubles < 10) {
+        return await ctx.reply('❌ Минимальная сумма: 10 ₽');
+      }
+      
+      if (maxRubles < minRubles) {
+        return await ctx.reply('❌ Максимальная сумма не может быть меньше минимальной');
       }
       
       const totalValue = amount * pricePerToken;
-      const commission = totalValue * 0.01;
+      const commissionCES = amount * 0.01; // 1% commission in CES
       
       // Show confirmation
       const typeEmoji = orderType === 'buy' ? '📈' : '📉';
@@ -353,9 +365,9 @@ class P2PHandler {
                      `Количество: ${amount} CES\n` +
                      `Цена за токен: ₽${pricePerToken.toFixed(2)}\n` +
                      `Общая сумма: ₽${totalValue.toFixed(2)}\n` +
-                     `Мин. сумма: ${minAmount} CES\n` +
-                     `Макс. сумма: ${maxAmount} CES\n` +
-                     `Комиссия: ₽${commission.toFixed(2)} (1%, только если вы мейкер)\n\n` +
+                     `Мин. сумма: ${minRubles.toFixed(0)} ₽\n` +
+                     `Макс. сумма: ${maxRubles.toFixed(0)} ₽\n` +
+                     `Комиссия: ${commissionCES.toFixed(2)} CES (1%)\n\n` +
                      `🛡️ Безопасность:\n` +
                      `Все сделки защищены эскроу-системой\n\n` +
                      `⚠️ Подтвердить создание ордера?`;
@@ -491,92 +503,63 @@ class P2PHandler {
     }
   }
   
-  // Start real-time price updates for P2P interfaces
+  // Start real-time price updates for P2P interfaces (manual only)
   async startRealTimePriceUpdates(ctx, sentMessage, orderType, walletInfo = null) {
     const chatId = ctx.chat.id.toString();
     
-    // Function to update price
-    const updatePrice = async () => {
-      try {
-        const priceData = await p2pService.getMarketPriceSuggestion();
-        
-        let message;
-        if (orderType === 'buy') {
-          message = `📈 ПОКУПКА CES ТОКЕНОВ\n` +
-                   `➖➖➖➖➖➖➖➖➖➖➖\n` +
-                   `Текущая рыночная цена: ₽ ${priceData.currentPrice.toFixed(2)} / CES 🔴\n\n` +
-                   `⚠️ Введите [кол-во, CES] [цена_за_токен, ₽] [мин_сумма, ₽] [макс_сумма, ₽]\n` +
-                   `💡 Пример: 10 245 1000 2500\n\n` +
-                   `Информация:\n` +
-                   `• Минимальная сумма: 0.1 CES\n` +
-                   `• Комиссия платформы: 1% (только с мейкеров)`;
-        } else {
-          message = `📉 ПРОДАЖА CES ТОКЕНОВ\n` +
-                   `➖➖➖➖➖➖➖➖➖➖➖\n` +
-                   `Текущая рыночная цена: ₽ ${priceData.currentPrice.toFixed(2)} / CES 🔴\n` +
-                   `Ваш баланс: ${walletInfo.cesBalance.toFixed(4)} CES\n\n` +
-                   `⚠️ Введите  [кол-во, CES] [цена_за_токен, ₽] [мин_сумма, ₽] [макс_сумма, ₽]\n` +
-                   `💡 Пример: 50 253.5 1000 9000\n\n` +
-                   `Информация:\n` +
-                   `• Минимальная сумма: 0.1 CES\n` +
-                   `• Комиссия платформы: 1% (только с мейкеров)`;
-        }
-        
-        const keyboard = Markup.inlineKeyboard([
-          [Markup.button.callback('🔄 Обновить цену', `refresh_price_${orderType}`)],
-          [Markup.button.callback('🔙 Назад', 'p2p_menu')]
-        ]);
-        
-        // Update the message
-        await ctx.telegram.editMessageText(
-          sentMessage.chat.id,
-          sentMessage.message_id,
-          null,
-          message,
-          { reply_markup: keyboard.reply_markup }
-        );
-        
-        console.log(`🔄 Real-time price updated for ${orderType}: ₽${priceData.currentPrice.toFixed(2)}/CES`);
-        
-      } catch (updateError) {
-        console.error('Error updating real-time price:', updateError);
-        // Don't break the cycle on update errors
+    // Get initial price data for display
+    try {
+      const p2pService = require('../services/p2pService');
+      const priceData = await p2pService.getMarketPriceSuggestion();
+      
+      let message;
+      if (orderType === 'buy') {
+        message = `📈 ПОКУПКА CES ТОКЕНОВ\n` +
+                 `➖➖➖➖➖➖➖➖➖➖➖\n` +
+                 `Текущая рыночная цена: ₽ ${priceData.currentPrice.toFixed(2)} / CES \ud83d\udfe2\n\n` +
+                 `⚠️ Введите [кол-во, CES] [цена_за_токен, ₽] [мин_сумма, ₽] [макс_сумма, ₽]\n` +
+                 `💡 Пример: 10 245 1000 2500\n\n` +
+                 `Информация:\n` +
+                 `• Минимальная сумма: 10 ₽\n` +
+                 `• Комиссия платформы: 1% (только с мейкеров)`;
+      } else {
+        message = `📉 ПРОДАЖА CES ТОКЕНОВ\n` +
+                 `➖➖➖➖➖➖➖➖➖➖➖\n` +
+                 `Текущая рыночная цена: ₽ ${priceData.currentPrice.toFixed(2)} / CES \ud83d\udfe2\n` +
+                 `Ваш баланс: ${walletInfo.cesBalance.toFixed(4)} CES\n\n` +
+                 `⚠️ Введите  [кол-во, CES] [цена_за_токен, ₽] [мин_сумма, ₽] [макс_сумма, ₽]\n` +
+                 `💡 Пример: 50 253.5 1000 9000\n\n` +
+                 `Информация:\n` +
+                 `• Минимальная сумма: 10 ₽\n` +
+                 `• Комиссия платформы: 1% (только с мейкеров)`;
       }
-    };
-    
-    // Update price immediately with current data
-    setTimeout(updatePrice, 1000);
-    
-    // Store interval reference for cleanup
-    const intervalId = setInterval(updatePrice, 10000); // Update every 10 seconds
-    
-    // Store interval for cleanup when user leaves the screen
-    if (!global.priceUpdateIntervals) {
-      global.priceUpdateIntervals = new Map();
+      
+      const keyboard = Markup.inlineKeyboard([
+        [Markup.button.callback('🔄 Обновить цену', `refresh_price_${orderType}`)],
+        [Markup.button.callback('🔙 Назад', 'p2p_menu')]
+      ]);
+      
+      // Update the initial message with current price
+      await ctx.telegram.editMessageText(
+        sentMessage.chat.id,
+        sentMessage.message_id,
+        null,
+        message,
+        { reply_markup: keyboard.reply_markup }
+      );
+      
+      console.log(`🟢 Initial price loaded for ${orderType}: ₽${priceData.currentPrice.toFixed(2)}/CES (manual refresh only)`);
+      
+    } catch (error) {
+      console.error('Error loading initial price:', error);
     }
-    
-    // Clear any existing intervals for this user
-    const existingInterval = global.priceUpdateIntervals.get(chatId);
-    if (existingInterval) {
-      clearInterval(existingInterval);
-    }
-    
-    global.priceUpdateIntervals.set(chatId, intervalId);
-    
-    // Auto-cleanup after 5 minutes to prevent memory leaks
-    setTimeout(() => {
-      this.stopRealTimePriceUpdates(chatId);
-    }, 300000); // 5 minutes
   }
   
-  // Stop real-time price updates for a user
+  // Stop real-time price updates for a user (legacy function - no longer needed)
   stopRealTimePriceUpdates(chatId) {
-    if (global.priceUpdateIntervals && global.priceUpdateIntervals.has(chatId)) {
-      const intervalId = global.priceUpdateIntervals.get(chatId);
-      clearInterval(intervalId);
-      global.priceUpdateIntervals.delete(chatId);
-      console.log(`🛑 Stopped real-time price updates for user ${chatId}`);
-    }
+    // This function is kept for compatibility but no longer needed
+    // since we removed automatic price updates
+    console.log(`🟢 No active price intervals to stop for user ${chatId} (manual refresh only)`);
   }
   
   // Handle manual price refresh
@@ -597,7 +580,7 @@ class P2PHandler {
                  `⚠️ Введите [кол-во, CES] [цена_за_токен, ₽] [мин_сумма, ₽] [макс_сумма, ₽]\n` +
                  `💡 Пример: 10 245 1000 2500\n\n` +
                  `Информация:\n` +
-                 `• Минимальная сумма: 0.1 CES\n` +
+                 `• Минимальная сумма: 10 ₽\n` +
                  `• Комиссия платформы: 1% (только с мейкеров)`;
       } else {
         // Get updated wallet info for sell orders
@@ -609,7 +592,7 @@ class P2PHandler {
                  `⚠️ Введите  [кол-во, CES] [цена_за_токен, ₽] [мин_сумма, ₽] [макс_сумма, ₽]\n` +
                  `💡 Пример: 50 253.5 1000 9000\n\n` +
                  `Информация:\n` +
-                 `• Минимальная сумма: 0.1 CES\n` +
+                 `• Минимальная сумма: 10 ₽\n` +
                  `• Комиссия платформы: 1% (только с мейкеров)`;
       }
       
@@ -618,7 +601,17 @@ class P2PHandler {
         [Markup.button.callback('🔙 Назад', 'p2p_menu')]
       ]);
       
-      await ctx.editMessageText(message, keyboard);
+      try {
+        await ctx.editMessageText(message, keyboard);
+      } catch (editError) {
+        // Handle case where message content is the same
+        if (editError.response && editError.response.error_code === 400 && 
+            editError.response.description.includes('message is not modified')) {
+          await ctx.answerCbQuery('✅ Цена уже актуальна!');
+          return;
+        }
+        throw editError;
+      }
       
     } catch (error) {
       console.error('Error refreshing price:', error);
