@@ -3,7 +3,9 @@ services:
     name: ces-price-telegram-bot
     env: node
     plan: free
-    buildCommand: yarn install
+    buildCommand: |
+      chmod +x scripts/render-build.sh
+      ./scripts/render-build.sh
     startCommand: yarn start
     healthCheckPath: /health
     envVars:

@@ -1,0 +1,32 @@
+# Ignore cache directories that might cause corruption
+node_modules/
+.yarn/cache/
+.npm/
+.cache/
+yarn-error.log
+npm-debug.log*
+
+# Ignore build artifacts that should be regenerated
+dist/
+build/
+coverage/
+
+# Ignore local development files
+.env.local
+.env.development
+.env.test
+
+# Ignore OS generated files
+.DS_Store
+Thumbs.db
+
+# Ignore IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Ignore temporary files
+*.tmp
+*.temp
+.temp/
