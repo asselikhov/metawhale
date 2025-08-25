@@ -1540,6 +1540,70 @@ class P2PService {
     }
   }
   
+  // Confirm payment received by seller
+  async confirmPaymentReceived(tradeId, sellerChatId) {
+    try {
+      console.log(`Confirming payment received for trade ${tradeId}`);
+      
+      const trade = await P2PTrade.findById(tradeId)
+        .populate('buyerId')
+        .populate('sellerId');
+      
+      if (!trade) {
+        return { success: false, error: 'Сделка не найдена' };
+      }
+      
+      // Check if user is the seller
+      if (trade.sellerId.chatId !== sellerChatId) {
+        return { success: false, error: 'Только продавец может подтвердить получение платежа' };
+      }
+      
+      if (!['escrow_locked', 'payment_pending', 'payment_made'].includes(trade.status)) {
+        return { success: false, error: 'Нельзя подтвердить платёж для этой сделки' };
+      }
+      
+      // Release tokens from escrow to buyer
+      const escrowService = require('./escrowService');
+      await escrowService.releaseTokensFromEscrow(
+        trade.sellerId._id,
+        tradeId,
+        'CES',
+        trade.amount,
+        trade.buyerId._id
+      );
+      
+      // Update trade status to completed
+      trade.status = 'completed';
+      trade.escrowStatus = 'released';
+      trade.timeTracking.paymentConfirmedAt = new Date();
+      trade.timeTracking.completedAt = new Date();
+      
+      await trade.save();
+      
+      // Notify buyer about completion
+      try {
+        const bot = require('../bot/telegramBot');
+        const buyerMessage = `✅ СДЕЛКА ЗАВЕРШЕНА!\n` +
+                             `⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️\n\n` +
+                             `Продавец подтвердил получение платежа.\n` +
+                             `${trade.amount} CES переданы на ваш кошелёк!\n\n` +
+                             `Спасибо за использование P2P биржи!`;
+        
+        await bot.telegram.sendMessage(trade.buyerId.chatId, buyerMessage);
+        console.log(`✅ Completion notification sent to buyer ${trade.buyerId.chatId}`);
+      } catch (notifyError) {
+        console.error('⚠️ Failed to notify buyer about completion:', notifyError);
+      }
+      
+      console.log(`Payment confirmed for trade ${tradeId}`);
+      return { success: true };
+      
+    } catch (error) {
+      console.error('Error confirming payment received:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
   // Mark payment as completed
   async markPaymentCompleted(tradeId, userChatId) {
     try {
@@ -1622,7 +1686,7 @@ class P2PService {
       
       // Update trade status
       trade.status = 'cancelled';
-      trade.escrowStatus = 'refunded';
+      trade.escrowStatus = 'returned';
       trade.disputeReason = 'Отменено пользователем';
       
       await trade.save();
@@ -1678,7 +1742,7 @@ class P2PService {
       
       // Update trade status
       trade.status = 'cancelled';
-      trade.escrowStatus = 'refunded';
+      trade.escrowStatus = 'returned';
       trade.disputeReason = 'Время оплаты истекло';
       
       await trade.save();

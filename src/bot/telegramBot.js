@@ -446,6 +446,11 @@ class TelegramBot {
       return messageHandler.handlePaymentCompleted(ctx);
     });
     
+    this.bot.action('payment_received', (ctx) => {
+      console.log('Received payment_received callback');
+      return messageHandler.handlePaymentReceived(ctx);
+    });
+    
     this.bot.action('cancel_payment', (ctx) => {
       console.log('Received cancel_payment callback');
       return messageHandler.handleCancelPayment(ctx);

@@ -1172,13 +1172,16 @@ class MessageHandler {
       const p2pService = require('../services/p2pService');
       const { User } = require('../database/models');
       
-      const buyer = await User.findById(orderData.makerId);
-      const seller = await User.findOne({ chatId });
+      // ИСПРАВЛЕНИЕ: Правильно определяем роли участников
+      // seller = тейкер (продавец CES, замораживает токены и получает деньги)
+      // buyer = мейкер (покупатель CES, должен оплатить)
+      const seller = await User.findOne({ chatId }); // Тейкер - тот, кто нажал "make_payment"
+      const buyer = await User.findById(orderData.makerId); // Мейкер - создатель ордера
       
       if (!buyer || !seller) {
         return await ctx.reply('❌ Ошибка получения данных пользователей.');
       }
-      
+
       // Автоматическое одобрение токенов перед эскроу
       try {
         await ctx.reply('🔐 Подготовка сделки...⚡️ Одобряем токены автоматически');
@@ -1252,14 +1255,33 @@ class MessageHandler {
       
       sessionManager.setSessionData(chatId, 'paymentExpiryTime', expiryTime.getTime());
       
-      // Get maker's payment details
-      let makerName = 'Пользователь';
-      if (buyer.p2pProfile && buyer.p2pProfile.fullName) {
-        makerName = buyer.p2pProfile.fullName;
-      } else if (buyer.firstName) {
-        makerName = buyer.firstName;
-        if (buyer.lastName) {
-          makerName += ` ${buyer.lastName}`;
+      // ИСПРАВЛЕНИЕ: Отправляем правильные уведомления участникам
+      
+      // 1. Уведомляем тейкера (продавца) - он получит деньги и замораживает CES
+      const sellerMessage = `💰 СДЕЛКА СОЗДАНА\n` +
+                            `⁠⁠⁠⁠⁠⁠⁠⁠⁠⁠\n\n` +
+                            `Ордер: ${orderNumber}\n` +
+                            `Количество: ${confirmedAmount} CES\n` +
+                            `Сумма: ${totalPrice.toFixed(2)} ₽\n\n` +
+                            `🔒 Ваши CES заморожены в безопасном эскроу!\n` +
+                            `💵 Ожидайте перевод от покупателя.\n\n` +
+                            `✅ После получения денег подтвердите платёж.`;
+
+      const sellerKeyboard = Markup.inlineKeyboard([
+        [Markup.button.callback('✅ Платёж получен', 'payment_received')],
+        [Markup.button.callback('❌ Отменить сделку', 'cancel_payment')]
+      ]);
+
+      await ctx.reply(sellerMessage, sellerKeyboard);
+      
+      // 2. Уведомляем мейкера (покупателя) - он должен оплатить
+      let sellerName = 'Пользователь';
+      if (seller.p2pProfile && seller.p2pProfile.fullName) {
+        sellerName = seller.p2pProfile.fullName;
+      } else if (seller.firstName) {
+        sellerName = seller.firstName;
+        if (seller.lastName) {
+          sellerName += ` ${seller.lastName}`;
         }
       }
       
@@ -1278,27 +1300,36 @@ class MessageHandler {
         'rosbank': 'Росбанк'
       };
       
-      // Display full card number for payment
       let displayCardNumber = selectedPaymentMethod.cardNumber || 'Не указано';
       
-      const message = `💳 ОПЛАТА\n` +
-                     `⁠⁠⁠⁠⁠⁠⁠⁠⁠⁠\n` +
-                     `Ордер: ${orderNumber}\n` +
-                     `Время оплаты: ${timeLimit} мин. (до ${expiryTimeStr})\n` +
-                     `Сумма: ${totalPrice.toFixed(2)} ₽\n\n` +
-                     `Данные для оплаты:\n` +
-                     `Банк: ${bankNames[selectedPaymentMethod.bank]}\n` +
-                     `Карта: ${displayCardNumber}\n` +
-                     `Получатель: ${makerName}\n\n` +
-                     `⚠️ Оплатите точную сумму в указанные сроки.\n` +
-                     `После оплаты нажмите "Платёж выполнен".`;
-      
-      const keyboard = Markup.inlineKeyboard([
+      const buyerMessage = `💳 ОПЛАТА\n` +
+                          `⁠⁠⁠⁠⁠⁠⁠⁠⁠⁠\n` +
+                          `Ордер: ${orderNumber}\n` +
+                          `Время оплаты: ${timeLimit} мин. (до ${expiryTimeStr})\n` +
+                          `Сумма: ${totalPrice.toFixed(2)} ₽\n\n` +
+                          `Данные для оплаты:\n` +
+                          `Банк: ${bankNames[selectedPaymentMethod.bank]}\n` +
+                          `Карта: ${displayCardNumber}\n` +
+                          `Получатель: ${sellerName}\n\n` +
+                          `⚠️ Оплатите точную сумму в указанные сроки.\n` +
+                          `После оплаты нажмите "Платёж выполнен".`;
+
+      const buyerKeyboard = Markup.inlineKeyboard([
         [Markup.button.callback('✅ Платёж выполнен', 'payment_completed')],
         [Markup.button.callback('❌ Отменить сделку', 'cancel_payment')]
       ]);
       
-      await ctx.reply(message, keyboard);
+      // Отправляем сообщение мейкеру (покупателю)
+      const bot = require('../bot/telegramBot');
+      try {
+        await bot.telegram.sendMessage(buyer.chatId, buyerMessage, {
+          reply_markup: buyerKeyboard.reply_markup,
+          parse_mode: 'HTML'
+        });
+        console.log(`✅ Notification sent to buyer ${buyer.chatId}`);
+      } catch (notifyError) {
+        console.error('⚠️ Failed to notify buyer:', notifyError);
+      }
       
       // Schedule automatic cancellation
       setTimeout(async () => {
@@ -1326,6 +1357,47 @@ class MessageHandler {
     await ctx.reply('🚧 В разработке');
   }
   
+  async handlePaymentReceived(ctx) {
+    try {
+      const chatId = ctx.chat.id.toString();
+      const sessionManager = require('./SessionManager');
+      const tradeId = sessionManager.getSessionData(chatId, 'tradeId');
+      const orderNumber = sessionManager.getSessionData(chatId, 'orderNumber');
+      
+      if (!tradeId || !orderNumber) {
+        return await ctx.reply('❌ Данные сделки не найдены.');
+      }
+      
+      // Mark payment as received by seller
+      const p2pService = require('../services/p2pService');
+      const result = await p2pService.confirmPaymentReceived(tradeId, chatId);
+      
+      if (!result.success) {
+        return await ctx.reply(`❌ Ошибка: ${result.error}`);
+      }
+      
+      // Clear session
+      sessionManager.clearUserSession(chatId);
+      
+      const message = `✅ ПЛАТЁЖ ПОДТВЁРЖДЁН\n` +
+                     `⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️\n\n` +
+                     `Ордер: ${orderNumber}\n\n` +
+                     `Спасибо за подтверждение!\n` +
+                     `CES токены переданы покупателю.\n\n` +
+                     `✅ Сделка успешно завершена!`;
+      
+      const keyboard = Markup.inlineKeyboard([
+        [Markup.button.callback('🔙 К P2P меню', 'p2p_menu')]
+      ]);
+      
+      await ctx.reply(message, keyboard);
+      
+    } catch (error) {
+      console.error('Payment received error:', error);
+      await ctx.reply('❌ Ошибка подтверждения платежа.');
+    }
+  }
+
   async handlePaymentCompleted(ctx) {
     try {
       const chatId = ctx.chat.id.toString();
