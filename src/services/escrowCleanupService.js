@@ -290,7 +290,7 @@ class EscrowCleanupService {
             );
             
             trade.status = 'cancelled';
-            trade.escrowStatus = 'refunded';
+            trade.escrowStatus = 'returned';
             trade.disputeReason = 'Automatic timeout cleanup';
             await trade.save();
             

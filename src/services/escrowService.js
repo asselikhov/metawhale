@@ -493,7 +493,7 @@ class EscrowService {
         );
 
         trade.status = 'cancelled';
-        trade.escrowStatus = 'refunded';
+        trade.escrowStatus = 'returned';
         await trade.save();
 
         console.log(`↩️ Trade ${tradeId} cancelled and refunded after timeout`);
@@ -547,7 +547,7 @@ class EscrowService {
         );
 
         trade.status = 'cancelled';
-        trade.escrowStatus = 'refunded';
+        trade.escrowStatus = 'returned';
       }
 
       trade.timeTracking.completedAt = new Date();

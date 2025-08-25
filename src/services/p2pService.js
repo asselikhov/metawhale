@@ -1390,7 +1390,7 @@ class P2PService {
       
       // Update trade status
       trade.status = 'cancelled';
-      trade.escrowStatus = 'refunded';
+      trade.escrowStatus = 'returned';
       trade.disputeReason = reason;
       
       await trade.save();
