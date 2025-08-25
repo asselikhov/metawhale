@@ -590,6 +590,12 @@ class MessageHandler {
       const makerConditions = (maker.p2pProfile && maker.p2pProfile.makerConditions) ? 
                               maker.p2pProfile.makerConditions : 'Не указано';
       
+      // Получаем способы оплаты мейкера
+      let paymentMethods = [];
+      if (maker.p2pProfile && maker.p2pProfile.paymentMethods) {
+        paymentMethods = maker.p2pProfile.paymentMethods.filter(pm => pm.isActive && pm.cardNumber);
+      }
+      
       const message = `Цена: ${buyOrder.pricePerToken.toFixed(2)} ₽ за CES\n` +
                      `Количество: ${buyOrder.remainingAmount.toFixed(2)} CES\n` +
                      `Лимиты: ${minRubles}-${maxRubles} ₽\n` +
@@ -617,6 +623,7 @@ class MessageHandler {
         maxAmount: maxAmount,
         minRubles: parseFloat(minRubles),
         maxRubles: parseFloat(maxRubles),
+        paymentMethods: paymentMethods,
         tradeTimeLimit: buyOrder.tradeTimeLimit || 30
       });
       
