@@ -65,8 +65,8 @@ class P2PHandler {
       const keyboard = Markup.inlineKeyboard([
         [Markup.button.callback('📈 Купить CES', 'p2p_buy_ces'), Markup.button.callback('📉 Продать CES', 'p2p_sell_ces')],
         [Markup.button.callback('📊 Рынок', 'p2p_market_orders'), Markup.button.callback('📋 Мои ордера', 'p2p_my_orders')],
-        [Markup.button.callback('📁 Мои данные', 'p2p_my_data'), Markup.button.callback('🏆 Топ трейдеров', 'p2p_top_traders')],
-        [Markup.button.callback('🧮 Аналитика', 'p2p_analytics')]
+        [Markup.button.callback('🏆 Топ трейдеров', 'p2p_top_traders'), Markup.button.callback('🧮 Аналитика', 'p2p_analytics')],
+        [Markup.button.callback('📑 Мои данные', 'p2p_my_data')]
       ]);
       
       console.log(`📤 Sending P2P menu text with buttons to user ${chatId}`);
@@ -267,6 +267,32 @@ class P2PHandler {
     try {
       const chatId = ctx.chat.id.toString();
       
+      // Skip processing if this is a callback query or button text
+      if (ctx.callbackQuery) {
+        console.log('📝 P2PHandler: Skipping P2P order processing - this is a callback query');
+        return;
+      }
+      
+      // Check if orderData looks like button text (contains emojis or common button phrases)
+      const buttonPatterns = [
+        /🔙/, // Back arrow emoji
+        /☝/, // Cancel/Stop emoji
+        /✅/, // Check mark emoji
+        /❌/, // X emoji
+        /💰/, // Money bag emoji
+        /📈/, // Chart emoji
+        /📉/, // Chart emoji
+        /Назад/, // "Назад" word
+        /Отмена/, // "Отмена" word
+        /Подтверд/ // "Подтверд" word
+      ];
+      
+      const isButtonText = buttonPatterns.some(pattern => pattern.test(orderData));
+      if (isButtonText) {
+        console.log(`📝 Detected button text in P2P order: "${orderData}", ignoring`);
+        return;
+      }
+      
       // Parse order data (amount pricePerToken minAmount maxAmount)
       const parts = orderData.trim().split(/\s+/);
       
@@ -374,7 +400,7 @@ class P2PHandler {
       let message = '📑 МОИ ДАННЫЕ\n' +
                    '➖➖➖➖➖➖➖➖➖➖➖\n\n';
       
-      // Add profile data
+      // Add profile data in new format
       if (profile.fullName) {
         message += `ФИО: ${profile.fullName}\n`;
       }
@@ -388,7 +414,7 @@ class P2PHandler {
           'rshb': 'Россельхозбанк',
           'mkb': 'МКБ',
           'sovcombank': 'Совкомбанк',
-          'tbank': 'Т-банк',
+          'tbank': 'Т-Банк',
           'domrf': 'ДОМ.РФ',
           'otkritie': 'Открытие',
           'raiffeisenbank': 'Райффайзенбанк',
@@ -396,10 +422,12 @@ class P2PHandler {
         };
         
         const activeMethods = profile.paymentMethods.filter(pm => pm.isActive);
-        const methodNames = activeMethods.map(pm => bankNames[pm.bank]).join(', ');
-        message += `Способы оплаты: ${methodNames}\n`;
         
         if (activeMethods.length > 0) {
+          message += 'Способы оплаты: \n';
+          const methodNames = activeMethods.map(pm => bankNames[pm.bank]).join(', ');
+          message += `${methodNames}\n`;
+          
           message += 'Реквизиты:\n';
           activeMethods.forEach(pm => {
             const bankName = bankNames[pm.bank];
@@ -419,8 +447,9 @@ class P2PHandler {
         message += `Контакт: ${profile.contactInfo}\n`;
       }
       
+      // Add empty line before conditions if it exists
       if (profile.makerConditions) {
-        message += `Условия: ${profile.makerConditions}`;
+        message += `\nУсловия: ${profile.makerConditions}`;
       }
       
       const keyboard = Markup.inlineKeyboard([

@@ -14,7 +14,7 @@ class P2PDataHandler {
       const chatId = ctx.chat.id.toString();
       
       const message = '✏️ РЕДАКТИРОВАНИЕ ДАННЫХ\n' +
-                     '➖➖➖➖➖➖➖➖➖➖➖\n' +
+                     '➖➖➖➖➖➖➖➖➖➖➖\n\n' +
                      'Выберите, что хотите изменить:';
       
       const keyboard = Markup.inlineKeyboard([
@@ -39,10 +39,9 @@ class P2PDataHandler {
       const chatId = ctx.chat.id.toString();
       
       const message = '👤 РЕДАКТИРОВАНИЕ ФИО\n' +
-                     '➖➖➖➖➖➖➖➖➖➖➖\n' +
-                     'Введите ваше ФИО так, как оно указано в банке\n\n' +
-                     '💡 Это нужно для проверки платежа и безопасности\n\n' +
-                     'Пример: Иванов Иван Иванович';
+                     '➖➖➖➖➖➖➖➖➖➖➖\n\n' +
+                     '⚠️ Введите ваше ФИО так, как оно указано в банке\n\n' +
+                     '💡 Пример: Иванов Иван Иванович';
       
       // Set session state for text input
       sessionManager.setSessionData(chatId, 'editingField', 'fullName');
@@ -88,7 +87,7 @@ class P2PDataHandler {
       };
       
       let message = '💳 СПОСОБЫ ОПЛАТЫ\n' +
-                   '➖➖➖➖➖➖➖➖➖➖➖\n' +
+                   '➖➖➖➖➖➖➖➖➖➖➖\n\n' +
                    'Выберите банки, через которые вы готовы принимать оплату:\n\n';
       
       const buttons = [];
@@ -233,12 +232,9 @@ class P2PDataHandler {
       const chatId = ctx.chat.id.toString();
       
       const message = '📞 РЕДАКТИРОВАНИЕ КОНТАКТА\n' +
-                     '➖➖➖➖➖➖➖➖➖➖➖\n' +
-                     'Укажите ваш контакт для связи\n\n' +
-                     'Примеры:\n' +
-                     '• +79001234567\n' +
-                     '• @username\n' +
-                     '• Telegram: @username';
+                     '➖➖➖➖➖➖➖➖➖➖➖\n\n' +
+                     '⚠️ Укажите ваш номер телефона\n\n' +
+                     '💡 Пример: +79001234567';
       
       // Set session state for text input
       sessionManager.setSessionData(chatId, 'editingField', 'contactInfo');
@@ -261,9 +257,9 @@ class P2PDataHandler {
       const chatId = ctx.chat.id.toString();
       
       const message = '⚙️ УСЛОВИЯ МЕЙКЕРА\n' +
-                     '➖➖➖➖➖➖➖➖➖➖➖\n' +
-                     'Укажите условия, которые увидит контрагент\n\n' +
-                     'Примеры:\n' +
+                     '➖➖➖➖➖➖➖➖➖➖➖\n\n' +
+                     '⚠️ Укажите условия, которые увидит контрагент\n\n' +
+                     '💡 Пример:\n' +
                      '• Переводы только с личного счёта\n' +
                      '• Не использовать переводы от юрлиц\n' +
                      '• Быстрая оплата в течение 15 минут';
@@ -331,11 +327,10 @@ class P2PDataHandler {
       const profile = user.p2pProfile;
       
       let message = '👀 КАК ВИДЯТ ПОКУПАТЕЛИ\n' +
-                   '➖➖➖➖➖➖➖➖➖➖➖\n' +
-                   'Так будут выглядеть ваши данные в ордерах:\n\n' +
-                   '📋 Данные продавца:\n' +
-                   `👤 ${profile.fullName || 'Не указано'}\n` +
-                   `📞 ${profile.contactInfo || 'Не указано'}\n\n` +
+                   '➖➖➖➖➖➖➖➖➖➖➖\n\n' +
+                   '📋 Данные мейкера:\n' +
+                   `ФИО: ${profile.fullName || 'Не указано'}\n` +
+                   `Контакт: ${profile.contactInfo || 'Не указано'}\n\n` +
                    '💳 Способы оплаты:\n';
       
       if (profile.paymentMethods && profile.paymentMethods.length > 0) {
@@ -357,14 +352,14 @@ class P2PDataHandler {
         const activeMethods = profile.paymentMethods.filter(pm => pm.isActive);
         activeMethods.forEach(pm => {
           const bankName = bankNames[pm.bank];
-          message += `💳 ${bankName}: ${pm.cardNumber || 'Не указано'}\n`;
+          message += `${bankName}: ${pm.cardNumber || 'Не указано'}\n`;
         });
       } else {
         message += 'Не указано\n';
       }
       
       if (profile.makerConditions) {
-        message += `\n⚙️ Условия: ${profile.makerConditions}`;
+        message += `\n⚙️ Условия: \n${profile.makerConditions}`;
       }
       
       const keyboard = Markup.inlineKeyboard([
@@ -382,6 +377,17 @@ class P2PDataHandler {
   // Process text input based on current editing field
   async processTextInput(ctx, text) {
     try {
+      // Skip processing if this is a callback query (button press)
+      if (ctx.callbackQuery) {
+        console.log('📝 P2PDataHandler: Skipping text processing - this is a callback query');
+        return false;
+      }
+      
+      // Skip processing if no actual text message
+      if (!ctx.message || !ctx.message.text) {
+        return false;
+      }
+      
       const chatId = ctx.chat.id.toString();
       const editingField = sessionManager.getSessionData(chatId, 'editingField');
       

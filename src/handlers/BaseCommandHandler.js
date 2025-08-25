@@ -168,6 +168,12 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
     try {
       console.log('📝 handleTextMessage called');
       
+      // Skip processing if this is a callback query (button press)
+      if (ctx.callbackQuery) {
+        console.log('📝 Skipping text processing - this is a callback query');
+        return;
+      }
+      
       const text = ctx.message.text;
       const chatId = ctx.chat.id.toString();
       
