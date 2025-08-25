@@ -6,9 +6,13 @@
 const { ethers } = require('ethers');
 const config = require('../config/configuration');
 
+// Ensure ethers providers are available
+const providers = ethers.providers || ethers;
+const utils = ethers.utils || ethers;
+
 class SmartContractService {
   constructor() {
-    this.provider = new ethers.JsonRpcProvider(config.wallet.polygonRpcUrl);
+    this.provider = new providers.JsonRpcProvider(config.wallet.polygonRpcUrl);
     this.escrowContractAddress = process.env.ESCROW_CONTRACT_ADDRESS;
     
     // Enhanced escrow contract ABI
@@ -44,7 +48,7 @@ class SmartContractService {
       const timelockSeconds = timelockMinutes * 60;
       
       // Convert amount to wei (assuming 18 decimals for CES)
-      const amountWei = ethers.parseEther(amount.toString());
+      const amountWei = utils.parseEther(amount.toString());
 
       // Create escrow transaction
       const tx = await escrowContract.createEscrow(
@@ -54,7 +58,7 @@ class SmartContractService {
         timelockSeconds,
         {
           gasLimit: 300000,
-          gasPrice: ethers.parseUnits('30', 'gwei')
+          gasPrice: utils.parseUnits('30', 'gwei')
         }
       );
 
@@ -106,7 +110,7 @@ class SmartContractService {
 
       const tx = await escrowContract.releaseEscrow(escrowId, {
         gasLimit: 200000,
-        gasPrice: ethers.parseUnits('30', 'gwei')
+        gasPrice: utils.parseUnits('30', 'gwei')
       });
 
       console.log(`⏳ Escrow release transaction sent: ${tx.hash}`);
@@ -137,7 +141,7 @@ class SmartContractService {
 
       const tx = await escrowContract.refundEscrow(escrowId, {
         gasLimit: 200000,
-        gasPrice: ethers.parseUnits('30', 'gwei')
+        gasPrice: utils.parseUnits('30', 'gwei')
       });
 
       console.log(`⏳ Escrow refund transaction sent: ${tx.hash}`);
@@ -168,7 +172,7 @@ class SmartContractService {
       return {
         seller: details[0],
         buyer: details[1],
-        amount: ethers.formatEther(details[2]),
+        amount: utils.formatEther(details[2]),
         timelock: details[3].toString(),
         status: details[4] // 0: Active, 1: Released, 2: Refunded, 3: Disputed
       };
@@ -189,7 +193,7 @@ class SmartContractService {
 
       const tx = await escrowContract.initiateDispute(escrowId, {
         gasLimit: 150000,
-        gasPrice: ethers.parseUnits('30', 'gwei')
+        gasPrice: utils.parseUnits('30', 'gwei')
       });
 
       console.log(`⏳ Dispute initiation transaction sent: ${tx.hash}`);
@@ -219,7 +223,7 @@ class SmartContractService {
 
       const tx = await escrowContract.resolveDispute(escrowId, favorBuyer, {
         gasLimit: 200000,
-        gasPrice: ethers.parseUnits('30', 'gwei')
+        gasPrice: utils.parseUnits('30', 'gwei')
       });
 
       console.log(`⏳ Dispute resolution transaction sent: ${tx.hash}`);
@@ -252,7 +256,7 @@ class SmartContractService {
 
       // Listen for escrow events
       escrowContract.on('EscrowCreated', (escrowId, seller, buyer, amount, event) => {
-        console.log(`🔐 Escrow Created: ID ${escrowId}, Amount: ${ethers.formatEther(amount)} CES`);
+        console.log(`🔐 Escrow Created: ID ${escrowId}, Amount: ${utils.formatEther(amount)} CES`);
         this.handleEscrowCreated(escrowId, seller, buyer, amount);
       });
 
@@ -313,24 +317,24 @@ class SmartContractService {
       }
 
       const gasPrice = await this.provider.getGasPrice();
-      const gasPriceGwei = ethers.formatUnits(gasPrice, 'gwei');
+      const gasPriceGwei = utils.formatUnits(gasPrice, 'gwei');
 
       return {
         createEscrow: {
           gasLimit: 300000,
           gasPriceGwei: gasPriceGwei,
-          estimatedCostEth: ethers.formatEther(gasPrice * BigInt(300000)),
+          estimatedCostEth: utils.formatEther(gasPrice.mul(300000)),
           estimatedCostUsd: 0 // Would need ETH/USD price
         },
         releaseEscrow: {
           gasLimit: 200000,
           gasPriceGwei: gasPriceGwei,
-          estimatedCostEth: ethers.formatEther(gasPrice * BigInt(200000))
+          estimatedCostEth: utils.formatEther(gasPrice.mul(200000))
         },
         refundEscrow: {
           gasLimit: 200000,
           gasPriceGwei: gasPriceGwei,
-          estimatedCostEth: ethers.formatEther(gasPrice * BigInt(200000))
+          estimatedCostEth: utils.formatEther(gasPrice.mul(200000))
         }
       };
 

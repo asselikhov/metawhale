@@ -355,7 +355,12 @@ class MessageHandler {
       // Check current allowance for the escrow contract
       const { ethers } = require('ethers');
       const config = require('../config/configuration');
-      const provider = new ethers.JsonRpcProvider(config.wallet.polygonRpcUrl);
+      
+      // Ensure ethers providers are available
+      const providers = ethers.providers || ethers;
+      const utils = ethers.utils || ethers;
+      
+      const provider = new providers.JsonRpcProvider(config.wallet.polygonRpcUrl);
       
       const cesTokenAddress = process.env.CES_TOKEN_ADDRESS;
       const erc20Abi = [
@@ -366,11 +371,11 @@ class MessageHandler {
       
       const cesContract = new ethers.Contract(cesTokenAddress, erc20Abi, provider);
       const currentAllowance = await cesContract.allowance(user.walletAddress, escrowContractAddress);
-      const requiredAmount = ethers.parseEther(amount.toString());
+      const requiredAmount = utils.parseEther(amount.toString());
       
       console.log(`🔍 Smart contract approval check:`);
-      console.log(`Required: ${ethers.formatEther(requiredAmount)} CES`);
-      console.log(`Current allowance: ${ethers.formatEther(currentAllowance)} CES`);
+      console.log(`Required: ${utils.formatEther(requiredAmount)} CES`);
+      console.log(`Current allowance: ${utils.formatEther(currentAllowance)} CES`);
       
       if (currentAllowance >= requiredAmount) {
         // Sufficient allowance, proceed with order creation
@@ -502,7 +507,12 @@ class MessageHandler {
         // Execute the approval transaction
         const { ethers } = require('ethers');
         const config = require('../config/configuration');
-        const provider = new ethers.JsonRpcProvider(config.wallet.polygonRpcUrl);
+        
+        // Ensure ethers providers are available
+        const providers = ethers.providers || ethers;
+        const utils = ethers.utils || ethers;
+        
+        const provider = new providers.JsonRpcProvider(config.wallet.polygonRpcUrl);
         const wallet = new ethers.Wallet(privateKey, provider);
         
         const erc20Abi = [
@@ -510,7 +520,7 @@ class MessageHandler {
         ];
         
         const cesContract = new ethers.Contract(cesTokenAddress, erc20Abi, wallet);
-        const approvalAmount = ethers.parseEther(amount.toString());
+        const approvalAmount = utils.parseEther(amount.toString());
         
         console.log(`🔐 Executing approval transaction:`);
         console.log(`Amount: ${amount} CES`);
@@ -518,7 +528,7 @@ class MessageHandler {
         
         const tx = await cesContract.approve(escrowContractAddress, approvalAmount, {
           gasLimit: 100000,
-          gasPrice: ethers.parseUnits('30', 'gwei')
+          gasPrice: utils.parseUnits('30', 'gwei')
         });
         
         console.log(`⏳ Approval transaction sent: ${tx.hash}`);
