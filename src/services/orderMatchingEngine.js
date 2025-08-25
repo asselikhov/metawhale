@@ -166,21 +166,41 @@ class OrderMatchingEngine {
       
       // Calculate values
       const totalValue = tradeAmount * executionPrice;
-      const commission = totalValue * 0.01; // 1% commission
+      
+      // NEW COMMISSION LOGIC: Only charge MAKERS (order creators), not TAKERS
+      // Determine who is maker based on order creation time
+      const buyOrderTime = new Date(buyOrder.createdAt).getTime();
+      const sellOrderTime = new Date(sellOrder.createdAt).getTime();
+      
+      let buyerCommission = 0;
+      let sellerCommission = 0;
+      
+      if (buyOrderTime < sellOrderTime) {
+        // Buy order was created first → Buyer is MAKER
+        const makerCommissionInCES = tradeAmount * 0.01; // 1% of CES amount
+        buyerCommission = makerCommissionInCES * executionPrice; // Convert to rubles
+        sellerCommission = 0; // Seller (taker) pays nothing
+      } else {
+        // Sell order was created first → Seller is MAKER
+        const makerCommissionInCES = tradeAmount * 0.01; // 1% of CES amount  
+        sellerCommission = makerCommissionInCES * executionPrice; // Convert to rubles
+        buyerCommission = 0; // Buyer (taker) pays nothing
+      }
 
-      console.log(`💱 Executing advanced trade: ${tradeAmount} CES at ₽${executionPrice}`);
+      console.log(`💱 Executing advanced trade: ${tradeAmount} CES at ₽${executionPrice} (buyer commission: ₽${buyerCommission.toFixed(2)}, seller commission: ₽${sellerCommission.toFixed(2)})`);
 
       // Import p2pService to execute the trade
       const p2pService = require('./p2pService');
       
-      // Execute the trade using existing method
+      // Execute the trade using existing method with correct commission assignment
       const trade = await p2pService.executeTrade(
         buyOrder, 
         sellOrder, 
         tradeAmount, 
         executionPrice, 
         totalValue, 
-        commission
+        buyerCommission,
+        sellerCommission
       );
 
       // Update order statuses

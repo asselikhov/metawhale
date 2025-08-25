@@ -385,33 +385,30 @@ class P2PDataHandler {
         return false;
       }
       
-      // Check for main menu buttons - handle them instead of treating as text input
-      if (text.includes('Личный кабинет') || text.includes('👤')) {
-        console.log('📝 P2PDataHandler: Detected main menu button - Personal Cabinet');
-        const chatId = ctx.chat.id.toString();
-        sessionManager.clearUserSession(chatId);
-        const BaseCommandHandler = require('./BaseCommandHandler');
-        const handler = new BaseCommandHandler();
-        if (handler.walletHandler) {
-          return await handler.walletHandler.handlePersonalCabinetText(ctx);
-        }
-        return true;
-      }
-      
-      if (text.includes('P2P Биржа') || text.includes('🔄 P2P')) {
-        console.log('📝 P2PDataHandler: Detected main menu button - P2P Exchange');
-        const chatId = ctx.chat.id.toString();
-        sessionManager.clearUserSession(chatId);
-        const P2PHandler = require('./P2PHandler');
-        const handler = new P2PHandler();
-        return await handler.handleP2PMenu(ctx);
-      }
-      
       const chatId = ctx.chat.id.toString();
       const editingField = sessionManager.getSessionData(chatId, 'editingField');
       
       if (!editingField) {
-        return false; // Not handling text input
+        return false; // Not handling text input - let main handler deal with menu buttons
+      }
+      
+      // ONLY handle main menu buttons if we're actually in an editing session
+      // Check for main menu buttons - handle them instead of treating as text input
+      if (text.includes('Личный кабинет') || text.includes('👤')) {
+        console.log('📝 P2PDataHandler: Detected main menu button - Personal Cabinet');
+        sessionManager.clearUserSession(chatId);
+        const BaseCommandHandler = require('./BaseCommandHandler');
+        const WalletHandler = require('./WalletHandler');
+        const handler = new WalletHandler();
+        return await handler.handlePersonalCabinetText(ctx);
+      }
+      
+      if (text.includes('P2P Биржа') || text.includes('🔄 P2P')) {
+        console.log('📝 P2PDataHandler: Detected main menu button - P2P Exchange');
+        sessionManager.clearUserSession(chatId);
+        const P2PHandler = require('./P2PHandler');
+        const handler = new P2PHandler();
+        return await handler.handleP2PMenu(ctx);
       }
       
       const user = await User.findOne({ chatId });
@@ -586,12 +583,11 @@ class P2PDataHandler {
       if (!isComplete) {
         return {
           valid: false,
-          message: '⚠️ Для создания ордеров необходимо заполнить данные\n\n' +
-                  '📑 Перейдите в "Мои данные" и заполните:\n' +
+          message: '⚠️ Для создания ордеров необходимо заполнить данные\n' +
+                  '💡 Перейдите в 📑 Мои данные и заполните:\n' +
                   '• ФИО\n' +
                   '• Контактную информацию\n' +
-                  '• Способы оплаты с реквизитами\n\n' +
-                  '💡 Поле "Условия" заполнять не обязательно',
+                  '• Способы оплаты с реквизитами',
           keyboard: [
             [{ text: '📑 Заполнить данные', callback_data: 'p2p_my_data' }],
             [{ text: '🔙 Назад', callback_data: 'p2p_menu' }]

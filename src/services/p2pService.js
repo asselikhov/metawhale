@@ -1,6 +1,6 @@
 /**
  * P2P Trading Service with Escrow
- * Handles buying and selling CES tokens for rubles with 1% commission from both buyer and seller
+ * Handles buying and selling CES tokens for rubles with 1% commission ONLY from makers (order creators)
  * Includes advanced escrow system for maximum security
  */
 
@@ -313,12 +313,30 @@ class P2PService {
             const tradePrice = sellOrder.pricePerToken;
             const totalValue = tradeAmount * tradePrice;
             
-            // Calculate commissions: 1% from buyer and 1% from seller
-            const buyerCommission = totalValue * this.commissionRate; // 1% from buyer
-            const sellerCommission = totalValue * this.commissionRate; // 1% from seller
-            const totalCommission = buyerCommission + sellerCommission; // Total 2%
+            // CORRECT MAKER/TAKER LOGIC: Maker = order created first, Taker = order created later
+            const buyOrderTime = new Date(buyOrder.createdAt).getTime();
+            const sellOrderTime = new Date(sellOrder.createdAt).getTime();
             
-            console.log(`Executing trade: ${tradeAmount} CES at ₽${tradePrice} (buyer commission: ₽${buyerCommission.toFixed(2)}, seller commission: ₽${sellerCommission.toFixed(2)})`);
+            let makerCommissionInCES = 0;
+            let takerCommissionInCES = 0;
+            let buyerCommissionInRubles = 0;
+            let sellerCommissionInRubles = 0;
+            
+            if (buyOrderTime < sellOrderTime) {
+              // Buy order was created first → Buyer is MAKER, Seller is TAKER
+              makerCommissionInCES = tradeAmount * this.commissionRate; // 1% from buyer (maker)
+              buyerCommissionInRubles = makerCommissionInCES * tradePrice;
+              sellerCommissionInRubles = 0; // Seller (taker) pays nothing
+              console.log(`Buy order is maker (${new Date(buyOrder.createdAt).toISOString()}) vs sell order taker (${new Date(sellOrder.createdAt).toISOString()})`);
+            } else {
+              // Sell order was created first → Seller is MAKER, Buyer is TAKER  
+              makerCommissionInCES = tradeAmount * this.commissionRate; // 1% from seller (maker)
+              sellerCommissionInRubles = makerCommissionInCES * tradePrice;
+              buyerCommissionInRubles = 0; // Buyer (taker) pays nothing
+              console.log(`Sell order is maker (${new Date(sellOrder.createdAt).toISOString()}) vs buy order taker (${new Date(buyOrder.createdAt).toISOString()})`);
+            }
+            
+            console.log(`Executing trade: ${tradeAmount} CES at ₽${tradePrice} (maker commission: ${makerCommissionInCES.toFixed(4)} CES = ₽${Math.max(buyerCommissionInRubles, sellerCommissionInRubles).toFixed(2)}, taker commission: ₽0)`);
             
             // Send smart notifications to both users
             await smartNotificationService.sendSmartOrderMatchNotification(
@@ -333,8 +351,8 @@ class P2PService {
               sellOrder
             );
             
-            // Execute the trade with both commissions
-            await this.executeTrade(buyOrder, sellOrder, tradeAmount, tradePrice, totalValue, buyerCommission, sellerCommission);
+            // Execute the trade with correct maker commission
+            await this.executeTrade(buyOrder, sellOrder, tradeAmount, tradePrice, totalValue, buyerCommissionInRubles, sellerCommissionInRubles);
             
             // Update order statuses
             buyOrder.remainingAmount -= tradeAmount;
@@ -408,7 +426,10 @@ class P2PService {
     try {
       console.log(`Executing escrow trade: ${amount} CES at ₽${pricePerToken} (buyer commission: ₽${buyerCommission.toFixed(2)}, seller commission: ₽${sellerCommission.toFixed(2)})`);
       
-      // Calculate total commission
+      // Commission logic is now correctly handled by caller:
+      // - If buyer created order first → buyerCommission > 0, sellerCommission = 0
+      // - If seller created order first → sellerCommission > 0, buyerCommission = 0
+      
       const totalCommission = buyerCommission + sellerCommission;
       
       // Create trade record with escrow status
@@ -420,9 +441,9 @@ class P2PService {
         amount: amount,
         pricePerToken: pricePerToken,
         totalValue: totalValue,
-        buyerCommission: buyerCommission, // 1% commission from buyer
-        sellerCommission: sellerCommission, // 1% commission from seller
-        commission: totalCommission, // Total commission for backward compatibility
+        buyerCommission: buyerCommission, // Only > 0 if buyer is maker
+        sellerCommission: sellerCommission, // Only > 0 if seller is maker  
+        commission: totalCommission, // Total commission (should be just maker commission)
         status: 'escrow_locked',
         escrowStatus: 'locked',
         paymentMethod: buyOrder.paymentMethods ? buyOrder.paymentMethods[0] : 'bank_transfer',
@@ -738,43 +759,37 @@ class P2PService {
       
       await trade.save();
       
-      // Transfer commissions to admin wallet
+      // Transfer commission to admin wallet (ONLY from maker)
       try {
-        // Transfer buyer commission (1%)
-        if (trade.buyerCommission > 0) {
-          // Calculate equivalent CES amount based on trade price
-          const buyerCommissionInCES = trade.buyerCommission / trade.pricePerToken;
-          
-          if (buyerCommissionInCES > 0) {
-            console.log(`Transferring buyer commission: ${buyerCommissionInCES} CES to admin wallet`);
-            // Transfer commission from buyer to admin wallet
-            await walletService.sendCESTokens(
-              trade.buyerId.chatId, // Use buyer as sender
-              '0xC2D5FABd53F537A1225460AE30097198aB14FF32', // Admin wallet address
-              buyerCommissionInCES
-            );
-            console.log(`Buyer commission transfer completed successfully`);
-          }
+        // Determine who is the maker based on which commission is non-zero
+        // In our new system: only one user should have commission > 0 (the maker)
+        let makerChatId = null;
+        let makerCommissionInCES = 0;
+        
+        if (trade.sellerCommission > 0) {
+          // Seller is the maker
+          makerChatId = trade.sellerId.chatId;
+          makerCommissionInCES = trade.sellerCommission / trade.pricePerToken;
+          console.log(`Seller is maker - transferring commission: ${makerCommissionInCES.toFixed(4)} CES to admin wallet`);
+        } else if (trade.buyerCommission > 0) {
+          // Buyer is the maker (this case happens when buyer's order was created first)
+          makerChatId = trade.buyerId.chatId;
+          makerCommissionInCES = trade.buyerCommission / trade.pricePerToken;
+          console.log(`Buyer is maker - transferring commission: ${makerCommissionInCES.toFixed(4)} CES to admin wallet`);
         }
         
-        // Transfer seller commission (1%)
-        if (trade.sellerCommission > 0) {
-          // Calculate equivalent CES amount based on trade price
-          const sellerCommissionInCES = trade.sellerCommission / trade.pricePerToken;
-          
-          if (sellerCommissionInCES > 0) {
-            console.log(`Transferring seller commission: ${sellerCommissionInCES} CES to admin wallet`);
-            // Transfer commission from seller to admin wallet
-            await walletService.sendCESTokens(
-              trade.sellerId.chatId, // Use seller as sender
-              '0xC2D5FABd53F537A1225460AE30097198aB14FF32', // Admin wallet address
-              sellerCommissionInCES
-            );
-            console.log(`Seller commission transfer completed successfully`);
-          }
+        if (makerChatId && makerCommissionInCES > 0) {
+          await walletService.sendCESTokens(
+            makerChatId, // Maker pays commission
+            '0xC2D5FABd53F537A1225460AE30097198aB14FF32', // Admin wallet address
+            makerCommissionInCES
+          );
+          console.log(`Maker commission transfer completed successfully: ${makerCommissionInCES.toFixed(4)} CES`);
+        } else {
+          console.log('No commission to transfer (both users are takers)');
         }
       } catch (commissionError) {
-        console.error('Error transferring commissions:', commissionError);
+        console.error('Error transferring commission:', commissionError);
         // Don't fail the trade if commission transfer fails
       }
       

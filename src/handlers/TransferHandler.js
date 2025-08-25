@@ -179,26 +179,27 @@ class TransferHandler {
     try {
       const chatId = ctx.chat.id.toString();
       
-      // Check for main menu buttons - handle them instead of treating as transfer data
-      if (transferData.includes('Личный кабинет') || transferData.includes('👤')) {
-        console.log('📝 TransferHandler: Detected main menu button - Personal Cabinet');
-        const sessionManager = require('./SessionManager');
-        sessionManager.clearUserSession(chatId);
-        const BaseCommandHandler = require('./BaseCommandHandler');
-        const handler = new BaseCommandHandler();
-        if (handler.walletHandler) {
-          return await handler.walletHandler.handlePersonalCabinetText(ctx);
-        }
-        return;
-      }
+      // ONLY handle main menu buttons if we're actually in a transfer session
+      const sessionManager = require('./SessionManager');
+      const userState = sessionManager.getUserState(chatId);
       
-      if (transferData.includes('P2P Биржа') || transferData.includes('🔄 P2P')) {
-        console.log('📝 TransferHandler: Detected main menu button - P2P Exchange');
-        const sessionManager = require('./SessionManager');
-        sessionManager.clearUserSession(chatId);
-        const P2PHandler = require('./P2PHandler');
-        const handler = new P2PHandler();
-        return await handler.handleP2PMenu(ctx);
+      if (userState === 'transfer') {
+        // Check for main menu buttons - handle them instead of treating as transfer data
+        if (transferData.includes('Личный кабинет') || transferData.includes('👤')) {
+          console.log('📝 TransferHandler: Detected main menu button - Personal Cabinet');
+          sessionManager.clearUserSession(chatId);
+          const WalletHandler = require('./WalletHandler');
+          const handler = new WalletHandler();
+          return await handler.handlePersonalCabinetText(ctx);
+        }
+        
+        if (transferData.includes('P2P Биржа') || transferData.includes('🔄 P2P')) {
+          console.log('📝 TransferHandler: Detected main menu button - P2P Exchange');
+          sessionManager.clearUserSession(chatId);
+          const P2PHandler = require('./P2PHandler');
+          const handler = new P2PHandler();
+          return await handler.handleP2PMenu(ctx);
+        }
       }
       
       // Parse transfer data (address amount)

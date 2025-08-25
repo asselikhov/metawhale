@@ -102,14 +102,12 @@ class P2PHandler {
       
       const message = `📈 ПОКУПКА CES ТОКЕНОВ\n` +
                      `➖➖➖➖➖➖➖➖➖➖➖\n` +
-                     `Текущая рыночная цена:\n` +
-                     `💰 ${priceData.currentPrice.toFixed(2)} ₽ за 1 CES\n\n` +
-                     `Введите количество, цену, мин. и макс. сумму:\n` +
-                     `➤ Формат: кол-во цена_за_токен мин_сумма макс_сумма\n` +
-                     `➤ Пример: 10 ${priceData.suggestedPrice.toFixed(2)} 1 5\n\n` +
+                     `Текущая рыночная цена: ₽ ${priceData.currentPrice.toFixed(2)} / CES\n\n` +
+                     `⚠️ Введите [кол-во, CES] [цена_за_токен, ₽] [мин_сумма, ₽] [макс_сумма, ₽]\n` +
+                     `💡 Пример: 10 245 1000 2500\n\n` +
                      `Информация:\n` +
-                     `➤ Минимальная сумма: 1 CES\n` +
-                     `➤ Комиссия платформы: 1%`;
+                     `• Минимальная сумма: 0.1 CES\n` +
+                     `• Комиссия платформы: 1% (только с мейкеров)`;
       
       // Store state to handle next user message
       console.log(`🔄 Setting P2P buy order session for ${chatId}`);
@@ -150,8 +148,8 @@ class P2PHandler {
                        `⚠️ Недостаточно CES для продажи\n` +
                        `Ваш баланс: ${walletInfo.cesBalance.toFixed(4)} CES\n\n` +
                        `Информация:\n` +
-                       `➤ Минимальная сумма: 1 CES\n` +
-                       `➤ Комиссия платформы: 1%\n\n` +
+                       `• Минимальная сумма: 0.1 CES\n` +
+                       `• Комиссия платформы: 1% (только с мейкеров)\n\n` +
                        `💡 Пополните баланс CES`;
         
         const keyboard = Markup.inlineKeyboard([
@@ -165,15 +163,13 @@ class P2PHandler {
       
       const message = `📉 ПРОДАЖА CES ТОКЕНОВ\n` +
                      `➖➖➖➖➖➖➖➖➖➖➖\n` +
+                     `Текущая рыночная цена: ₽ ${priceData.currentPrice.toFixed(2)} / CES\n` +
                      `Ваш баланс: ${walletInfo.cesBalance.toFixed(4)} CES\n\n` +
-                     `Текущая рыночная цена:\n` +
-                     `💰 ${priceData.currentPrice.toFixed(2)} ₽ за 1 CES\n\n` +
-                     `Введите количество, цену, мин. и макс. сумму:\n` +
-                     `➤ Формат: кол-во цена_за_токен мин_сумма макс_сумма\n` +
-                     `➤ Пример: 10 ${priceData.suggestedPrice.toFixed(2)} 1 5\n\n` +
+                     `⚠️ Введите  [кол-во, CES] [цена_за_токен, ₽] [мин_сумма, ₽] [макс_сумма, ₽]\n` +
+                     `💡 Пример: 50 253.5 1000 9000\n\n` +
                      `Информация:\n` +
-                     `➤ Минимальная сумма: 1 CES\n` +
-                     `➤ Комиссия платформы: 1%`;
+                     `• Минимальная сумма: 0.1 CES\n` +
+                     `• Комиссия платформы: 1% (только с мейкеров)`;
       
       // Store state to handle next user message
       console.log(`🔄 Setting P2P sell order session for ${chatId}`);
@@ -273,22 +269,24 @@ class P2PHandler {
         return;
       }
       
-      // Check for main menu buttons - handle them instead of treating as order data
-      if (orderData.includes('Личный кабинет') || orderData.includes('👤')) {
-        console.log('📝 P2PHandler: Detected main menu button - Personal Cabinet');
-        sessionManager.clearUserSession(chatId);
-        const BaseCommandHandler = require('./BaseCommandHandler');
-        const handler = new BaseCommandHandler();
-        if (handler.walletHandler) {
-          return await handler.walletHandler.handlePersonalCabinetText(ctx);
-        }
-        return;
-      }
+      // ONLY handle main menu buttons if we're actually in an order processing session
+      const userState = sessionManager.getUserState(chatId);
       
-      if (orderData.includes('P2P Биржа') || orderData.includes('🔄 P2P')) {
-        console.log('📝 P2PHandler: Detected main menu button - P2P Exchange');
-        sessionManager.clearUserSession(chatId);
-        return await this.handleP2PMenu(ctx);
+      if (userState === 'p2p_order') {
+        // Check for main menu buttons - handle them instead of treating as order data
+        if (orderData.includes('Личный кабинет') || orderData.includes('👤')) {
+          console.log('📝 P2PHandler: Detected main menu button - Personal Cabinet');
+          sessionManager.clearUserSession(chatId);
+          const WalletHandler = require('./WalletHandler');
+          const handler = new WalletHandler();
+          return await handler.handlePersonalCabinetText(ctx);
+        }
+        
+        if (orderData.includes('P2P Биржа') || orderData.includes('🔄 P2P')) {
+          console.log('📝 P2PHandler: Detected main menu button - P2P Exchange');
+          sessionManager.clearUserSession(chatId);
+          return await this.handleP2PMenu(ctx);
+        }
       }
       
       // Check if orderData looks like button text (contains emojis or common button phrases)
@@ -348,7 +346,7 @@ class P2PHandler {
                      `Общая сумма: ₽${totalValue.toFixed(2)}\n` +
                      `Мин. сумма: ${minAmount} CES\n` +
                      `Макс. сумма: ${maxAmount} CES\n` +
-                     `Комиссия: ₽${commission.toFixed(2)} (1%)\n\n` +
+                     `Комиссия: ₽${commission.toFixed(2)} (1%, только если вы мейкер)\n\n` +
                      `🛡️ Безопасность:\n` +
                      `Все сделки защищены эскроу-системой\n\n` +
                      `⚠️ Подтвердить создание ордера?`;

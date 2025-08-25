@@ -221,7 +221,10 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
       if (text.includes('Личный кабинет')) {
         console.log(`🏠 Handling Personal Cabinet request from ${chatId}`);
         if (!this.walletHandler) {
-          return await ctx.reply('❌ Ошибка: Wallet handler не инициализирован');
+          // Fallback - create WalletHandler instance
+          const WalletHandler = require('./WalletHandler');
+          const walletHandler = new WalletHandler();
+          return await walletHandler.handlePersonalCabinetText(ctx);
         }
         return await this.walletHandler.handlePersonalCabinetText(ctx);
       }
