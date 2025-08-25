@@ -4,7 +4,6 @@
 
 const mongoose = require('mongoose');
 const config = require('../config/configuration');
-const config = require('../config/configuration');
 
 // Configure mongoose connection with optimized settings
 mongoose.set('strictQuery', false);
