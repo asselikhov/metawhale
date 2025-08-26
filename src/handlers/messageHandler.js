@@ -328,7 +328,6 @@ class MessageHandler {
   async handleP2POrderConfirmation(ctx) {
     try {
       const chatId = ctx.chat.id.toString();
-      const sessionManager = require('./SessionManager');
       
       // Защита от повторных вызовов callback
       const processingKey = `processing_order_${chatId}`;
@@ -430,7 +429,6 @@ class MessageHandler {
           order = await p2pService.createSellOrder(chatId, amount, pricePerToken, paymentMethods, minAmount, maxAmount);
         }
         
-        // Clear session after successful order creation
         sessionManager.clearUserSession(chatId);
         sessionManager.setSessionData(chatId, processingKey, false);
         
@@ -453,7 +451,6 @@ class MessageHandler {
     } catch (error) {
       console.error('P2P order confirmation error:', error);
       // Clear session on error to prevent stuck states
-      const sessionManager = require('./SessionManager');
       const chatId = ctx.chat.id.toString();
       const processingKey = `processing_order_${chatId}`;
       sessionManager.clearUserSession(chatId);
@@ -531,7 +528,6 @@ class MessageHandler {
       const chatId = ctx.chat.id.toString();
       
       // Защита от повторных вызовов
-      const sessionManager = require('./SessionManager');
       const secureProcessingKey = `secure_processing_${chatId}`;
       if (sessionManager.getSessionData(chatId, secureProcessingKey)) {
         console.log(`🚫 Secure order creation already in progress for user ${chatId}`);
@@ -591,7 +587,6 @@ class MessageHandler {
         }
         
         // Clear pending order from session
-        const sessionManager = require('./SessionManager');
         sessionManager.clearUserSession(chatId);
         
         // Send success message
@@ -608,14 +603,12 @@ class MessageHandler {
         await p2pHandler.handleP2PMenu(ctx);
         
         // Очищаем флаг обработки после успешного создания ордера
-        const sessionManager = require('./SessionManager');
         const secureProcessingKey = `secure_processing_${chatId}`;
         sessionManager.setSessionData(chatId, secureProcessingKey, false);
         
       } catch (error) {
         console.error('Secure order creation error:', error);
         // Clear session on error
-        const sessionManager = require('./SessionManager');
         const secureProcessingKey = `secure_processing_${chatId}`;
         sessionManager.clearUserSession(chatId);
         sessionManager.setSessionData(chatId, secureProcessingKey, false);
@@ -625,7 +618,6 @@ class MessageHandler {
     } catch (error) {
       console.error('Proceed with secure order creation error:', error);
       // Clear session on error
-      const sessionManager = require('./SessionManager');
       const chatId = ctx.chat.id.toString();
       const secureProcessingKey = `secure_processing_${chatId}`;
       sessionManager.clearUserSession(chatId);
@@ -638,7 +630,6 @@ class MessageHandler {
   async handleApproveAndCreateOrder(ctx) {
     try {
       const chatId = ctx.chat.id.toString();
-      const sessionManager = require('./SessionManager');
       const pendingOrder = sessionManager.getPendingP2POrder(chatId);
       
       if (!pendingOrder) {
@@ -738,7 +729,6 @@ class MessageHandler {
         ]);
         
         // Clear session on approval error
-        const sessionManager = require('./SessionManager');
         sessionManager.clearUserSession(chatId);
         
         await ctx.reply(`${errorMessage}\n\nПодробности: ${error.message}`, keyboard);
@@ -747,7 +737,6 @@ class MessageHandler {
     } catch (error) {
       console.error('Approve and create order error:', error);
       // Clear session on error to prevent stuck states
-      const sessionManager = require('./SessionManager');
       sessionManager.clearUserSession(ctx.chat.id.toString());
       await ctx.reply('❌ Ошибка обработки запроса.');
     }
