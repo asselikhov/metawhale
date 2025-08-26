@@ -42,6 +42,17 @@ class P2PService {
         throw new Error('Заполните профиль P2P для создания ордеров');
       }
       
+      // Проверяем лимит: только 1 активный ордер на покупку на пользователя
+      const existingBuyOrder = await P2POrder.findOne({
+        userId: user._id,
+        type: 'buy',
+        status: { $in: ['active', 'partial'] }
+      });
+      
+      if (existingBuyOrder) {
+        throw new Error('У вас уже есть активный ордер на покупку. Отмените существующий ордер для создания нового.');
+      }
+      
       // Валидация входных данных
       if (amount <= 0 || pricePerToken <= 0) {
         console.log(`Некорректные данные: amount=${amount}, price=${pricePerToken}`);
@@ -563,6 +574,17 @@ class P2PService {
         throw new Error(`Количество должно быть от ${this.minOrderAmount} до ${this.maxOrderAmount} CES`);
       }
       
+      // Проверяем лимит: только 1 активный ордер на продажу на пользователя
+      const existingSellOrder = await P2POrder.findOne({
+        userId: user._id,
+        type: 'sell',
+        status: { $in: ['active', 'partial'] }
+      });
+      
+      if (existingSellOrder) {
+        throw new Error('У вас уже есть активный ордер на продажу. Отмените существующий ордер для создания нового.');
+      }
+      
       // Check available CES balance (excluding escrowed tokens)
       const walletInfo = await walletService.getUserWallet(user.chatId);
       if (walletInfo.cesBalance < amount) {
@@ -593,42 +615,6 @@ class P2PService {
       
       const totalValue = amount * pricePerToken;
       console.log(`Total order value: ₽${totalValue.toFixed(2)}`);
-      
-      // Check for existing active sell orders with same price
-      const existingOrder = await P2POrder.findOne({
-        userId: user._id,
-        type: 'sell',
-        pricePerToken: pricePerToken,
-        status: 'active'
-      });
-      
-      if (existingOrder) {
-        // Update existing order and lock additional tokens in escrow
-        console.log(`Updating existing sell order: ${existingOrder._id}`);
-        
-        // Lock additional tokens in escrow
-        await escrowService.lockTokensInEscrow(user._id, null, 'CES', amount);
-        
-        existingOrder.amount += amount;
-        existingOrder.remainingAmount += amount;
-        existingOrder.escrowAmount += amount;
-        existingOrder.totalValue = existingOrder.amount * pricePerToken;
-        existingOrder.updatedAt = new Date();
-        existingOrder.escrowLocked = true;
-        
-        // Update min/max trade amounts if provided
-        if (minTradeAmount) {
-          existingOrder.minTradeAmount = minTradeAmount;
-        }
-        if (maxTradeAmount) {
-          existingOrder.maxTradeAmount = maxTradeAmount;
-        }
-        
-        await existingOrder.save();
-        
-        console.log(`Updated existing sell order: ${existingOrder._id}`);
-        return existingOrder;
-      }
       
       // Lock tokens in escrow before creating order
       console.log(`Locking ${amount} CES in escrow`);

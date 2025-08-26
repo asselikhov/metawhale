@@ -724,10 +724,32 @@ class MessageHandler {
         paymentMethods = maker.p2pProfile.paymentMethods.filter(pm => pm.isActive && pm.cardNumber);
       }
 
+      // Формируем строку способов оплаты
+      const bankNames = {
+        'sberbank': 'Сбербанк',
+        'vtb': 'ВТБ',
+        'gazprombank': 'Газпромбанк',
+        'alfabank': 'Альфа-Банк',
+        'rshb': 'Россельхозбанк',
+        'mkb': 'МКБ',
+        'sovcombank': 'Совкомбанк',
+        'tbank': 'Т-Банк',
+        'domrf': 'ДОМ.РФ',
+        'otkritie': 'Открытие',
+        'raiffeisenbank': 'Райффайзенбанк',
+        'rosbank': 'Росбанк'
+      };
+      
+      let paymentMethodsText = 'Банковский перевод';
+      if (paymentMethods.length > 0) {
+        const bankNamesList = paymentMethods.map(pm => bankNames[pm.bank] || pm.bank).join(', ');
+        paymentMethodsText = bankNamesList;
+      }
+
       const message = `Цена: ${buyOrder.pricePerToken.toFixed(2)} ₽ за CES\n` +
                      `Количество: ${buyOrder.remainingAmount.toFixed(2)} CES\n` +
                      `Лимиты: ${minRubles}-${maxRubles} ₽\n` +
-                     `Способ оплаты: Банковский перевод\n` +
+                     `Способ оплаты: ${paymentMethodsText}\n` +
                      `Длительность оплаты: ${config.escrow.displayFormat.minutes(buyOrder.tradeTimeLimit || config.escrow.timeoutMinutes)}\n\n` +
                      `Условия мейкера:\n` +
                      `${makerConditions}\n\n` +
@@ -835,10 +857,32 @@ class MessageHandler {
         paymentMethods = maker.p2pProfile.paymentMethods.filter(pm => pm.isActive && pm.cardNumber);
       }
       
+      // Формируем строку способов оплаты
+      const bankNames = {
+        'sberbank': 'Сбербанк',
+        'vtb': 'ВТБ',
+        'gazprombank': 'Газпромбанк',
+        'alfabank': 'Альфа-Банк',
+        'rshb': 'Россельхозбанк',
+        'mkb': 'МКБ',
+        'sovcombank': 'Совкомбанк',
+        'tbank': 'Т-Банк',
+        'domrf': 'ДОМ.РФ',
+        'otkritie': 'Открытие',
+        'raiffeisenbank': 'Райффайзенбанк',
+        'rosbank': 'Росбанк'
+      };
+      
+      let paymentMethodsText = 'Банковский перевод';
+      if (paymentMethods.length > 0) {
+        const bankNamesList = paymentMethods.map(pm => bankNames[pm.bank] || pm.bank).join(', ');
+        paymentMethodsText = bankNamesList;
+      }
+      
       const message = `Цена: ${buyOrder.pricePerToken.toFixed(2)} ₽ за CES\n` +
                      `Количество: ${buyOrder.remainingAmount.toFixed(2)} CES\n` +
                      `Лимиты: ${minRubles}-${maxRubles} ₽\n` +
-                     `Способ оплаты: Банковский перевод\n` +
+                     `Способ оплаты: ${paymentMethodsText}\n` +
                      `Длительность оплаты: ${config.escrow.displayFormat.minutes(buyOrder.tradeTimeLimit || config.escrow.timeoutMinutes)}\n\n` +
                      `Условия мейкера:\n` +
                      `${makerConditions}\n\n` +
