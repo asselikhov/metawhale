@@ -91,11 +91,11 @@ class SmartContractService {
 
       console.log(`⏳ Smart escrow transaction sent: ${tx.hash}`);
       
-      // Wait for confirmation with shorter timeout and better error handling
+      // Wait for confirmation with longer timeout
       const receipt = await Promise.race([
         tx.wait(),
         new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Transaction confirmation timeout')), 120000)
+          setTimeout(() => reject(new Error('Transaction confirmation timeout')), 180000)
         )
       ]);
       
@@ -154,11 +154,11 @@ class SmartContractService {
 
       console.log(`⏳ Escrow release transaction sent: ${tx.hash}`);
       
-      // Wait for confirmation with shorter timeout and better error handling
+      // Wait for confirmation with longer timeout
       const receipt = await Promise.race([
         tx.wait(),
         new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Transaction confirmation timeout')), 120000)
+          setTimeout(() => reject(new Error('Transaction confirmation timeout')), 180000)
         )
       ]);
 
@@ -197,11 +197,11 @@ class SmartContractService {
 
       console.log(`⏳ Escrow refund transaction sent: ${tx.hash}`);
       
-      // Wait for confirmation with shorter timeout and better error handling
+      // Wait for confirmation with longer timeout
       const receipt = await Promise.race([
         tx.wait(),
         new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Transaction confirmation timeout')), 120000)
+          setTimeout(() => reject(new Error('Transaction confirmation timeout')), 180000)
         )
       ]);
 

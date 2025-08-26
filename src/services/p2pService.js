@@ -197,16 +197,11 @@ class P2PService {
       // Проверяем доступный баланс CES у тейкера (исключая эскроу)
       const walletInfo = await walletService.getUserWallet(taker.chatId);
       
-      // 🔧 FIX BUG: Reserve funds for 1% commission when takers sell their coins
-      // Takers need to have enough funds to cover both the sale amount and potential commission
-      // The commission will be determined later based on order creation times, but we need to 
-      // ensure they have funds in case they become the maker
-      const amountWithCommission = cesAmount * (1 + this.commissionRate);
-      
-      if (walletInfo.cesBalance < amountWithCommission) {
+      // Тейкер не платит комиссию, проверяем только наличие суммы для продажи
+      if (walletInfo.cesBalance < cesAmount) {
         return { 
           success: false, 
-          error: `Недостаточно доступных CES с учетом возможной комиссии 1%. Доступно: ${walletInfo.cesBalance.toFixed(4)} CES, требуется: ${amountWithCommission.toFixed(4)} CES (включая возможную комиссию ${this.commissionRate * 100}%)` 
+          error: `Недостаточно доступных CES. Доступно: ${walletInfo.cesBalance.toFixed(4)} CES, требуется: ${cesAmount.toFixed(4)} CES` 
         };
       }
 
@@ -215,7 +210,7 @@ class P2PService {
       if (makerWalletInfo[tokenSymbol].balance < tokenAmount) {
         return { 
           success: false, 
-          error: `Недостаточно доступного токена ${tokenSymbol}. Доступно: ${makerWalletInfo[tokenSymbol].balance.toFixed(4)} ${tokenSymbol}` 
+          error: `Недостаточно доступного токена ${tokenSymbol}. Достаточно: ${makerWalletInfo[tokenSymbol].balance.toFixed(4)} ${tokenSymbol}` 
         };
       }
       
@@ -670,13 +665,11 @@ class P2PService {
       // Check available CES balance (excluding escrowed tokens)
       const walletInfo = await walletService.getUserWallet(user.chatId);
       
-      // 🔧 FIX BUG: Reserve funds for 1% commission when creating sell orders
-      // Makers need to have enough funds to cover both the sale amount and the commission
-      const amountWithCommission = amount * (1 + this.commissionRate);
-      
-      if (walletInfo.cesBalance < amountWithCommission) {
-        console.log(`Insufficient available CES balance including commission: ${walletInfo.cesBalance} < ${amountWithCommission}`);
-        throw new Error(`Недостаточно CES токенов для создания ордера с учетом комиссии 1%. Доступно: ${walletInfo.cesBalance.toFixed(4)} CES, требуется: ${amountWithCommission.toFixed(4)} CES (включая комиссию ${this.commissionRate * 100}%)`);
+      // Проверяем, что у пользователя достаточно средств для продажи
+      // Комиссия 1% берется с мейкера при исполнении ордера, а не при его создании
+      if (walletInfo.cesBalance < amount) {
+        console.log(`Insufficient available CES balance: ${walletInfo.cesBalance} < ${amount}`);
+        throw new Error(`Недостаточно CES токенов для создания ордера. Доступно: ${walletInfo.cesBalance.toFixed(4)} CES, требуется: ${amount.toFixed(4)} CES`);
       }
 
       // 🔧 ИСПРАВЛЕНИЕ: Проверяем на существование других активных sell ордеров
@@ -693,15 +686,14 @@ class P2PService {
         }
       });
       
-      // 🔧 FIX BUG: Проверяем, что у пользователя достаточно средств для нового эскроу с учетом комиссии
-      // Учитываем комиссию 1% при расчете необходимого баланса
-      const totalEscrowedWithCommission = totalEscrowedAmount + amountWithCommission;
+      // Проверяем, что у пользователя достаточно средств для нового эскроу
+      const totalRequired = totalEscrowedAmount + amount;
       
-      if (totalEscrowedWithCommission > walletInfo.cesBalance + (user.escrowCESBalance || 0)) {
-        throw new Error(`Недостаточно CES для создания нового ордера с учетом комиссии 1%. Общий баланс: ${(walletInfo.cesBalance + (user.escrowCESBalance || 0)).toFixed(4)} CES, требуется: ${totalEscrowedWithCommission.toFixed(4)} CES (включая комиссию ${this.commissionRate * 100}%)`);
+      if (totalRequired > walletInfo.cesBalance + (user.escrowCESBalance || 0)) {
+        throw new Error(`Недостаточно CES для создания нового ордера. Общий баланс: ${(walletInfo.cesBalance + (user.escrowCESBalance || 0)).toFixed(4)} CES, требуется: ${totalRequired.toFixed(4)} CES`);
       }
       
-      console.log(`✅ Escrow validation passed: Total will be ${totalEscrowedWithCommission.toFixed(4)} CES (including commission)`);
+      console.log(`✅ Escrow validation passed: Total will be ${totalRequired.toFixed(4)} CES`);
       
       const totalValue = amount * pricePerToken;
       console.log(`Total order value: ₽${totalValue.toFixed(2)}`);
