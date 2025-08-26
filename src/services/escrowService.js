@@ -355,7 +355,45 @@ class EscrowService {
         throw new Error(error);
       }
 
-      // Move tokens back from escrow to regular balance
+      // Check if this is a smart contract escrow by looking for the escrow transaction
+      let smartContractEscrowId = null;
+      let refundResult = null;
+      
+      if (tradeId && tokenType === 'CES' && this.useSmartContract && this.escrowContractAddress) {
+        // Look for the lock transaction with smart contract escrow ID
+        const lockTx = await EscrowTransaction.findOne({
+          userId: userId,
+          tradeId: tradeId,
+          type: 'lock',
+          tokenType: 'CES',
+          smartContractEscrowId: { $exists: true, $ne: null }
+        });
+        
+        if (lockTx) {
+          smartContractEscrowId = lockTx.smartContractEscrowId;
+          console.log(`🔐 Found smart contract escrow ID: ${smartContractEscrowId}`);
+          
+          try {
+            // Refund tokens from smart contract escrow
+            const smartContractService = require('./smartContractService');
+            const walletService = require('./walletService');
+            const userPrivateKey = await walletService.getUserPrivateKey(user.chatId);
+            
+            refundResult = await smartContractService.refundSmartEscrow(
+              smartContractEscrowId,
+              userPrivateKey
+            );
+            
+            console.log(`✅ Successfully refunded ${amount} ${tokenType} from smart contract escrow`);
+          } catch (smartContractError) {
+            console.error('❌ Smart contract refund failed:', smartContractError);
+            // Continue with database-only refund but log the error for manual intervention
+            console.error(`⚠️ MANUAL INTERVENTION REQUIRED: Failed to refund ${amount} CES from smart contract escrow ${smartContractEscrowId}`);
+          }
+        }
+      }
+
+      // Update database balances (move tokens back from escrow to regular balance)
       if (tokenType === 'CES') {
         user.escrowCESBalance -= amount;
         user.cesBalance += amount;
@@ -374,7 +412,11 @@ class EscrowService {
         tokenType: tokenType,
         amount: amount,
         status: 'completed',
-        reason: reason,
+        txHash: refundResult?.txHash,
+        smartContractEscrowId: smartContractEscrowId,
+        reason: smartContractEscrowId 
+          ? `Refunded from smart contract escrow: ${reason}` 
+          : reason,
         completedAt: new Date()
       });
 
@@ -383,6 +425,7 @@ class EscrowService {
       console.log(`✅ Successfully refunded ${amount} ${tokenType} to user`);
       return {
         success: true,
+        txHash: refundResult?.txHash,
         escrowTxId: escrowTx._id,
         newBalance: tokenType === 'CES' ? user.cesBalance : user.polBalance,
         escrowBalance: tokenType === 'CES' ? user.escrowCESBalance : user.escrowPOLBalance

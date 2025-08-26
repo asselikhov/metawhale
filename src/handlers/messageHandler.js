@@ -1178,11 +1178,11 @@ class MessageHandler {
                      `Цена: ${orderData.pricePerToken.toFixed(2)} ₽\n` +
                      `Общая сумма: ${totalPrice.toFixed(2)} ₽\n` +
                      `Способ оплаты: ${bankNames[bankCode]}\n\n` +
-                     `Правила платежа:\n` +
-                     `1. Оплатите точную сумму в указанные сроки\n` +
-                     `2. Не указывайте CES в комментариях к переводу\n` +
-                     `3. Оплачивайте с того же счёта, который указан в профиле\n` +
-                     `4. Не отменяйте сделку после оплаты\n` +
+                     `Правила сделки:\n` +
+                     `1. После нажатия "Оплатить" ваши CES будут заморожены\n` +
+                     `2. Ожидайте получение рублей от покупателя\n` +
+                     `3. После получения денег нажмите "Платёж получен"\n` +
+                     `4. Не отменяйте сделку после заморозки CES\n` +
                      `5. Обращайтесь в поддержку при любых проблемах`;
       
       const keyboard = Markup.inlineKeyboard([
@@ -1410,11 +1410,35 @@ class MessageHandler {
     try {
       const chatId = ctx.chat.id.toString();
       const sessionManager = require('./SessionManager');
-      const tradeId = sessionManager.getSessionData(chatId, 'tradeId');
-      const orderNumber = sessionManager.getSessionData(chatId, 'orderNumber');
+      let tradeId = sessionManager.getSessionData(chatId, 'tradeId');
+      let orderNumber = sessionManager.getSessionData(chatId, 'orderNumber');
       
+      // If session data is missing (e.g., notification sent via script), find active trade for seller
       if (!tradeId || !orderNumber) {
-        return await ctx.reply('❌ Данные сделки не найдены.');
+        console.log(`🔍 Session data missing for user ${chatId}, searching for active trade`);
+        
+        // Import required models
+        const { P2PTrade, User } = require('../database/models');
+        
+        // First find the user by chatId to get their ObjectId
+        const user = await User.findOne({ chatId });
+        if (!user) {
+          return await ctx.reply('❌ Пользователь не найден.');
+        }
+        
+        // Find active trade where user is the seller using their ObjectId
+        const trade = await P2PTrade.findOne({
+          sellerId: user._id,  // Use ObjectId instead of chatId
+          status: { $in: ['payment_pending', 'payment_made'] }
+        }).populate('buyerId').populate('sellerId');
+        
+        if (!trade) {
+          return await ctx.reply('❌ Активная сделка не найдена. Возможно, время оплаты истекло.');
+        }
+        
+        tradeId = trade._id.toString();
+        orderNumber = `CES${trade.buyOrderId.toString().slice(-8)}`;
+        console.log(`🔍 Found active trade for seller ${chatId}: tradeId=${tradeId}, orderNumber=${orderNumber}`);
       }
       
       // Mark payment as received by seller
@@ -1459,11 +1483,17 @@ class MessageHandler {
         console.log(`🔍 Session data missing for user ${chatId}, searching for active trade`);
         
         // Import required models and services
-        const { P2PTrade } = require('../database/models');
+        const { P2PTrade, User } = require('../database/models');
         
-        // Find active trade where user is the buyer
+        // First find the user by chatId to get their ObjectId
+        const user = await User.findOne({ chatId });
+        if (!user) {
+          return await ctx.reply('❌ Пользователь не найден.');
+        }
+        
+        // Find active trade where user is the buyer using their ObjectId
         const trade = await P2PTrade.findOne({
-          buyerId: chatId,
+          buyerId: user._id,  // Use ObjectId instead of chatId
           status: { $in: ['escrow_locked', 'payment_pending'] }
         }).populate('buyerId').populate('sellerId');
         
@@ -1510,11 +1540,38 @@ class MessageHandler {
     try {
       const chatId = ctx.chat.id.toString();
       const sessionManager = require('./SessionManager');
-      const tradeId = sessionManager.getSessionData(chatId, 'tradeId');
-      const orderNumber = sessionManager.getSessionData(chatId, 'orderNumber');
+      let tradeId = sessionManager.getSessionData(chatId, 'tradeId');
+      let orderNumber = sessionManager.getSessionData(chatId, 'orderNumber');
       
+      // If session data is missing (e.g., notification sent via script), find active trade for user
       if (!tradeId || !orderNumber) {
-        return await ctx.reply('❌ Данные сделки не найдены.');
+        console.log(`🔍 Session data missing for user ${chatId}, searching for active trade`);
+        
+        // Import required models
+        const { P2PTrade, User } = require('../database/models');
+        
+        // First find the user by chatId to get their ObjectId
+        const user = await User.findOne({ chatId });
+        if (!user) {
+          return await ctx.reply('❌ Пользователь не найден.');
+        }
+        
+        // Find active trade where user is either buyer or seller using their ObjectId
+        const trade = await P2PTrade.findOne({
+          $or: [
+            { buyerId: user._id },
+            { sellerId: user._id }
+          ],
+          status: { $in: ['escrow_locked', 'payment_pending'] }
+        }).populate('buyerId').populate('sellerId');
+        
+        if (!trade) {
+          return await ctx.reply('❌ Активная сделка не найдена. Возможно, время оплаты истекло.');
+        }
+        
+        tradeId = trade._id.toString();
+        orderNumber = `CES${trade.buyOrderId.toString().slice(-8)}`;
+        console.log(`🔍 Found active trade for user ${chatId}: tradeId=${tradeId}, orderNumber=${orderNumber}`);
       }
       
       // Cancel trade and release escrow
