@@ -71,7 +71,7 @@ class SmartContractService {
       // Convert timelock to seconds
       const timelockSeconds = timelockMinutes * 60;
 
-      // Get current gas fees and adjust them
+      // Get current gas fees and adjust them with higher premium to prevent transaction replacement
       const feeData = await this.provider.getFeeData();
       console.log(`   Current maxFeePerGas: ${ethers.utils.formatUnits(feeData.maxFeePerGas, 'gwei')} Gwei`);
       console.log(`   Current maxPriorityFeePerGas: ${ethers.utils.formatUnits(feeData.maxPriorityFeePerGas, 'gwei')} Gwei`);
@@ -84,8 +84,8 @@ class SmartContractService {
         timelockSeconds,
         {
           gasLimit: 500000, // Increased gas limit for better reliability
-          maxFeePerGas: feeData.maxFeePerGas.mul(150).div(100), // 50% higher max fee to ensure transaction is processed
-          maxPriorityFeePerGas: feeData.maxPriorityFeePerGas.mul(150).div(100) // 50% higher priority fee
+          maxFeePerGas: feeData.maxFeePerGas.mul(200).div(100), // 100% higher max fee to ensure transaction is processed
+          maxPriorityFeePerGas: feeData.maxPriorityFeePerGas.mul(200).div(100) // 100% higher priority fee
         }
       );
 
@@ -135,15 +135,15 @@ class SmartContractService {
       const wallet = new ethers.Wallet(releaserPrivateKey, this.provider);
       const escrowContract = new ethers.Contract(this.escrowContractAddress, this.escrowABI, wallet);
 
-      // Get current gas fees and adjust them
+      // Get current gas fees and adjust them with higher premium
       const feeData = await this.provider.getFeeData();
       console.log(`   Current maxFeePerGas: ${ethers.utils.formatUnits(feeData.maxFeePerGas, 'gwei')} Gwei`);
       console.log(`   Current maxPriorityFeePerGas: ${ethers.utils.formatUnits(feeData.maxPriorityFeePerGas, 'gwei')} Gwei`);
 
       const tx = await escrowContract.releaseEscrow(escrowId, {
         gasLimit: 500000, // Increased gas limit for better reliability
-        maxFeePerGas: feeData.maxFeePerGas.mul(150).div(100), // 50% higher max fee to ensure transaction is processed
-        maxPriorityFeePerGas: feeData.maxPriorityFeePerGas.mul(150).div(100) // 50% higher priority fee
+        maxFeePerGas: feeData.maxFeePerGas.mul(200).div(100), // 100% higher max fee to ensure transaction is processed
+        maxPriorityFeePerGas: feeData.maxPriorityFeePerGas.mul(200).div(100) // 100% higher priority fee
       });
 
       console.log(`⏳ Escrow release transaction sent: ${tx.hash}`);
@@ -172,15 +172,15 @@ class SmartContractService {
       const wallet = new ethers.Wallet(refunderPrivateKey, this.provider);
       const escrowContract = new ethers.Contract(this.escrowContractAddress, this.escrowABI, wallet);
 
-      // Get current gas price and adjust it with higher premium for reliability
+      // Get current gas fees and adjust them with higher premium
       const feeData = await this.provider.getFeeData();
       console.log(`   Current maxFeePerGas: ${ethers.utils.formatUnits(feeData.maxFeePerGas, 'gwei')} Gwei`);
       console.log(`   Current maxPriorityFeePerGas: ${ethers.utils.formatUnits(feeData.maxPriorityFeePerGas, 'gwei')} Gwei`);
       
       const tx = await escrowContract.refundEscrow(escrowId, {
         gasLimit: 500000, // Increased gas limit for better reliability
-        maxFeePerGas: feeData.maxFeePerGas.mul(150).div(100), // 50% higher max fee to ensure transaction is processed
-        maxPriorityFeePerGas: feeData.maxPriorityFeePerGas.mul(150).div(100) // 50% higher priority fee
+        maxFeePerGas: feeData.maxFeePerGas.mul(200).div(100), // 100% higher max fee to ensure transaction is processed
+        maxPriorityFeePerGas: feeData.maxPriorityFeePerGas.mul(200).div(100) // 100% higher priority fee
       });
 
       console.log(`⏳ Escrow refund transaction sent: ${tx.hash}`);
@@ -267,15 +267,15 @@ class SmartContractService {
       const wallet = new ethers.Wallet(disputerPrivateKey, this.provider);
       const escrowContract = new ethers.Contract(this.escrowContractAddress, this.escrowABI, wallet);
 
-      // Get current gas fees and adjust them
+      // Get current gas fees and adjust them with higher premium
       const feeData = await this.provider.getFeeData();
       console.log(`   Current maxFeePerGas: ${ethers.utils.formatUnits(feeData.maxFeePerGas, 'gwei')} Gwei`);
       console.log(`   Current maxPriorityFeePerGas: ${ethers.utils.formatUnits(feeData.maxPriorityFeePerGas, 'gwei')} Gwei`);
 
       const tx = await escrowContract.initiateDispute(escrowId, {
         gasLimit: 500000, // Increased gas limit for better reliability
-        maxFeePerGas: feeData.maxFeePerGas.mul(150).div(100), // 50% higher max fee to ensure transaction is processed
-        maxPriorityFeePerGas: feeData.maxPriorityFeePerGas.mul(150).div(100) // 50% higher priority fee
+        maxFeePerGas: feeData.maxFeePerGas.mul(200).div(100), // 100% higher max fee to ensure transaction is processed
+        maxPriorityFeePerGas: feeData.maxPriorityFeePerGas.mul(200).div(100) // 100% higher priority fee
       });
 
       console.log(`⏳ Dispute initiation transaction sent: ${tx.hash}`);
@@ -303,15 +303,15 @@ class SmartContractService {
       const wallet = new ethers.Wallet(moderatorPrivateKey, this.provider);
       const escrowContract = new ethers.Contract(this.escrowContractAddress, this.escrowABI, wallet);
 
-      // Get current gas fees and adjust them
+      // Get current gas fees and adjust them with higher premium
       const feeData = await this.provider.getFeeData();
       console.log(`   Current maxFeePerGas: ${ethers.utils.formatUnits(feeData.maxFeePerGas, 'gwei')} Gwei`);
       console.log(`   Current maxPriorityFeePerGas: ${ethers.utils.formatUnits(feeData.maxPriorityFeePerGas, 'gwei')} Gwei`);
 
       const tx = await escrowContract.resolveDispute(escrowId, favorBuyer, {
         gasLimit: 500000, // Increased gas limit for better reliability
-        maxFeePerGas: feeData.maxFeePerGas.mul(150).div(100), // 50% higher max fee to ensure transaction is processed
-        maxPriorityFeePerGas: feeData.maxPriorityFeePerGas.mul(150).div(100) // 50% higher priority fee
+        maxFeePerGas: feeData.maxFeePerGas.mul(200).div(100), // 100% higher max fee to ensure transaction is processed
+        maxPriorityFeePerGas: feeData.maxPriorityFeePerGas.mul(200).div(100) // 100% higher priority fee
       });
 
       console.log(`⏳ Dispute resolution transaction sent: ${tx.hash}`);
@@ -329,106 +329,6 @@ class SmartContractService {
     } catch (error) {
       console.error('Error resolving escrow dispute:', error);
       throw new Error(`Dispute resolution failed: ${error.message}`);
-    }
-  }
-
-  // Monitor escrow events
-  async monitorEscrowEvents(fromBlock = 'latest') {
-    try {
-      if (!this.escrowContractAddress) {
-        console.log('⚠️ Escrow contract address not configured, skipping event monitoring');
-        return;
-      }
-
-      const escrowContract = new ethers.Contract(this.escrowContractAddress, this.escrowABI, this.provider);
-
-      // Listen for escrow events
-      escrowContract.on('EscrowCreated', (escrowId, seller, buyer, amount, event) => {
-        console.log(`🔐 Escrow Created: ID ${escrowId}, Amount: ${utils.formatEther(amount)} CES`);
-        this.handleEscrowCreated(escrowId, seller, buyer, amount);
-      });
-
-      escrowContract.on('EscrowReleased', (escrowId, event) => {
-        console.log(`🔓 Escrow Released: ID ${escrowId}`);
-        this.handleEscrowReleased(escrowId);
-      });
-
-      escrowContract.on('EscrowRefunded', (escrowId, event) => {
-        console.log(`↩️ Escrow Refunded: ID ${escrowId}`);
-        this.handleEscrowRefunded(escrowId);
-      });
-
-      escrowContract.on('DisputeInitiated', (escrowId, event) => {
-        console.log(`⚖️ Dispute Initiated: Escrow ID ${escrowId}`);
-        this.handleDisputeInitiated(escrowId);
-      });
-
-      escrowContract.on('DisputeResolved', (escrowId, favorBuyer, event) => {
-        console.log(`⚖️ Dispute Resolved: Escrow ID ${escrowId}, Favor Buyer: ${favorBuyer}`);
-        this.handleDisputeResolved(escrowId, favorBuyer);
-      });
-
-      console.log('👂 Started monitoring smart contract escrow events');
-
-    } catch (error) {
-      console.error('Error monitoring escrow events:', error);
-    }
-  }
-
-  // Event handlers
-  async handleEscrowCreated(escrowId, seller, buyer, amount) {
-    // Update database with smart contract escrow details
-    // This would integrate with the existing P2P trade system
-  }
-
-  async handleEscrowReleased(escrowId) {
-    // Update trade status and user balances
-  }
-
-  async handleEscrowRefunded(escrowId) {
-    // Update trade status and refund user
-  }
-
-  async handleDisputeInitiated(escrowId) {
-    // Notify moderators and update trade status
-  }
-
-  async handleDisputeResolved(escrowId, favorBuyer) {
-    // Update final trade outcome
-  }
-
-  // Estimate gas costs for escrow operations
-  async estimateEscrowGasCosts() {
-    try {
-      if (!this.escrowContractAddress) {
-        return null;
-      }
-
-      const gasPrice = await this.provider.getGasPrice();
-      const gasPriceGwei = utils.formatUnits(gasPrice, 'gwei');
-
-      return {
-        createEscrow: {
-          gasLimit: 300000,
-          gasPriceGwei: gasPriceGwei,
-          estimatedCostEth: utils.formatEther(gasPrice.mul(300000)),
-          estimatedCostUsd: 0 // Would need ETH/USD price
-        },
-        releaseEscrow: {
-          gasLimit: 200000,
-          gasPriceGwei: gasPriceGwei,
-          estimatedCostEth: utils.formatEther(gasPrice.mul(200000))
-        },
-        refundEscrow: {
-          gasLimit: 200000,
-          gasPriceGwei: gasPriceGwei,
-          estimatedCostEth: utils.formatEther(gasPrice.mul(200000))
-        }
-      };
-
-    } catch (error) {
-      console.error('Error estimating gas costs:', error);
-      return null;
     }
   }
 }
