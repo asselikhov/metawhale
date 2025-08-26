@@ -140,6 +140,21 @@ class P2PService {
       throw error;
     }
   }
+        // Если не удалось зарезервировать, удаляем ордер
+        await P2POrder.deleteOne({ _id: buyOrder._id });
+        throw new Error(`Ошибка резервирования средств: ${reserveResult.message}`);
+      }
+      
+      console.log(`Ордер на покупку создан: ${buyOrder._id}`);
+      console.log(`Зарезервировано ₽${totalValue} у мейкера ${user._id}`);
+      
+      return buyOrder;
+      
+    } catch (error) {
+      console.error('Ошибка создания ордера на покупку:', error);
+      throw error;
+    }
+  }
 
   /**
    * Тейкер выбирает ордер мейкера и создаёт сделку
