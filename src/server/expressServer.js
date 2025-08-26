@@ -125,41 +125,23 @@ class Server {
   // Setup webhook for bot
   setupWebhook(bot) {
     console.log(`🛠️ Настраиваем webhook для бота:`, typeof bot, bot.constructor.name);
+    console.log(`🔗 Webhook path: ${config.telegram.webhookPath}`);
     
-    // Add logging middleware for webhook requests
-    this.app.use(config.telegram.webhookPath, (req, res, next) => {
-      console.log(`📥 Webhook request received at ${new Date().toISOString()}`);
-      console.log(`Method: ${req.method}, Path: ${req.path}`);
-      if (req.body) {
-        console.log(`Body:`, JSON.stringify(req.body, null, 2));
-        // Логируем тип update для диагностики
-        if (req.body.message) {
-          console.log(`🔵 Update type: MESSAGE`);
-        } else if (req.body.callback_query) {
-          console.log(`🟡 Update type: CALLBACK_QUERY (button click)`);
-        } else {
-          console.log(`🔴 Update type: OTHER`);
-        }
-      }
-      console.log(`🔵 Передаем управление webhook обработчику...`);
-      next();
+    // Используем POST маршрут вместо middleware для правильной маршрутизации
+    this.app.post(config.telegram.webhookPath, (req, res, next) => {
+      console.log(`📥 Webhook POST request:`, {
+        path: req.path,
+        updateType: req.body?.message ? 'MESSAGE' : req.body?.callback_query ? 'CALLBACK_QUERY' : 'OTHER',
+        updateId: req.body?.update_id,
+        command: req.body?.message?.text || req.body?.callback_query?.data
+      });
+      
+      // Прямое использование Telegraf webhook handler
+      const webhookHandler = bot.webhookCallback(config.telegram.webhookPath);
+      return webhookHandler(req, res, next);
     });
     
-    // Простая и надежная настройка webhook обработчика
-    const webhookHandler = bot.webhookCallback(config.telegram.webhookPath);
-    console.log(`🔗 Создан webhook handler:`, typeof webhookHandler);
-    
-    this.app.use(config.telegram.webhookPath, (req, res, next) => {
-      console.log(`🟢 Webhook handler вызывается...`);
-      try {
-        return webhookHandler(req, res, next);
-      } catch (error) {
-        console.error(`❌ Ошибка в webhook handler:`, error);
-        res.status(200).json({ ok: true });
-      }
-    });
-    
-    console.log(`🔗 Webhook настроен на ${config.telegram.webhookPath}`);
+    console.log(`🔗 Webhook настроен на POST ${config.telegram.webhookPath}`);
   }
 
   // Start server
