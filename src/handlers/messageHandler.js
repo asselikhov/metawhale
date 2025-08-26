@@ -226,9 +226,61 @@ class MessageHandler {
     return this.ordersHandler.handleP2PMyOrders(ctx, page);
   }
 
-  // Placeholder methods for future implementation
+  // P2P Analytics implementation
   async handleP2PAnalytics(ctx) {
-    await ctx.reply('🚧 Функция аналитики в разработке');
+    try {
+      const chatId = ctx.chat.id.toString();
+      const { User } = require('../database/models');
+      const analyticsService = require('../services/analyticsService');
+      const reputationService = require('../services/reputationService');
+      
+      // Get user
+      const user = await User.findOne({ chatId });
+      if (!user) {
+        return await ctx.reply('❌ Пользователь не найден.');
+      }
+
+      // Get comprehensive user analytics
+      const [userStats, userAnalytics, marketStats] = await Promise.all([
+        reputationService.getStandardizedUserStats(user._id),
+        analyticsService.getUserPerformanceAnalytics(user._id, '30d'),
+        analyticsService.getTradingStatistics('30d')
+      ]);
+
+      // Format user statistics message
+      const message = `📊 МОЯ АНАЛИТИКА (за 30 дней)\n` +
+                     `➖➖➖➖➖➖➖➖➖➖➖\n` +
+                     `🎆 Мой рейтинг: ${userStats.rating}\n` +
+                     `📝 Создано ордеров: ${userStats.ordersLast30Days} шт.\n` +
+                     `✅ Процент исполнения: ${userStats.completionRateLast30Days}%\n` +
+                     `⏱️ Среднее время перевода: ${userStats.avgTransferTime} мин.\n` +
+                     `💳 Среднее время оплаты: ${userStats.avgPaymentTime} мин.\n\n` +
+                     `💹 МОИ СДЕЛКИ:\n` +
+                     `• Всего: ${userAnalytics.activity.totalTrades}\n` +
+                     `• Покупки: ${userAnalytics.activity.buyTrades}\n` +
+                     `• Продажи: ${userAnalytics.activity.sellTrades}\n` +
+                     `• Завершено: ${userAnalytics.activity.completedTrades}\n` +
+                     `• Споров: ${userAnalytics.activity.disputedTrades}\n\n` +
+                     `📈 ОБЪЕМ ТОРГОВ:\n` +
+                     `• Общий объем: ₽ ${userAnalytics.performance.totalVolume.toFixed(2)}\n` +
+                     `• Средняя сделка: ₽ ${userAnalytics.performance.avgTradeSize.toFixed(2)}\n` +
+                     `• Успешность: ${userAnalytics.performance.successRate}%\n\n` +
+                     `🏆 МЕСТО НА РЫНКЕ:\n` +
+                     `• Общий объем рынка: ₽ ${marketStats.volume.totalRubles.toFixed(2)}\n` +
+                     `• Всего сделок: ${marketStats.trades.total}\n` +
+                     `• Активных трейдеров: ${marketStats.users.uniqueTraders}`;
+
+      const keyboard = Markup.inlineKeyboard([
+        [Markup.button.callback('🔄 Обновить', 'p2p_analytics')],
+        [Markup.button.callback('🔙 Назад', 'p2p_menu')]
+      ]);
+
+      await ctx.reply(message, keyboard);
+      
+    } catch (error) {
+      console.error('P2P Analytics error:', error);
+      await ctx.reply('❌ Ошибка загрузки аналитики. Попробуйте позже.');
+    }
   }
 
   async handleUserMessaging(ctx, targetUserId) {
@@ -269,11 +321,16 @@ class MessageHandler {
     try {
       const chatId = ctx.chat.id.toString();
       const sessionManager = require('./SessionManager');
+      
+      // Double-click protection: Clear pending data immediately after validation
       const pendingOrder = sessionManager.getPendingP2POrder(chatId);
       
       if (!pendingOrder) {
         return await ctx.reply('❌ Ордер не найден. Попробуйте создать ордер заново.');
       }
+      
+      // Clear pending data immediately to prevent duplicate processing
+      sessionManager.clearUserSession(chatId);
       
       const { orderType, amount, pricePerToken, minAmount, maxAmount } = pendingOrder;
       
@@ -331,9 +388,6 @@ class MessageHandler {
         console.error('Order creation error:', error);
         return await ctx.reply(`❌ Ошибка создания ордера: ${error.message}`);
       }
-      
-      // Clear pending order from session
-      sessionManager.clearUserSession(chatId);
       
       // Send simple success message
       await ctx.reply('✅ Ордер успешно создан!');
@@ -1451,12 +1505,18 @@ class MessageHandler {
       // Clear session
       sessionManager.clearUserSession(chatId);
       
-      const message = `✅ ПЛАТЁЖ ПОДТВЁРЖДЁН\n` +
-                     `⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️\n\n` +
-                     `Ордер: ${orderNumber}\n\n` +
-                     `Спасибо за подтверждение!\n` +
-                     `CES токены переданы покупателю.\n\n` +
-                     `✅ Сделка успешно завершена!`;
+      const message = `✅ ПЛАТЁЖ ПОДТВЁРЖДЁН
+
+` +
+                     `Ордер: ${orderNumber}
+
+` +
+                     `Спасибо за подтверждение !
+` +
+                     `CES токены переданы покупателю.
+
+` +
+                     `Сделка успешно завершена!`;
       
       const keyboard = Markup.inlineKeyboard([
         [Markup.button.callback('🔙 К P2P меню', 'p2p_menu')]
@@ -1524,6 +1584,7 @@ class MessageHandler {
                      `Сделка будет завершена после подтверждения получения платежа продавцом.`;
       
       const keyboard = Markup.inlineKeyboard([
+        [Markup.button.callback('📞 Обратиться в поддержку', 'contact_support')],
         [Markup.button.callback('🔙 К P2P меню', 'p2p_menu')]
       ]);
       
@@ -1606,16 +1667,14 @@ class MessageHandler {
     try {
       const message = `📞 КОНТАКТЫ ПОДДЕРЖКИ\n\n` +
                      `ℹ️ По всем вопросам обращайтесь к нашей команде:\n\n` +
-                     `💬 Telegram: @support_metawhale\n` +
-                     `📧 Email: support@metawhale.com\n\n` +
+                     `💬 Telegram: @asselikhov\n\n` +
                      `⚠️ ПРИ ОБРАЩЕНИИ ПО МОШЕННИЧЕСТВУ:\n` +
                      `• Укажите номер ордера\n` +
                      `• Приложите скриншоты переписки\n` +
-                     `• Опишите проблему подробно\n\n` +
-                     `🔥 Мы отвечаем в течение часа!`;
+                     `• Опишите проблему подробно`;
       
       const keyboard = Markup.inlineKeyboard([
-        [Markup.button.url('💬 Написать в Telegram', 'https://t.me/support_metawhale')],
+        [Markup.button.url('💬 Написать в Telegram', 'https://t.me/asselikhov')],
         [Markup.button.callback('🔙 Назад', 'p2p_menu')]
       ]);
       

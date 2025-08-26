@@ -73,8 +73,8 @@ class TelegramBot {
       return messageHandler.handleStart(ctx);
     });
     
-    this.bot.command('price', (ctx) => {
-      console.log('📥 Received /price command');
+    this.bot.command('ces', (ctx) => {
+      console.log('📥 Received /ces command');
       return messageHandler.handlePrice(ctx);
     });
 

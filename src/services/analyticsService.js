@@ -401,15 +401,20 @@ class AnalyticsService {
     }
   }
 
-  // Get user trading activity
+  // Get user trading activity - FIXED calculation
   async getUserTradingActivity(userId, startTime) {
     const trades = await P2PTrade.find({
       $or: [{ buyerId: userId }, { sellerId: userId }],
       createdAt: { $gte: startTime }
     });
 
-    const buyTrades = trades.filter(t => t.buyerId.toString() === userId.toString());
-    const sellTrades = trades.filter(t => t.sellerId.toString() === userId.toString());
+    // Properly separate buy and sell trades based on user role
+    const buyTrades = trades.filter(t => 
+      t.buyerId && t.buyerId.toString() === userId.toString()
+    );
+    const sellTrades = trades.filter(t => 
+      t.sellerId && t.sellerId.toString() === userId.toString()
+    );
 
     return {
       totalTrades: trades.length,
@@ -418,11 +423,12 @@ class AnalyticsService {
       completedTrades: trades.filter(t => t.status === 'completed').length,
       failedTrades: trades.filter(t => t.status === 'failed').length,
       disputedTrades: trades.filter(t => t.status === 'disputed').length,
-      avgTradesPerDay: trades.length / 30 // Assuming 30 days max
+      cancelledTrades: trades.filter(t => t.status === 'cancelled').length,
+      avgTradesPerDay: trades.length > 0 ? (trades.length / 30).toFixed(1) : 0 // 30 days period
     };
   }
 
-  // Get user performance metrics
+  // Get user performance metrics - FIXED calculation
   async getUserPerformanceMetrics(userId, startTime) {
     const completedTrades = await P2PTrade.find({
       $or: [{ buyerId: userId }, { sellerId: userId }],
@@ -435,34 +441,45 @@ class AnalyticsService {
         totalVolume: 0,
         avgTradeSize: 0,
         avgExecutionTime: 0,
-        successRate: 0
+        successRate: 100 // New users start with 100% success rate
       };
     }
 
-    const totalVolume = completedTrades.reduce((sum, trade) => sum + trade.totalValue, 0);
+    // Calculate total volume (sum of all completed trade values)
+    const totalVolume = completedTrades.reduce((sum, trade) => {
+      return sum + (trade.totalValue || 0);
+    }, 0);
+    
     const avgTradeSize = totalVolume / completedTrades.length;
 
-    // Calculate average execution time
+    // Calculate average execution time - FIXED to use correct timestamps
     const executionTimes = completedTrades
-      .filter(trade => trade.timeTracking?.completedAt && trade.timeTracking?.createdAt)
-      .map(trade => 
-        (trade.timeTracking.completedAt - trade.timeTracking.createdAt) / (1000 * 60)
-      );
+      .filter(trade => {
+        return trade.timeTracking?.createdAt && trade.timeTracking?.completedAt;
+      })
+      .map(trade => {
+        const startTime = new Date(trade.timeTracking.createdAt);
+        const endTime = new Date(trade.timeTracking.completedAt);
+        const timeDiff = (endTime - startTime) / (1000 * 60); // minutes
+        return Math.max(0, timeDiff); // Ensure positive time
+      })
+      .filter(time => time >= 0 && time <= 10080); // Filter unrealistic times (0-7 days)
 
     const avgExecutionTime = executionTimes.length > 0 
       ? executionTimes.reduce((sum, time) => sum + time, 0) / executionTimes.length 
       : 0;
 
+    // Calculate success rate based on all trades (not just completed)
     const allTrades = await P2PTrade.countDocuments({
       $or: [{ buyerId: userId }, { sellerId: userId }],
       createdAt: { $gte: startTime }
     });
 
-    const successRate = allTrades > 0 ? (completedTrades.length / allTrades * 100) : 0;
+    const successRate = allTrades > 0 ? (completedTrades.length / allTrades * 100) : 100;
 
     return {
-      totalVolume,
-      avgTradeSize,
+      totalVolume: parseFloat(totalVolume.toFixed(2)),
+      avgTradeSize: parseFloat(avgTradeSize.toFixed(2)),
       avgExecutionTime: Math.round(avgExecutionTime),
       successRate: parseFloat(successRate.toFixed(2))
     };

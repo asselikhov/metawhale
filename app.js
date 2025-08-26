@@ -92,10 +92,10 @@ class Application {
       }, 60000);
       
       console.log('\n✅ CES Price Telegram Bot successfully started!');
-      console.log('📊 Commands: /start and /price');
+      console.log('📊 Commands: /start and /ces');
       console.log('🔗 Mode: Webhook (doesn\'t sleep on Render)');
       console.log('⚙️ ATH: Directly from CoinMarketCap (CMC)');
-      console.log('🔄 Updates: Only on /price command (API economy)');
+      console.log('🔄 Updates: Only on /ces command (API economy)');
       console.log(`🌐 Server running on port ${config.server.port}`);
       console.log('📅 Auto price updates disabled - saving API limits\n');
       

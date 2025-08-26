@@ -163,7 +163,7 @@ class OptimizedCallbackHandler {
         const keyboard = Markup.inlineKeyboard([
           [Markup.button.callback('📈 Купить CES', 'p2p_buy_ces'), Markup.button.callback('📉 Продать CES', 'p2p_sell_ces')],
           [Markup.button.callback('📊 Рынок', 'p2p_market_orders'), Markup.button.callback('📋 Мои ордера', 'p2p_my_orders')],
-          [Markup.button.callback('🏆 Топ трейдеров', 'p2p_top_traders'), Markup.button.callback('🧮 Аналитика', 'p2p_analytics')],
+          [Markup.button.callback('🏆 Топ', 'p2p_top_traders'), Markup.button.callback('🧮 Аналитика', 'p2p_analytics')],
           [Markup.button.callback('📑 Мои данные', 'p2p_my_data')]
         ]);
 

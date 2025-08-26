@@ -229,7 +229,7 @@ class PriceService {
       
       if (timeSinceLastCall < config.telegram.apiCallInterval) {
         const waitTime = config.telegram.apiCallInterval - timeSinceLastCall;
-        console.log(`⏳ Waiting ${waitTime}ms between /price commands`);
+        console.log(`⏳ Waiting ${waitTime}ms between /ces commands`);
         await new Promise(resolve => setTimeout(resolve, waitTime));
       }
       

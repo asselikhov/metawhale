@@ -59,7 +59,7 @@ class P2POrdersHandler {
         const maxRubles = (maxAmount * order.pricePerToken).toFixed(2);
         
         const orderMessage = `₽ ${order.pricePerToken.toFixed(2)} / CES | @${username} ${emoji}\n` +
-                           `Количество: ${order.remainingAmount.toFixed(2)} CES\n` +
+                           `Доступно: ${order.remainingAmount.toFixed(2)} CES\n` +
                            `Лимиты: ${minRubles} - ${maxRubles} ₽`;
         
         // Check if this is the last order on page to add navigation
@@ -199,7 +199,7 @@ class P2POrdersHandler {
         const maxRubles = (maxAmount * order.pricePerToken).toFixed(2);
         
         const orderMessage = `₽ ${order.pricePerToken.toFixed(2)} / CES | @${username} ${emoji}\n` +
-                           `Количество: ${order.remainingAmount.toFixed(2)} CES\n` +
+                           `Доступно: ${order.remainingAmount.toFixed(2)} CES\n` +
                            `Лимиты: ${minRubles} - ${maxRubles} ₽`;
         
         // Check if this is the last order on page to add navigation
@@ -378,15 +378,37 @@ class P2POrdersHandler {
           const order = result.orders[i];
           const orderNumber = offset + i + 1;
           const orderType = order.type === 'buy' ? '📈 Покупка' : '📉 Продажа';
-          const status = order.status === 'active' ? 'Активен' : 
-                        order.status === 'partial' ? 'Частично исполнен' : 
-                        order.status === 'completed' ? 'Исполнен' : 'Отменен';
+          
+          // Определяем статус ордера
+          let status;
+          if (order.status === 'active') {
+            status = 'Активен';
+          } else if (order.status === 'partial') {
+            status = 'Частично исполнен';
+          } else if (order.status === 'completed') {
+            status = '✅ Исполнен';
+          } else {
+            status = '✖️ Отменен';
+          }
+          
+          // Показываем остаток и исполненную часть
+          let amountDisplay;
+          if (order.status === 'completed') {
+            amountDisplay = `Исполнено: ${(order.filledAmount || order.amount).toFixed(2)} CES`;
+          } else if (order.status === 'partial') {
+            const filled = order.filledAmount || 0;
+            const remaining = order.remainingAmount || 0;
+            amountDisplay = `Осталось: ${remaining.toFixed(2)} CES | Исполнено: ${filled.toFixed(2)} CES`;
+          } else {
+            amountDisplay = `Количество: ${(order.remainingAmount || order.amount).toFixed(2)} CES`;
+          }
           
           const orderMessage = `${orderNumber}. ${orderType}\n` +
-                              `${order.amount.toFixed(2)} CES по ₽ ${order.pricePerToken.toFixed(2)}\n` +
+                              `${amountDisplay}\n` +
+                              `Цена: ₽ ${order.pricePerToken.toFixed(2)} за CES\n` +
                               `Статус: ${status}\n` +
                               `${order.createdAt.toLocaleString('ru-RU')}\n` +
-                              `ID: ${order._id}`;
+                              `ID: ${order._id.toString().substr(0, 8)}...`;
           
           // Check if this is the last order on page to add navigation
           const isLastOrder = i === result.orders.length - 1;

@@ -1,6 +1,6 @@
 /**
  * Base Command Handler
- * Handles basic commands like /start, /price and message routing
+ * Handles basic commands like /start, /ces and message routing
  */
 
 const { Markup } = require('telegraf');
@@ -76,7 +76,7 @@ class BaseCommandHandler {
     }
   }
 
-  // Handle price command and button with immediate response
+  // Handle ces command and button with immediate response
   async handlePrice(ctx) {
     try {
       console.log('💰 handlePrice called');
@@ -103,7 +103,7 @@ class BaseCommandHandler {
     try {
       const priceData = await priceService.getCESPrice();
       
-      // Save data to database (only when calling /price and if database is available)
+      // Save data to database (only when calling /ces and if database is available)
       if (isDatabaseConnected() && !priceData.cached) {
         try {
           await new PriceHistory(priceData).save();

@@ -1,9 +1,0 @@
-{
-  "contractAddress": "0x04B16d50949CD92de90fbadcF49745897CbED5C4",
-  "txHash": "0x96e2e64f65ce36b7a26a1fa169f305aaf05475f5b126f0914301e36cc538c0e4",
-  "deployer": "0x98A569b1ee0C4fc19eA802318d9033Dd056C850b",
-  "cesTokenAddress": "0x1bdf71ede1a4777db1eebe7232bcda20d6fc1610",
-  "network": "polygon",
-  "deployedAt": "2025-08-25T18:45:28.670Z",
-  "gasUsed": "Pending confirmation"
-}

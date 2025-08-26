@@ -982,7 +982,7 @@ class P2PService {
       const [buyOrders, sellOrders] = await Promise.all([
         P2POrder.find({ 
           type: 'buy', 
-          status: 'active',
+          status: { $in: ['active', 'partial'] },
           remainingAmount: { $gt: 0 }
         })
         .sort({ pricePerToken: -1, createdAt: 1 }) // Sort by price (highest first), then by time
@@ -995,7 +995,7 @@ class P2PService {
         
         P2POrder.find({ 
           type: 'sell', 
-          status: 'active',
+          status: { $in: ['active', 'partial'] },
           remainingAmount: { $gt: 0 }
         })
         .sort({ pricePerToken: 1, createdAt: 1 }) // Sort by price (lowest first), then by time
@@ -1011,12 +1011,12 @@ class P2PService {
       const [buyOrdersCount, sellOrdersCount] = await Promise.all([
         P2POrder.countDocuments({ 
           type: 'buy', 
-          status: 'active',
+          status: { $in: ['active', 'partial'] },
           remainingAmount: { $gt: 0 }
         }),
         P2POrder.countDocuments({ 
           type: 'sell', 
-          status: 'active',
+          status: { $in: ['active', 'partial'] },
           remainingAmount: { $gt: 0 }
         })
       ]);
@@ -1571,11 +1571,15 @@ class P2PService {
       try {
         const botInstance = require('../bot/telegramBot');
         const bot = botInstance.getInstance();
-        const buyerMessage = `✅ СДЕЛКА ЗАВЕРШЕНА!\n` +
-                             `⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️\n\n` +
-                             `Продавец подтвердил получение платежа.\n` +
-                             `${trade.amount} CES переданы на ваш кошелёк!\n\n` +
-                             `Спасибо за использование P2P биржи!`;
+        const buyerMessage = `✅ СДЕЛКА ЗАВЕРШЕНА!
+
+` +
+                             `Продавец подтвердил получение платежа.
+` +
+                             `${trade.amount} CES переданы на ваш кошелёк!
+
+` +
+                             `Спасибо за использование P2P биржи !`;
         
         await bot.telegram.sendMessage(trade.buyerId.chatId, buyerMessage);
         console.log(`✅ Completion notification sent to buyer ${trade.buyerId.chatId}`);

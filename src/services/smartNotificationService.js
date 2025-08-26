@@ -226,8 +226,7 @@ class SmartNotificationService {
     const { Markup } = require('telegraf');
     const keyboard = Markup.inlineKeyboard([
       [Markup.button.callback('✅ Платёж получен', 'payment_received')],
-      [Markup.button.callback('📞 Обратиться в поддержку', 'contact_support')],
-      [Markup.button.callback('❌ Отменить сделку', 'cancel_payment')]
+      [Markup.button.callback('📞 Обратиться в поддержку', 'contact_support')]
     ]);
     
     return {
@@ -238,10 +237,19 @@ class SmartNotificationService {
 
   // Generate payment confirmed message
   generatePaymentConfirmedMessage(user, trade) {
-    return `✅ Оплата подтверждена\n\n` +
-          `Сделка #${trade._id.toString().substr(0, 8)}\n` +
-          `Токены будут переведены в ближайшее время\n\n` +
-          `Спасибо за использование нашей P2P биржи!`;
+    const orderNumber = `CES${trade.buyOrderId.toString().slice(-8)}`;
+    return `✅ ПЛАТЁЖ ПОДТВЁРЖДЁН
+
+` +
+          `Ордер: ${orderNumber}
+
+` +
+          `Спасибо за подтверждение !
+` +
+          `CES токены переданы покупателю.
+
+` +
+          `Сделка успешно завершена!`;
   }
 
   // Generate payment completed message
@@ -270,16 +278,34 @@ class SmartNotificationService {
   // Generate trade completed message
   generateTradeCompletedMessage(user, trade) {
     const isBuyer = trade.buyerId._id.toString() === user._id.toString();
-    const roleText = isBuyer ? 'покупателя' : 'продавца';
-    const amountText = isBuyer 
-      ? `Получено: ${trade.amount.toFixed(2)} CES` 
-      : `Продано: ${trade.amount.toFixed(2)} CES`;
     
-    return `🎉 Сделка завершена!\n\n` +
-          `Сделка #${trade._id.toString().substr(0, 8)}\n` +
-          `${amountText}\n` +
-          `💵 Сумма: ₽${trade.totalValue.toFixed(2)}\n\n` +
-          `Спасибо за участие в сделке как ${roleText}!`;
+    if (isBuyer) {
+      // Message for buyer - use the new format
+      return `✅ СДЕЛКА ЗАВЕРШЕНА!
+
+` +
+            `Продавец подтвердил получение платежа.
+` +
+            `${trade.amount} CES переданы на ваш кошелёк!
+
+` +
+            `Спасибо за использование P2P биржи !`;
+    } else {
+      // Message for seller - use the new format  
+      const orderNumber = `CES${trade.buyOrderId.toString().slice(-8)}`;
+      return `✅ ПЛАТЁЖ ПОДТВЁРЖДЁН
+
+` +
+            `Ордер: ${orderNumber}
+
+` +
+            `Спасибо за подтверждение !
+` +
+            `CES токены переданы покупателю.
+
+` +
+            `Сделка успешно завершена!`;
+    }
   }
 
   // Generate trade cancelled message
