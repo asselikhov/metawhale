@@ -7,6 +7,7 @@ const { ethers } = require('ethers');
 const crypto = require('crypto');
 const config = require('../config/configuration');
 const { User, Wallet, Transaction } = require('../database/models');
+const rpcService = require('./rpcService');
 
 // Ensure ethers providers are available
 const providers = ethers.providers || ethers;
@@ -100,37 +101,11 @@ class WalletService {
     try {
       console.log(`🔍 Checking real CES balance for address: ${address}`);
       
-      // Setup Polygon provider with timeout
-      const provider = new providers.JsonRpcProvider(config.wallet.polygonRpcUrl);
-      
-      // Set timeout for requests (10 seconds)
-      provider.pollingInterval = 10000;
-      
-      // ERC-20 ABI for balanceOf function
-      const erc20Abi = [
-        "function balanceOf(address owner) view returns (uint256)",
-        "function decimals() view returns (uint8)"
-      ];
-      
-      // Create contract instance
-      const contract = new ethers.Contract(
-        config.wallet.cesContractAddress, 
-        erc20Abi, 
-        provider
+      // Use reliable RPC service
+      const { balance, decimals } = await rpcService.getTokenBalance(
+        config.wallet.cesContractAddress,
+        address
       );
-      
-      // Get balance and decimals with timeout
-      const balancePromise = Promise.race([
-        Promise.all([
-          contract.balanceOf(address),
-          contract.decimals()
-        ]),
-        new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('RPC timeout')), 15000)
-        )
-      ]);
-      
-      const [balance, decimals] = await balancePromise;
       
       // Convert from wei to human readable format
       const formattedBalance = utils.formatUnits(balance, decimals);
@@ -153,21 +128,8 @@ class WalletService {
     try {
       console.log(`🔍 Checking POL balance for address: ${address}`);
       
-      // Setup Polygon provider with timeout
-      const provider = new providers.JsonRpcProvider(config.wallet.polygonRpcUrl);
-      
-      // Set timeout for requests (10 seconds)
-      provider.pollingInterval = 10000;
-      
-      // Get native POL balance with timeout
-      const balancePromise = Promise.race([
-        provider.getBalance(address),
-        new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('RPC timeout')), 15000)
-        )
-      ]);
-      
-      const balance = await balancePromise;
+      // Use reliable RPC service
+      const balance = await rpcService.getBalance(address);
       
       // Convert from wei to human readable format (POL has 18 decimals)
       const formattedBalance = utils.formatEther(balance);
@@ -426,12 +388,9 @@ class WalletService {
       // Get recipient user (if exists in our system)
       const toUser = await User.findOne({ walletAddress: toAddress });
       
-      // Setup blockchain transaction
-      const provider = new providers.JsonRpcProvider(config.wallet.polygonRpcUrl);
-      
       // Get sender's private key
       const privateKey = await this.getUserPrivateKey(fromChatId);
-      const wallet = new ethers.Wallet(privateKey, provider);
+      const wallet = new ethers.Wallet(privateKey);
       
       // Convert amount to wei
       const transferAmount = utils.parseEther(amount.toString());
@@ -454,8 +413,11 @@ class WalletService {
       
       // Execute blockchain transaction (native transfer)
       try {
+        // Get current gas prices
+        const feeData = await rpcService.getFeeData();
+        
         // Estimate gas and set appropriate gas limit
-        const gasEstimate = await provider.estimateGas({
+        const gasEstimate = await rpcService.estimateGas({
           to: toAddress,
           value: transferAmount,
           from: fromUser.walletAddress
@@ -465,11 +427,17 @@ class WalletService {
         const gasEstimateBigInt = BigInt(gasEstimate.toString());
         const gasLimit = (gasEstimateBigInt * 120n) / 100n; // Add 20% buffer
         
-        const tx = await wallet.sendTransaction({
+        // Set gas prices with proper values for Polygon network
+        const maxFeePerGas = feeData.maxFeePerGas ? feeData.maxFeePerGas.mul(120).div(100) : utils.parseUnits('50', 'gwei');
+        const maxPriorityFeePerGas = feeData.maxPriorityFeePerGas ? feeData.maxPriorityFeePerGas.mul(120).div(100) : utils.parseUnits('30', 'gwei');
+        
+        const tx = await rpcService.sendTransaction(wallet, {
           to: toAddress,
           value: transferAmount,
           gasLimit: gasLimit,
-          gasPrice: await provider.getFeeData().then(feeData => feeData.gasPrice)
+          maxFeePerGas: maxFeePerGas,
+          maxPriorityFeePerGas: maxPriorityFeePerGas,
+          type: 2 // EIP-1559 transaction
         });
         
         console.log(`⏳ POL Transaction sent to blockchain: ${tx.hash}`);
@@ -478,8 +446,8 @@ class WalletService {
         transaction.txHash = tx.hash;
         await transaction.save();
         
-        // Wait for confirmation
-        const receipt = await tx.wait();
+        // Wait for confirmation using RPC service
+        const receipt = await rpcService.waitForTransaction(tx.hash);
         
         if (receipt.status === 1) {
           // Transaction successful
@@ -552,29 +520,15 @@ class WalletService {
       // Get recipient user (if exists in our system)
       const toUser = await User.findOne({ walletAddress: toAddress });
       
-      // Setup blockchain transaction
-      const provider = new providers.JsonRpcProvider(config.wallet.polygonRpcUrl);
-      
       // Get sender's private key
       const privateKey = await this.getUserPrivateKey(fromChatId);
-      const wallet = new ethers.Wallet(privateKey, provider);
+      const wallet = new ethers.Wallet(privateKey);
       
-      // ERC-20 ABI for transfer
-      const erc20Abi = [
-        "function transfer(address to, uint256 amount) returns (bool)",
-        "function decimals() view returns (uint8)",
-        "function balanceOf(address owner) view returns (uint256)"
-      ];
-      
-      // Create contract instance
-      const contract = new ethers.Contract(
+      // Get token info using RPC service
+      const { decimals } = await rpcService.getTokenBalance(
         config.wallet.cesContractAddress,
-        erc20Abi,
-        wallet
+        fromUser.walletAddress
       );
-      
-      // Get token decimals
-      const decimals = await contract.decimals();
       const transferAmount = utils.parseUnits(amount.toString(), decimals);
       
       // Create transaction record
@@ -595,15 +549,37 @@ class WalletService {
       
       // Execute blockchain transaction
       try {
-        // Estimate gas and set appropriate gas limit for ERC-20 transfer
-        const gasEstimate = await contract.estimateGas.transfer(toAddress, transferAmount);
+        // Get current gas prices
+        const feeData = await rpcService.getFeeData();
+        
+        // Prepare transaction data
+        const erc20Interface = new ethers.utils.Interface([
+          "function transfer(address to, uint256 amount) returns (bool)"
+        ]);
+        const txData = erc20Interface.encodeFunctionData('transfer', [toAddress, transferAmount]);
+        
+        // Estimate gas
+        const gasEstimate = await rpcService.estimateGas({
+          to: config.wallet.cesContractAddress,
+          data: txData,
+          from: fromUser.walletAddress
+        });
         
         // Fix BigInt operations by converting to BigInt first
         const gasEstimateBigInt = BigInt(gasEstimate.toString());
         const gasLimit = gasEstimateBigInt * 120n / 100n; // Add 20% buffer
         
-        const tx = await contract.transfer(toAddress, transferAmount, {
+        // Set gas prices with proper values for Polygon network
+        const maxFeePerGas = feeData.maxFeePerGas ? feeData.maxFeePerGas.mul(120).div(100) : utils.parseUnits('50', 'gwei');
+        const maxPriorityFeePerGas = feeData.maxPriorityFeePerGas ? feeData.maxPriorityFeePerGas.mul(120).div(100) : utils.parseUnits('30', 'gwei');
+        
+        const tx = await rpcService.sendTransaction(wallet, {
+          to: config.wallet.cesContractAddress,
+          data: txData,
           gasLimit: gasLimit,
+          maxFeePerGas: maxFeePerGas,
+          maxPriorityFeePerGas: maxPriorityFeePerGas,
+          type: 2 // EIP-1559 transaction
         });
         
         console.log(`⏳ Transaction sent to blockchain: ${tx.hash}`);
@@ -612,8 +588,8 @@ class WalletService {
         transaction.txHash = tx.hash;
         await transaction.save();
         
-        // Wait for confirmation
-        const receipt = await tx.wait();
+        // Wait for confirmation using RPC service
+        const receipt = await rpcService.waitForTransaction(tx.hash);
         
         if (receipt.status === 1) {
           // Transaction successful

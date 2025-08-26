@@ -1,100 +1,228 @@
-# Зависимости
+# ========================================
+# Node.js Dependencies & Package Managers
+# ========================================
 node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+.yarn-integrity
+.pnp
+.pnp.js
+jspm_packages/
 
-# Переменные окружения
+# ========================================
+# Environment Variables & Secrets
+# ========================================
 .env
 .env.local
 .env.development.local
 .env.test.local
 .env.production.local
 
-# Логи
-logs
-*.log
+# Private keys and sensitive data
+*.key
+*.pem
+*.p12
+*.pfx
 
-# Runtime данные
+# ========================================
+# Logs & Debugging
+# ========================================
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.npm
+.yarn/cache
+.yarn/unplugged
+.yarn/build-state.yml
+.yarn/install-state.gz
+
+# ========================================
+# Runtime & Process Files
+# ========================================
 pids
 *.pid
 *.seed
 *.pid.lock
+.node_repl_history
 
-# Директория покрытия тестов
+# ========================================
+# Test Coverage & Reports
+# ========================================
 coverage/
 *.lcov
-
-# Покрытие nyc тестов
 .nyc_output
+.mocha/
 
-# Зависимости
-node_modules/
-jspm_packages/
+# ========================================
+# Build Outputs & Artifacts
+# ========================================
+dist/
+build/
+out/
+*.tgz
+*.tar.gz
 
-# Кеш npm
-.npm
+# Hardhat artifacts
+artifacts/
+cache/
 
-# Кеш eslint
+# ========================================
+# Framework Specific
+# ========================================
+# Next.js
+.next/
+
+# Nuxt.js
+.nuxt/
+
+# Gatsby
+.cache/
+public/
+
+# Storybook
+.out/
+.storybook-out/
+
+# ========================================
+# Development Tools & Caches
+# ========================================
 .eslintcache
-
-# Кеш Microbundle
+.stylelintcache
 .rpt2_cache/
 .rts2_cache_cjs/
 .rts2_cache_es/
 .rts2_cache_umd/
-
-# История REPL
-.node_repl_history
-
-# Результат 'npm pack'
-*.tgz
-
-# Файл целостности Yarn
-.yarn-integrity
-
-# Кеш parcel-bundler
-.cache
-.parcel-cache
-
-# Билд Next.js
-.next
-
-# Билд Nuxt.js
-.nuxt
-dist
-
-# Файлы Gatsby
 .cache/
-public
+.parcel-cache/
+.webpack/
 
-# Билды Storybook
-.out
-.storybook-out
-
-# Временные папки
-tmp/
-temp/
-
-# Файлы и директории редакторов
+# ========================================
+# Editor & IDE Files
+# ========================================
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
+.project
+.classpath
+.settings/
 
-# OS файлы
+# ========================================
+# Operating System Files
+# ========================================
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+*.stackdump
+[Dd]esktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+*.lnk
+
+# macOS
 .DS_Store
 .DS_Store?
 ._*
+.AppleDouble
+.LSOverride
 .Spotlight-V100
 .Trashes
-ehthumbs.db
-Thumbs.db
+Icon?
+.DocumentRevisions-V100
+.fseventsd
+.TemporaryItems
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
 
-# Файлы проекта
+# Linux
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+# ========================================
+# Database & Storage
+# ========================================
 *.sqlite
+*.sqlite3
 *.db
+*.rdb
 
-# Локальные настройки
-.vscode/settings.json
+# ========================================
+# Temporary Files & Directories
+# ========================================
+tmp/
+temp/
+.tmp/
+.temp/
+
+# ========================================
+# Blockchain & Smart Contract Specific
+# ========================================
+# Hardhat
+artifacts/
+cache/
+
+# Deployment artifacts
+deployment/*.json
+!deployment/README.md
+
+# Gas reports
+gas-report.txt
+
+# TypeChain artifacts
+typechain/
+typechain-types/
+
+# ========================================
+# Documentation & Generated Files
+# ========================================
+# Auto-generated documentation
+docs/build/
+
+# API documentation
+api-docs/
+
+# Coverage reports
+coverage.lcov
+
+# ========================================
+# Backup & Archive Files
+# ========================================
+*.bak
+*.backup
+*.old
+*.orig
+*.save
+*.gz
+*.zip
+*.rar
+*.7z
+
+# ========================================
+# Local Development Overrides
+# ========================================
+# Local configuration overrides
+local.config.js
+local.config.json
+
+# Development scripts
+dev-scripts/
+test-data/
+
+# Personal notes and todos
+TODO.md
+NOTES.md
+*.personal.md

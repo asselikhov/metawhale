@@ -19,7 +19,11 @@
     "build:render": "bash scripts/render-build.sh",
     "postinstall": "echo \"Installation completed successfully\"",
     "cache:clear": "yarn cache clean --force && npm cache clean --force",
-    "fresh-install": "rm -rf node_modules yarn.lock && yarn install"
+    "fresh-install": "rm -rf node_modules yarn.lock && yarn install",
+    "cleanup": "node scripts/cleanup.js --cleanup",
+    "health-check": "node scripts/cleanup.js --check",
+    "monitor-balance": "node scripts/balance-monitor.js",
+    "test-transactions": "node scripts/test-transaction-fixes.js"
   },
   "keywords": [
     "telegram",

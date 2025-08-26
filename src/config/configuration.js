@@ -40,7 +40,15 @@ const config = {
   wallet: {
     encryptionKey: process.env.WALLET_ENCRYPTION_KEY,
     cesContractAddress: process.env.CES_CONTRACT_ADDRESS || '0x1bdf71ede1a4777db1eebe7232bcda20d6fc1610',
-    polygonRpcUrl: process.env.POLYGON_RPC_URL || 'https://polygon-rpc.com'
+    polygonRpcUrl: process.env.POLYGON_RPC_URL || 'https://polygon-rpc.com',
+    // Alternative RPC endpoints for fallback
+    alternativeRpcUrls: [
+      'https://rpc.ankr.com/polygon',
+      'https://polygon-mainnet.g.alchemy.com/v2/demo',
+      'https://rpc-mainnet.matic.network',
+      'https://matic-mainnet.chainstacklabs.com',
+      'https://polygon-rpc.com'
+    ]
   },
 
   // Server Configuration
