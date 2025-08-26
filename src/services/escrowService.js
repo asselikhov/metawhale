@@ -406,7 +406,8 @@ class EscrowService {
           lockTxQuery.tradeId = null;
         }
         
-        const lockTx = await EscrowTransaction.findOne(lockTxQuery);
+        // Sort by creation date descending to get the most recent transaction
+        const lockTx = await EscrowTransaction.findOne(lockTxQuery).sort({ createdAt: -1 });
         
         if (lockTx) {
           smartContractEscrowId = lockTx.smartContractEscrowId;
@@ -421,7 +422,19 @@ class EscrowService {
               if (refundCheck.error) {
                 throw new Error(`Cannot check escrow status: ${refundCheck.error}`);
               } else {
-                throw new Error(`Escrow cannot be refunded. Status: ${refundCheck.statusText}`);
+                // Check if there's already a refund transaction for this escrow
+                const existingRefund = await EscrowTransaction.findOne({
+                  userId: userId,
+                  type: 'refund',
+                  smartContractEscrowId: smartContractEscrowId
+                });
+                
+                if (existingRefund) {
+                  console.log(`⚠️ Escrow ${smartContractEscrowId} was already refunded (transaction ${existingRefund._id})`);
+                  throw new Error(`Escrow was already refunded. Status: ${refundCheck.statusText}`);
+                } else {
+                  throw new Error(`Escrow cannot be refunded. Status: ${refundCheck.statusText}`);
+                }
               }
             }
             

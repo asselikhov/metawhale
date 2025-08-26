@@ -129,9 +129,13 @@ class SmartContractService {
       const wallet = new ethers.Wallet(releaserPrivateKey, this.provider);
       const escrowContract = new ethers.Contract(this.escrowContractAddress, this.escrowABI, wallet);
 
+      // Get current gas price and adjust it
+      const gasPrice = await this.provider.getGasPrice();
+      console.log(`   Current gas price: ${ethers.utils.formatUnits(gasPrice, 'gwei')} Gwei`);
+
       const tx = await escrowContract.releaseEscrow(escrowId, {
-        gasLimit: 200000,
-        gasPrice: utils.parseUnits('30', 'gwei')
+        gasLimit: 300000, // Increased gas limit for safety
+        gasPrice: gasPrice.mul(120).div(100) // 20% higher gas price to ensure transaction is processed
       });
 
       console.log(`⏳ Escrow release transaction sent: ${tx.hash}`);
@@ -160,9 +164,13 @@ class SmartContractService {
       const wallet = new ethers.Wallet(refunderPrivateKey, this.provider);
       const escrowContract = new ethers.Contract(this.escrowContractAddress, this.escrowABI, wallet);
 
+      // Get current gas price and adjust it
+      const gasPrice = await this.provider.getGasPrice();
+      console.log(`   Current gas price: ${ethers.utils.formatUnits(gasPrice, 'gwei')} Gwei`);
+      
       const tx = await escrowContract.refundEscrow(escrowId, {
-        gasLimit: 200000,
-        gasPrice: utils.parseUnits('30', 'gwei')
+        gasLimit: 300000, // Increased gas limit for safety
+        gasPrice: gasPrice.mul(120).div(100) // 20% higher gas price to ensure transaction is processed
       });
 
       console.log(`⏳ Escrow refund transaction sent: ${tx.hash}`);
@@ -249,9 +257,13 @@ class SmartContractService {
       const wallet = new ethers.Wallet(disputerPrivateKey, this.provider);
       const escrowContract = new ethers.Contract(this.escrowContractAddress, this.escrowABI, wallet);
 
+      // Get current gas price and adjust it
+      const gasPrice = await this.provider.getGasPrice();
+      console.log(`   Current gas price: ${ethers.utils.formatUnits(gasPrice, 'gwei')} Gwei`);
+
       const tx = await escrowContract.initiateDispute(escrowId, {
-        gasLimit: 150000,
-        gasPrice: utils.parseUnits('30', 'gwei')
+        gasLimit: 200000,
+        gasPrice: gasPrice.mul(120).div(100) // 20% higher gas price to ensure transaction is processed
       });
 
       console.log(`⏳ Dispute initiation transaction sent: ${tx.hash}`);
@@ -279,9 +291,13 @@ class SmartContractService {
       const wallet = new ethers.Wallet(moderatorPrivateKey, this.provider);
       const escrowContract = new ethers.Contract(this.escrowContractAddress, this.escrowABI, wallet);
 
+      // Get current gas price and adjust it
+      const gasPrice = await this.provider.getGasPrice();
+      console.log(`   Current gas price: ${ethers.utils.formatUnits(gasPrice, 'gwei')} Gwei`);
+
       const tx = await escrowContract.resolveDispute(escrowId, favorBuyer, {
-        gasLimit: 200000,
-        gasPrice: utils.parseUnits('30', 'gwei')
+        gasLimit: 300000,
+        gasPrice: gasPrice.mul(120).div(100) // 20% higher gas price to ensure transaction is processed
       });
 
       console.log(`⏳ Dispute resolution transaction sent: ${tx.hash}`);
