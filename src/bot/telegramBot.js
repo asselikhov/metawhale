@@ -1,11 +1,10 @@
 const { Telegraf } = require('telegraf');
 const MessageHandler = require('../handlers/messageHandler');
-const OptimizedCallbackHandler = require('../handlers/OptimizedCallbackHandler');
+const optimizedHandler = require('../handlers/OptimizedCallbackHandler');
 const config = require('../config/configuration');
 
-// Create an instance of MessageHandler and OptimizedCallbackHandler
+// Create an instance of MessageHandler
 const messageHandler = new MessageHandler();
-const optimizedHandler = new OptimizedCallbackHandler();
 
 class TelegramBot {
   constructor() {
