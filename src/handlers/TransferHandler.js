@@ -283,6 +283,9 @@ class TransferHandler {
       
       const { tokenType, toAddress, amount } = pendingTransfer;
       
+      // CRITICAL: Clear pending transfer data IMMEDIATELY to prevent duplicate processing
+      sessionManager.setPendingTransfer(chatId, null);
+      
       await ctx.reply('⏳ Обработка перевода... Подождите.');
       
       let result;
@@ -292,11 +295,8 @@ class TransferHandler {
         result = await walletService.sendCESTokens(chatId, toAddress, amount);
       }
       
-      // Clear pending transfer data
-      sessionManager.setPendingTransfer(chatId, null);
-      
       if (result.success) {
-        const message = `✅ Перевод успешен!
+        const message = `✅ Перевод отправлен!
 ` +
                        `➖➖➖➖➖➖➖➖➖➖➖
 ` +
@@ -307,10 +307,12 @@ class TransferHandler {
                        `Hash: ${result.txHash}
 
 ` +
-                       '⚠️ Транзакция подтверждена в блокчейне!';
+                       '⏳ Транзакция отправлена в блокчейн.\n' +
+                       'Подтверждение обычно занимает 1-3 минуты.';
         
         const keyboard = Markup.inlineKeyboard([
-          [Markup.button.callback(`💸 Перевести еще ${tokenType}`, tokenType === 'POL' ? 'send_pol_tokens' : 'send_ces_tokens')],
+          [Markup.button.callback(`📊 Проверить статус`, `check_tx_${result.txHash.substring(2, 12)}`), // Remove 0x prefix for callback
+           Markup.button.callback(`💸 Перевести еще ${tokenType}`, tokenType === 'POL' ? 'send_pol_tokens' : 'send_ces_tokens')],
           [Markup.button.callback('🔙 Назад', 'transfer_menu')]
         ]);
         
@@ -338,6 +340,99 @@ class TransferHandler {
       ]);
       
       await ctx.reply(errorMessage, keyboard);
+    }
+  }
+
+  // Handle transaction status check
+  async handleTransactionStatusCheck(ctx, txHashPart) {
+    try {
+      const chatId = ctx.chat.id.toString();
+      
+      // If the txHashPart looks like a full hash, use it directly
+      let txHash = txHashPart;
+      
+      // If it's a partial hash (10 characters), try to find the full hash
+      if (txHashPart.length === 10) {
+        // Look up recent transactions for this user to find the full hash
+        const { Transaction } = require('../database/models');
+        const { User } = require('../database/models');
+        
+        const user = await User.findOne({ chatId });
+        if (user) {
+          // Find the most recent transaction where the hash contains the partial hash
+          // Handle both cases: with and without 0x prefix in the partial hash
+          const searchPattern = txHashPart.startsWith('0x') ? txHashPart : txHashPart;
+          const transaction = await Transaction.findOne({
+            fromUserId: user._id,
+            txHash: { $regex: searchPattern, $options: 'i' }
+          }).sort({ createdAt: -1 });
+          
+          if (transaction) {
+            txHash = transaction.txHash;
+          } else {
+            return await ctx.reply('❌ Транзакция не найдена. Проверьте hash или попробуйте позже.');
+          }
+        } else {
+          return await ctx.reply('❌ Пользователь не найден.');
+        }
+      }
+      
+      const rpcService = require('../services/rpcService');
+      
+      await ctx.reply('🔍 Проверяем статус транзакции...');
+      
+      // Try to get transaction receipt
+      const receipt = await rpcService.getTransactionReceipt(txHash);
+      
+      let statusMessage;
+      if (receipt) {
+        if (receipt.status === 1) {
+          statusMessage = `✅ Транзакция подтверждена!
+` +
+                         `➖➖➖➖➖➖➖➖➖➖➖
+` +
+                         `Hash: ${txHash}
+` +
+                         `Блок: ${receipt.blockNumber}
+` +
+                         `Подтверждения: ${receipt.confirmations || 1}
+
+` +
+                         '✅ Перевод успешно выполнен!';
+        } else {
+          statusMessage = `❌ Транзакция отклонена
+` +
+                         `➖➖➖➖➖➖➖➖➖➖➖
+` +
+                         `Hash: ${txHash}
+
+` +
+                         '⚠️ Перевод не удался. Обратитесь в поддержку.';
+        }
+      } else {
+        // Transaction still pending
+        statusMessage = `⏳ Транзакция обрабатывается
+` +
+                       `➖➖➖➖➖➖➖➖➖➖➖
+` +
+                       `Hash: ${txHash}
+
+` +
+                       '⏰ Подтверждение обычно занимает 1-5 минут.
+' +
+                       'Повторите проверку через несколько минут.';
+      }
+      
+      const keyboard = Markup.inlineKeyboard([
+        [Markup.button.callback('🔄 Обновить', `check_tx_${txHash.substring(2, 12)}`), // Remove 0x prefix
+         Markup.button.callback('🔙 Назад', 'transfer_menu')]
+      ]);
+      
+      await ctx.reply(statusMessage, keyboard);
+      
+    } catch (error) {
+      console.error('Error checking transaction status:', error);
+      await ctx.reply('❌ Ошибка проверки статуса. Попробуйте позже.');
     }
   }
 }

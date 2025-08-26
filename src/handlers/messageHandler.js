@@ -130,6 +130,10 @@ class MessageHandler {
     return this.transferHandler.handleTransferConfirmation(ctx);
   }
 
+  async handleTransactionStatusCheck(ctx, txHashPart) {
+    return this.transferHandler.handleTransactionStatusCheck(ctx, txHashPart);
+  }
+
   async processTransferCommand(ctx, transferData, tokenType) {
     return this.transferHandler.processTransferCommand(ctx, transferData, tokenType);
   }

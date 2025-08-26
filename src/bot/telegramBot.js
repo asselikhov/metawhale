@@ -270,6 +270,15 @@ class TelegramBot {
       return messageHandler.handleTransferConfirmation(ctx);
     });
     
+    // Handle transaction status checks (dynamic callbacks)
+    this.bot.action(/^check_tx_(.+)$/, (ctx) => {
+      const txHashPart = ctx.match[1];
+      console.log('Received check_tx callback:', txHashPart);
+      // We need to reconstruct or find the full transaction hash
+      // For now, we'll delegate to the transfer handler which can handle this
+      return messageHandler.handleTransactionStatusCheck(ctx, txHashPart);
+    });
+    
     // Handle P2P order confirmations
     this.bot.action('confirm_p2p_order', (ctx) => {
       console.log('Received confirm_p2p_order callback');

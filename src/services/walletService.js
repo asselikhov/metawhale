@@ -251,6 +251,44 @@ class WalletService {
     }
   }
 
+  // Check transaction status asynchronously
+  async checkTransactionAsync(transactionId, txHash) {
+    try {
+      console.log(`🔍 Starting async check for transaction ${txHash}`);
+      
+      // Wait for confirmation with longer timeout in background
+      const receipt = await rpcService.waitForTransactionAsync(txHash, 1, 300000); // 5 minute timeout
+      
+      // Update transaction status
+      const transaction = await Transaction.findById(transactionId);
+      if (transaction) {
+        if (receipt.status === 1) {
+          transaction.status = 'completed';
+          transaction.completedAt = new Date();
+          console.log(`✅ Transaction ${txHash} confirmed successfully`);
+        } else {
+          transaction.status = 'failed';
+          console.log(`❌ Transaction ${txHash} failed`);
+        }
+        await transaction.save();
+      }
+      
+    } catch (error) {
+      console.error(`⚠️ Async transaction check failed for ${txHash}:`, error.message);
+      
+      // Mark as pending if we can't confirm (might still be processing)
+      try {
+        const transaction = await Transaction.findById(transactionId);
+        if (transaction && transaction.status === 'pending') {
+          // Keep as pending - transaction might still be processing
+          console.log(`🕰️ Transaction ${txHash} still pending after timeout`);
+        }
+      } catch (dbError) {
+        console.error('Error updating transaction status:', dbError);
+      }
+    }
+  }
+
   // Get user's wallet info
   async getUserWallet(chatId) {
     try {
@@ -446,27 +484,19 @@ class WalletService {
         transaction.txHash = tx.hash;
         await transaction.save();
         
-        // Wait for confirmation using RPC service
-        const receipt = await rpcService.waitForTransaction(tx.hash);
+        console.log(`✅ POL transfer sent to blockchain: ${tx.hash}`);
         
-        if (receipt.status === 1) {
-          // Transaction successful
-          transaction.status = 'completed';
-          transaction.completedAt = new Date();
-          await transaction.save();
-          
-          console.log(`✅ POL transfer completed: ${tx.hash}`);
-          
-          return {
-            success: true,
-            txHash: tx.hash,
-            amount: amount,
-            toAddress: toAddress,
-            transaction: transaction
-          };
-        } else {
-          throw new Error('Transaction failed on blockchain');
-        }
+        // Don't wait for confirmation here - return immediately and check async
+        this.checkTransactionAsync(transaction._id, tx.hash);
+        
+        return {
+          success: true,
+          txHash: tx.hash,
+          amount: amount,
+          toAddress: toAddress,
+          transaction: transaction,
+          status: 'pending'
+        };
         
       } catch (blockchainError) {
         // Mark transaction as failed
@@ -588,27 +618,19 @@ class WalletService {
         transaction.txHash = tx.hash;
         await transaction.save();
         
-        // Wait for confirmation using RPC service
-        const receipt = await rpcService.waitForTransaction(tx.hash);
+        console.log(`✅ CES transfer sent to blockchain: ${tx.hash}`);
         
-        if (receipt.status === 1) {
-          // Transaction successful
-          transaction.status = 'completed';
-          transaction.completedAt = new Date();
-          await transaction.save();
-          
-          console.log(`✅ CES transfer completed: ${tx.hash}`);
-          
-          return {
-            success: true,
-            txHash: tx.hash,
-            amount: amount,
-            toAddress: toAddress,
-            transaction: transaction
-          };
-        } else {
-          throw new Error('Transaction failed on blockchain');
-        }
+        // Don't wait for confirmation here - return immediately and check async
+        this.checkTransactionAsync(transaction._id, tx.hash);
+        
+        return {
+          success: true,
+          txHash: tx.hash,
+          amount: amount,
+          toAddress: toAddress,
+          transaction: transaction,
+          status: 'pending'
+        };
         
       } catch (blockchainError) {
         // Mark transaction as failed

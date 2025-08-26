@@ -154,10 +154,48 @@ class RpcService {
   }
 
   // Wait for transaction receipt with retry logic
-  async waitForTransaction(txHash, confirmations = 1) {
+  async waitForTransaction(txHash, confirmations = 1, timeoutMs = 30000) {
     return this.executeWithRetry(async (provider) => {
-      return await provider.waitForTransaction(txHash, confirmations, 60000); // 60 second timeout
+      return await provider.waitForTransaction(txHash, confirmations, timeoutMs);
     });
+  }
+
+  // Check transaction status without waiting (non-blocking)
+  async getTransactionReceipt(txHash) {
+    return this.executeWithRetry(async (provider) => {
+      return await provider.getTransactionReceipt(txHash);
+    });
+  }
+
+  // Get transaction details
+  async getTransaction(txHash) {
+    return this.executeWithRetry(async (provider) => {
+      return await provider.getTransaction(txHash);
+    });
+  }
+
+  // Wait for transaction with shorter timeout and status checking
+  async waitForTransactionAsync(txHash, confirmations = 1, maxWaitTime = 30000) {
+    const startTime = Date.now();
+    const checkInterval = 5000; // Check every 5 seconds
+    
+    while (Date.now() - startTime < maxWaitTime) {
+      try {
+        const receipt = await this.getTransactionReceipt(txHash);
+        if (receipt && receipt.confirmations >= confirmations) {
+          return receipt;
+        }
+        
+        // Wait before next check
+        await new Promise(resolve => setTimeout(resolve, checkInterval));
+      } catch (error) {
+        console.log(`⚠️ Error checking transaction ${txHash}: ${error.message}`);
+        await new Promise(resolve => setTimeout(resolve, checkInterval));
+      }
+    }
+    
+    // If we reach here, transaction is still pending
+    throw new Error('Transaction confirmation timeout - transaction may still be pending');
   }
 
   // Get current network info
