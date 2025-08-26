@@ -16,7 +16,7 @@ class TelegramBot {
     // Create Telegraf instance with proper webhook domain and increased timeouts
     this.bot = new Telegraf(config.telegram.botToken, {
       telegram: {
-        webhookReply: false, // Отключаем webhook reply для стабильности
+        webhookReply: true, // Включаем webhook reply для обработки callback_query
         // Увеличиваем таймауты для надежности
         timeout: 60000, // 60 секунд
         retryAfter: 2000, // 2 секунды между повторами
@@ -172,6 +172,16 @@ class TelegramBot {
     this.bot.on('text', (ctx) => {
       console.log('📥 Received text message:', ctx.message.text);
       return messageHandler.handleTextMessage(ctx);
+    });
+
+    // Общий обработчик всех callback_query для диагностики
+    this.bot.on('callback_query', (ctx, next) => {
+      console.log('🔘 CALLBACK_QUERY received:', {
+        data: ctx.callbackQuery.data,
+        from: ctx.callbackQuery.from.username,
+        messageId: ctx.callbackQuery.message?.message_id
+      });
+      return next(); // Передаем управление следующему обработчику
     });
 
     // Callback handlers

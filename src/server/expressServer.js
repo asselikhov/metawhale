@@ -130,16 +130,39 @@ class Server {
       console.log(`Method: ${req.method}, Path: ${req.path}`);
       if (req.body) {
         console.log(`Body:`, JSON.stringify(req.body, null, 2));
+        // Логируем тип update для диагностики
+        if (req.body.message) {
+          console.log(`🔵 Update type: MESSAGE`);
+        } else if (req.body.callback_query) {
+          console.log(`🟡 Update type: CALLBACK_QUERY (button click)`);
+        } else {
+          console.log(`🔴 Update type: OTHER`);
+        }
       }
       next();
     });
     
-    // Добавляем обработку ошибок для webhook
-    this.app.use(config.telegram.webhookPath, async (req, res, next) => {
+    // Правильная настройка webhook обработчика
+    this.app.use(config.telegram.webhookPath, (req, res, next) => {
       try {
-        await bot.webhookCallback(config.telegram.webhookPath)(req, res, next);
+        // Используем правильный метод для обработки webhook
+        const handler = bot.webhookCallback(config.telegram.webhookPath);
+        return handler(req, res, (err) => {
+          if (err) {
+            console.error(`❌ Webhook обработка ошибка:`, err);
+            // Всегда отвечаем 200, чтобы Telegram не переотправлял
+            if (!res.headersSent) {
+              res.status(200).json({ ok: true });
+            }
+          } else {
+            // Обработка успешна
+            if (!res.headersSent) {
+              res.status(200).json({ ok: true });
+            }
+          }
+        });
       } catch (error) {
-        console.error(`❌ Webhook ошибка:`, error);
+        console.error(`❌ Webhook синхронная ошибка:`, error);
         // Отправляем статус 200, чтобы Telegram не переотправлял update
         if (!res.headersSent) {
           res.status(200).json({ ok: true });
