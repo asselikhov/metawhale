@@ -134,8 +134,20 @@ class Server {
       next();
     });
     
-    this.app.use(bot.webhookCallback(config.telegram.webhookPath));
-    console.log(`🔗 Webhook configured at ${config.telegram.webhookPath}`);
+    // Добавляем обработку ошибок для webhook
+    this.app.use(config.telegram.webhookPath, async (req, res, next) => {
+      try {
+        await bot.webhookCallback(config.telegram.webhookPath)(req, res, next);
+      } catch (error) {
+        console.error(`❌ Webhook ошибка:`, error);
+        // Отправляем статус 200, чтобы Telegram не переотправлял update
+        if (!res.headersSent) {
+          res.status(200).json({ ok: true });
+        }
+      }
+    });
+    
+    console.log(`🔗 Webhook настроен на ${config.telegram.webhookPath}`);
   }
 
   // Start server

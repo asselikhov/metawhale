@@ -67,9 +67,16 @@ class Application {
       performanceMonitor.startPeriodicLogging(60); // Log every hour
       performanceMonitor.setThreshold(500); // 500ms threshold for slow callbacks
       
-      // 4. Setup bot webhook
+      // 4. Setup bot webhook (with fallback)
       Utils.log('info', 'Setting up bot webhook...');
-      await bot.setWebhook();
+      try {
+        await bot.setWebhook();
+        console.log('✅ Webhook успешно установлен');
+      } catch (error) {
+        console.warn('⚠️ Webhook setup failed, but continuing application startup...');
+        console.log('⚠️ Приложение продолжит работу, webhook будет переподключен автоматически');
+        // Не прерываем инициализацию
+      }
       
       // 5. Setup server with webhook
       Utils.log('info', 'Starting Express server...');

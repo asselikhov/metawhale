@@ -13,11 +13,18 @@ class TelegramBot {
       throw new Error('TELEGRAM_BOT_TOKEN is not defined in environment variables');
     }
     
-    // Create Telegraf instance with proper webhook domain
+    // Create Telegraf instance with proper webhook domain and increased timeouts
     this.bot = new Telegraf(config.telegram.botToken, {
       telegram: {
-        webhookReply: true
-      }
+        webhookReply: false, // Отключаем webhook reply для стабильности
+        // Увеличиваем таймауты для надежности
+        timeout: 60000, // 60 секунд
+        retryAfter: 2000, // 2 секунды между повторами
+        // Обработка сетевых ошибок
+        agent: null // Используем стандартный agent
+      },
+      // Обработка ошибок на уровне бота
+      handlerTimeout: 90000 // 90 секунд для обработчиков
     });
     this.setupHandlers();
   }
@@ -29,18 +36,91 @@ class TelegramBot {
   async setWebhook() {
     // Проверяем, что webhookUrl определен
     if (!config.telegram.webhookUrl || config.telegram.webhookUrl === 'undefined') {
-      throw new Error('WEBHOOK_URL is not defined in environment variables');
+      console.log('⚠️ WEBHOOK_URL не определен - продолжаем без webhook');
+      return; // Не выбрасываем ошибку
     }
     
     // The webhook URL should NOT include the bot token for Telegraf
     // Telegraf automatically handles the token
     const webhookUrl = `${config.telegram.webhookUrl}${config.telegram.webhookPath}`;
+    
+    // Retry логика для установки webhook
+    const maxRetries = 3; // Уменьшаем количество попыток для быстрого старта
+    let lastError;
+    
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        console.log(`🔗 Попытка установки webhook (${attempt}/${maxRetries}): ${webhookUrl}`);
+        
+        // Увеличиваем таймаут для каждой попытки
+        const timeout = 15000 + (attempt * 5000); // 15s, 20s, 25s
+        
+        await Promise.race([
+          this.bot.telegram.setWebhook(webhookUrl),
+          new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Webhook setup timeout')), timeout)
+          )
+        ]);
+        
+        console.log(`✅ Webhook успешно установлен: ${webhookUrl}`);
+        return; // Успешная установка - выходим
+        
+      } catch (error) {
+        lastError = error;
+        const errorType = error.code || error.name || 'Unknown';
+        console.log(`⚠️ Webhook попытка ${attempt} неудачна (${errorType}): ${error.message}`);
+        
+        if (attempt < maxRetries) {
+          const delay = 2000 * attempt; // 2s, 4s
+          console.log(`⏳ Повторяем через ${delay/1000} секунд...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+      }
+    }
+    
+    // Если все попытки неудачны, планируем повторную попытку
+    console.warn(`❌ Не удалось установить webhook за ${maxRetries} попыток. Последняя ошибка:`, lastError.message);
+    console.log(`⚠️ Продолжаем без webhook - повторим попытку в фоновом режиме`);
+    
+    // Планируем повторную попытку через 2 минуты
+    this.scheduleWebhookRetry(2);
+    
+    // Не выбрасываем ошибку, чтобы приложение могло продолжить работу
+  }
+
+  // Планировать повторную попытку установки webhook
+  scheduleWebhookRetry(minutesDelay) {
+    console.log(`📅 Планируем повторную попытку webhook через ${minutesDelay} минут`);
+    
+    setTimeout(async () => {
+      console.log(`🔄 Повторная попытка установки webhook...`);
+      try {
+        await this.setWebhook();
+        console.log(`✅ Webhook успешно установлен при повторной попытке`);
+      } catch (error) {
+        console.error(`❌ Повторная попытка webhook неудачна:`, error.message);
+        // Планируем следующую попытку через удвоенное время
+        const nextDelay = Math.min(minutesDelay * 2, 60); // Максимум 60 минут
+        if (nextDelay <= 60) {
+          this.scheduleWebhookRetry(nextDelay);
+        } else {
+          console.log(`⚠️ Переключаемся на polling режим из-за постоянных проблем с webhook`);
+          this.fallbackToPolling();
+        }
+      }
+    }, minutesDelay * 60 * 1000);
+  }
+
+  // Резервный запуск в polling режиме
+  async fallbackToPolling() {
     try {
-      await this.bot.telegram.setWebhook(webhookUrl);
-      console.log(`✅ Webhook set to: ${webhookUrl}`);
+      console.log(`🔄 Запуск в polling режиме как резервный вариант...`);
+      // Удаляем webhook перед запуском polling
+      await this.bot.telegram.deleteWebhook();
+      await this.bot.launch({ dropPendingUpdates: true });
+      console.log(`✅ Бот успешно запущен в polling режиме`);
     } catch (error) {
-      console.error('❌ Failed to set webhook:', error);
-      throw error;
+      console.error(`❌ Ошибка запуска polling режима:`, error);
     }
   }
 
