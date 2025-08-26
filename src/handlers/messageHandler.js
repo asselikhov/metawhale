@@ -387,8 +387,35 @@ class MessageHandler {
         if (orderType === 'buy') {
           order = await p2pService.createBuyOrder(chatId, amount, pricePerToken, minAmount, maxAmount);
         } else {
-          // Get payment methods for sell order
-          const paymentMethods = user.p2pProfile?.paymentMethods?.filter(pm => pm.isActive) || [];
+          // Get payment methods for sell order and convert to enum values
+          const userPaymentMethods = user.p2pProfile?.paymentMethods?.filter(pm => pm.isActive) || [];
+          
+          // Map bank codes to payment method enum values
+          const paymentMethodMapping = {
+            'sberbank': 'bank_transfer',
+            'vtb': 'bank_transfer', 
+            'gazprombank': 'bank_transfer',
+            'alfabank': 'bank_transfer',
+            'rshb': 'bank_transfer',
+            'mkb': 'bank_transfer',
+            'sovcombank': 'bank_transfer',
+            'tbank': 'bank_transfer',
+            'domrf': 'bank_transfer',
+            'otkritie': 'bank_transfer',
+            'raiffeisenbank': 'bank_transfer',
+            'rosbank': 'bank_transfer'
+          };
+          
+          // Convert user payment methods to enum values
+          const paymentMethods = userPaymentMethods.map(pm => 
+            paymentMethodMapping[pm.bank] || 'bank_transfer'
+          );
+          
+          // Ensure at least one payment method
+          if (paymentMethods.length === 0) {
+            paymentMethods.push('bank_transfer');
+          }
+          
           order = await p2pService.createSellOrder(chatId, amount, pricePerToken, paymentMethods, minAmount, maxAmount);
         }
         
@@ -503,8 +530,35 @@ class MessageHandler {
         if (orderType === 'buy') {
           order = await p2pService.createBuyOrder(chatId, amount, pricePerToken, minAmount, maxAmount);
         } else {
-          // Get payment methods for sell order
-          const paymentMethods = user.p2pProfile?.paymentMethods?.filter(pm => pm.isActive) || [];
+          // Get payment methods for sell order and convert to enum values
+          const userPaymentMethods = user.p2pProfile?.paymentMethods?.filter(pm => pm.isActive) || [];
+          
+          // Map bank codes to payment method enum values
+          const paymentMethodMapping = {
+            'sberbank': 'bank_transfer',
+            'vtb': 'bank_transfer', 
+            'gazprombank': 'bank_transfer',
+            'alfabank': 'bank_transfer',
+            'rshb': 'bank_transfer',
+            'mkb': 'bank_transfer',
+            'sovcombank': 'bank_transfer',
+            'tbank': 'bank_transfer',
+            'domrf': 'bank_transfer',
+            'otkritie': 'bank_transfer',
+            'raiffeisenbank': 'bank_transfer',
+            'rosbank': 'bank_transfer'
+          };
+          
+          // Convert user payment methods to enum values
+          const paymentMethods = userPaymentMethods.map(pm => 
+            paymentMethodMapping[pm.bank] || 'bank_transfer'
+          );
+          
+          // Ensure at least one payment method
+          if (paymentMethods.length === 0) {
+            paymentMethods.push('bank_transfer');
+          }
+          
           order = await p2pService.createSellOrder(chatId, amount, pricePerToken, paymentMethods, minAmount, maxAmount);
         }
         

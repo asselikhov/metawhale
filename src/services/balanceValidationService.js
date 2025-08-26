@@ -33,6 +33,37 @@ class BalanceValidationService {
         console.log(`🔍 [BALANCE-VALIDATION] Checking user ${user.chatId} (${user.walletAddress})`);
       }
 
+      // Check for balance protection flags - bypass validation if admin allocation is active
+      if (user.balanceProtectionEnabled || user.adminAllocationAmount > 0 || user.adminProtected || user.skipBalanceSync || user.manualBalance) {
+        if (logDetails) {
+          console.log(`🔒 [BALANCE-VALIDATION] Balance protection enabled for user ${user.chatId}`);
+          console.log(`    Admin allocation: ${user.adminAllocationAmount || 0} CES`);
+          console.log(`    Protection flags: { balanceProtectionEnabled: ${user.balanceProtectionEnabled}, adminProtected: ${user.adminProtected}, skipBalanceSync: ${user.skipBalanceSync}, manualBalance: ${user.manualBalance} }`);
+          console.log(`    Reason: ${user.adminAllocationReason || 'N/A'}`);
+          console.log(`    Skipping automatic balance sync`);
+        }
+        
+        return {
+          userId: userId,
+          chatId: user.chatId,
+          walletAddress: user.walletAddress,
+          issues: [],
+          fixes: [],
+          balances: {
+            before: {
+              cesDB: user.cesBalance || 0,
+              cesEscrowDB: user.escrowCESBalance || 0,
+              polDB: user.polBalance || 0,
+              polEscrowDB: user.escrowPOLBalance || 0
+            },
+            blockchain: { protected: true },
+            after: {}
+          },
+          protected: true,
+          protectionReason: user.adminAllocationReason || 'Balance protection enabled'
+        };
+      }
+
       const results = {
         userId: userId,
         chatId: user.chatId,

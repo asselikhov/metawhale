@@ -1,6 +1,6 @@
 /**
  * Return Stuck Escrow Funds
- * Return 1 CES stuck in escrow for wallet 0x1A1432d6D4eFe75651f2c39DC1Ec6a5D936f401d
+ * Return 2 CES stuck in escrow for wallet 0x1A1432d6D4eFe75651f2c39DC1Ec6a5D936f401d
  */
 
 require('dotenv').config();
@@ -11,7 +11,7 @@ const walletService = require('../src/services/walletService');
 
 const TARGET_WALLET = '0x1A1432d6D4eFe75651f2c39DC1Ec6a5D936f401d';
 const USER_CHAT_ID = '942851377';
-const STUCK_AMOUNT = 1.0; // 1 CES
+const STUCK_AMOUNT = 2.0; // 2 CES
 
 async function returnStuckEscrow() {
   try {

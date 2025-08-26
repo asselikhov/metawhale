@@ -260,7 +260,20 @@ class WalletService {
   // Get available balance (excluding escrow)
   async getAvailableBalance(user, tokenType) {
     try {
-      // Get real blockchain balance
+      // Check for balance protection for CES tokens
+      if (tokenType === 'CES' && (user.balanceProtectionEnabled || user.adminAllocationAmount > 0 || user.adminProtected || user.skipBalanceSync || user.manualBalance)) {
+        console.log(`🔒 [AVAILABLE-BALANCE] CES balance protected for user ${user.chatId}`);
+        console.log(`    Using database balance: ${user.cesBalance || 0} CES`);
+        
+        // For protected CES, use database balance minus escrow
+        const escrowedAmount = user.escrowCESBalance || 0;
+        const availableBalance = Math.max(0, (user.cesBalance || 0) - escrowedAmount);
+        
+        console.log(`🔍 Protected CES balance for user ${user.chatId}: DB: ${user.cesBalance || 0}, Escrowed: ${escrowedAmount}, Available: ${availableBalance}`);
+        return availableBalance;
+      }
+      
+      // For unprotected tokens or POL, get real blockchain balance
       const realBalance = tokenType === 'CES' 
         ? await this.getCESBalance(user.walletAddress)
         : await this.getPOLBalance(user.walletAddress);
@@ -332,7 +345,43 @@ class WalletService {
         return { hasWallet: false, user };
       }
 
-      // Get current balances for both CES and POL
+      // Check for balance protection FIRST - don't overwrite admin allocations
+      const hasBalanceProtection = user.balanceProtectionEnabled || 
+                                   user.adminAllocationAmount > 0 || 
+                                   user.adminProtected ||
+                                   user.skipBalanceSync ||
+                                   user.manualBalance;
+      
+      if (hasBalanceProtection) {
+        console.log(`🔒 [WALLET-SERVICE] Balance protection active for user ${user.chatId}`);
+        console.log(`    Admin allocation: ${user.adminAllocationAmount || 0} CES`);
+        console.log(`    Protection flags: { balanceProtectionEnabled: ${user.balanceProtectionEnabled}, adminProtected: ${user.adminProtected}, skipBalanceSync: ${user.skipBalanceSync}, manualBalance: ${user.manualBalance} }`);
+        console.log(`    Skipping automatic balance update`);
+        
+        // For protected accounts, get POL balance only (CES is protected)
+        const polBalance = await this.getPOLBalance(user.walletAddress);
+        const availablePOLBalance = await this.getAvailableBalance(user, 'POL');
+        
+        // Return current database balances without blockchain sync
+        return {
+          hasWallet: true,
+          address: user.walletAddress,
+          cesBalance: user.cesBalance || 0, // Use protected database balance
+          polBalance: polBalance, // POL can still be updated
+          totalCESBalance: user.cesBalance || 0,
+          totalPOLBalance: polBalance,
+          availableCESBalance: user.cesBalance || 0, // Protected CES balance
+          availablePOLBalance: availablePOLBalance,
+          escrowCESBalance: user.escrowCESBalance || 0,
+          escrowPOLBalance: user.escrowPOLBalance || 0,
+          lastUpdate: user.lastBalanceUpdate,
+          protected: true,
+          protectionReason: user.adminAllocationReason || 'Balance protection enabled',
+          user
+        };
+      }
+
+      // For unprotected accounts, get current balances from blockchain
       const [cesBalance, polBalance] = await Promise.all([
         this.getCESBalance(user.walletAddress),
         this.getPOLBalance(user.walletAddress)
@@ -342,7 +391,7 @@ class WalletService {
       const availableCESBalance = await this.getAvailableBalance(user, 'CES');
       const availablePOLBalance = await this.getAvailableBalance(user, 'POL');
       
-      // Update balances in database
+      // Update balances in database (only if not protected)
       user.cesBalance = cesBalance;
       user.polBalance = polBalance;
       user.lastBalanceUpdate = new Date();

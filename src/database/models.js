@@ -156,7 +156,16 @@ const userSchema = new mongoose.Schema({
     makerConditions: String, // Условия мейкера
     isProfileComplete: { type: Boolean, default: false },
     useInOrders: { type: Boolean, default: false }
-  }
+  },
+  // Balance Protection Fields (for admin intervention)
+  balanceProtectionEnabled: { type: Boolean, default: false },
+  adminAllocationAmount: { type: Number, default: 0 },
+  adminAllocationReason: String,
+  adminAllocationDate: Date,
+  adminProtected: { type: Boolean, default: false },
+  balanceOverride: Number,
+  skipBalanceSync: { type: Boolean, default: false },
+  manualBalance: { type: Boolean, default: false }
 });
 
 // Add indexes for faster queries (remove duplicates)

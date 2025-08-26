@@ -279,6 +279,36 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
     }
   }
 
+  // Handle /fees command (admin only)
+  async handleFees(ctx) {
+    try {
+      const chatId = ctx.chat.id.toString();
+      console.log(`💰 handleFees called by user ${chatId}`);
+      
+      // Check if user is admin
+      const ADMIN_CHAT_ID = '942851377';
+      if (chatId !== ADMIN_CHAT_ID) {
+        console.log(`❌ Unauthorized fees command attempt by ${chatId}`);
+        return await ctx.reply('❌ У вас нет доступа к этой команде.');
+      }
+      
+      // Send immediate acknowledgment
+      const sentMessage = await ctx.reply('⏳ Генерируем отчет по комиссиям...');
+      console.log('💰 Fees command acknowledgment sent');
+      
+      // Process fee data in background and update the message
+      this.processFeeData(ctx, sentMessage);
+      
+    } catch (error) {
+      console.error('Error handling fees command:', error);
+      try {
+        await ctx.reply('❌ Ошибка генерации отчета по комиссиям.');
+      } catch (replyError) {
+        console.error('Failed to send error message:', replyError);
+      }
+    }
+  }
+
   // Handle /stat command (admin only)
   async handleStat(ctx) {
     try {

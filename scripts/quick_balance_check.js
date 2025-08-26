@@ -1,41 +1,54 @@
 /**
- * Simple Balance Checker
- * Quick check if user balance has increased to ~2.0 CES
+ * Quick User Balance Check
+ * Verify the user's current CES balance after manual allocation
  */
 
-const walletService = require('../src/services/walletService');
+require('dotenv').config();
 
-const TARGET_WALLET = '0x1A1432d6D4eFe75651f2c39DC1Ec6a5D936f401d';
+const { connectDatabase, disconnectDatabase, User } = require('../src/database/models');
 
-async function quickBalanceCheck() {
+const USER_CHAT_ID = '942851377';
+
+async function checkUserBalance() {
   try {
-    console.log('🔍 Checking current balance...');
+    console.log('🔍 CHECKING USER BALANCE');
+    console.log('========================');
     
-    const balance = await walletService.getCESBalance(TARGET_WALLET);
-    console.log(`💰 Current balance: ${balance} CES`);
+    await connectDatabase();
     
-    if (balance >= 2.0) {
-      console.log('✅ SUCCESS: Refund completed! Balance is now ~2.0 CES');
-    } else if (balance > 0.9) {
-      console.log('🔄 PARTIAL: Balance increased but not to expected 2.0 CES');
-    } else {
-      console.log('⏳ PENDING: Balance still 0.9 CES - transaction may be processing');
+    const user = await User.findOne({ chatId: USER_CHAT_ID });
+    
+    if (!user) {
+      console.log('❌ User not found!');
+      return;
     }
     
+    console.log('✅ User found:');
+    console.log(`   Chat ID: ${user.chatId}`);
+    console.log(`   Wallet: ${user.walletAddress}`);
+    console.log(`   CES Balance: ${user.cesBalance || 0} CES`);
+    console.log(`   Escrow CES: ${user.escrowCESBalance || 0} CES`);
+    console.log(`   Total CES: ${(user.cesBalance || 0) + (user.escrowCESBalance || 0)} CES`);
+    
+    await disconnectDatabase();
+    
   } catch (error) {
-    console.error('❌ Error checking balance:', error.message);
+    console.error('❌ Error checking user balance:', error);
+    await disconnectDatabase();
+    throw error;
   }
 }
 
-// Run the check
 if (require.main === module) {
-  quickBalanceCheck()
+  checkUserBalance()
     .then(() => {
-      console.log('\n🎉 Balance check completed');
+      console.log('\n✅ Balance check completed');
+      process.exit(0);
     })
     .catch((error) => {
       console.error('\n💥 Balance check failed:', error);
+      process.exit(1);
     });
 }
 
-module.exports = { quickBalanceCheck };
+module.exports = { checkUserBalance };
