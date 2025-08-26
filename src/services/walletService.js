@@ -416,6 +416,140 @@ class WalletService {
     }
   }
 
+  // Calculate estimated CES transfer fee in POL
+  async calculateCESTransferFee(fromAddress, toAddress, amount) {
+    try {
+      const { decimals } = await rpcService.getTokenBalance(
+        config.wallet.cesContractAddress,
+        fromAddress
+      );
+      const transferAmount = utils.parseUnits(amount.toString(), decimals);
+      
+      // Prepare transaction data
+      const erc20Interface = new ethers.utils.Interface([
+        "function transfer(address to, uint256 amount) returns (bool)"
+      ]);
+      const txData = erc20Interface.encodeFunctionData('transfer', [toAddress, transferAmount]);
+      
+      // Get current gas prices
+      const feeData = await rpcService.getFeeData();
+      
+      // Estimate gas for the transfer
+      const gasEstimate = await rpcService.estimateGas({
+        to: config.wallet.cesContractAddress,
+        data: txData,
+        from: fromAddress
+      });
+      
+      // Calculate gas with buffer
+      const gasEstimateBigInt = BigInt(gasEstimate.toString());
+      const gasLimit = gasEstimateBigInt * 115n / 100n; // 15% buffer
+      
+      // Calculate gas prices with minimums
+      const minGasPrice = utils.parseUnits('28', 'gwei');
+      const maxGasPrice = utils.parseUnits('150', 'gwei');
+      
+      let maxFeePerGas, maxPriorityFeePerGas;
+      
+      if (feeData.maxFeePerGas && feeData.maxPriorityFeePerGas) {
+        maxFeePerGas = feeData.maxFeePerGas.mul(140).div(100);
+        maxPriorityFeePerGas = feeData.maxPriorityFeePerGas.mul(140).div(100);
+        
+        if (maxFeePerGas.lt(minGasPrice)) maxFeePerGas = minGasPrice;
+        if (maxPriorityFeePerGas.lt(minGasPrice)) maxPriorityFeePerGas = minGasPrice;
+        
+        if (maxFeePerGas.gt(maxGasPrice)) maxFeePerGas = maxGasPrice;
+        if (maxPriorityFeePerGas.gt(maxGasPrice)) maxPriorityFeePerGas = maxGasPrice;
+      } else {
+        maxFeePerGas = utils.parseUnits('45', 'gwei');
+        maxPriorityFeePerGas = utils.parseUnits('28', 'gwei');
+      }
+      
+      // Calculate total fee: gasLimit * maxFeePerGas
+      const totalFeeWei = ethers.BigNumber.from(gasLimit.toString()).mul(maxFeePerGas);
+      const totalFeePOL = parseFloat(utils.formatEther(totalFeeWei));
+      
+      return {
+        estimatedFee: totalFeePOL,
+        gasLimit: gasLimit.toString(),
+        maxFeePerGas: utils.formatUnits(maxFeePerGas, 'gwei'),
+        maxPriorityFeePerGas: utils.formatUnits(maxPriorityFeePerGas, 'gwei')
+      };
+      
+    } catch (error) {
+      console.error('Error calculating CES transfer fee:', error);
+      // Return conservative estimate
+      return {
+        estimatedFee: 0.0015, // 0.0015 POL conservative estimate for token transfers
+        gasLimit: '65000',
+        maxFeePerGas: '45',
+        maxPriorityFeePerGas: '28'
+      };
+    }
+  }
+
+  // Calculate estimated POL transfer fee
+  async calculatePOLTransferFee(fromAddress, toAddress, amount) {
+    try {
+      const transferAmount = utils.parseEther(amount.toString());
+      
+      // Get current gas prices
+      const feeData = await rpcService.getFeeData();
+      
+      // Estimate gas for the transfer
+      const gasEstimate = await rpcService.estimateGas({
+        to: toAddress,
+        value: transferAmount,
+        from: fromAddress
+      });
+      
+      // Calculate gas with minimal buffer
+      const gasEstimateBigInt = BigInt(gasEstimate.toString());
+      const gasLimit = (gasEstimateBigInt * 110n) / 100n; // 10% buffer
+      
+      // Calculate gas prices with minimums
+      const minGasPrice = utils.parseUnits('25', 'gwei'); // Slightly lower minimum for estimation
+      const maxGasPrice = utils.parseUnits('200', 'gwei');
+      
+      let maxFeePerGas, maxPriorityFeePerGas;
+      
+      if (feeData.maxFeePerGas && feeData.maxPriorityFeePerGas) {
+        maxFeePerGas = feeData.maxFeePerGas.mul(130).div(100); // 130% buffer for estimation
+        maxPriorityFeePerGas = feeData.maxPriorityFeePerGas.mul(130).div(100);
+        
+        if (maxFeePerGas.lt(minGasPrice)) maxFeePerGas = minGasPrice;
+        if (maxPriorityFeePerGas.lt(minGasPrice)) maxPriorityFeePerGas = minGasPrice;
+        
+        if (maxFeePerGas.gt(maxGasPrice)) maxFeePerGas = maxGasPrice;
+        if (maxPriorityFeePerGas.gt(maxGasPrice)) maxPriorityFeePerGas = maxGasPrice;
+      } else {
+        maxFeePerGas = utils.parseUnits('40', 'gwei'); // Lower fallback
+        maxPriorityFeePerGas = utils.parseUnits('25', 'gwei');
+      }
+      
+      // Calculate total fee: gasLimit * maxFeePerGas
+      const totalFeeWei = ethers.BigNumber.from(gasLimit.toString()).mul(maxFeePerGas);
+      const totalFeePOL = parseFloat(utils.formatEther(totalFeeWei));
+      
+      return {
+        estimatedFee: totalFeePOL,
+        gasLimit: gasLimit.toString(),
+        maxFeePerGas: utils.formatUnits(maxFeePerGas, 'gwei'),
+        maxPriorityFeePerGas: utils.formatUnits(maxPriorityFeePerGas, 'gwei')
+      };
+      
+    } catch (error) {
+      console.error('Error calculating POL transfer fee:', error);
+      // Return conservative estimate
+      return {
+        estimatedFee: 0.001, // 0.001 POL conservative estimate
+        gasLimit: '21000',
+        maxFeePerGas: '30',
+        maxPriorityFeePerGas: '25'
+      };
+    }
+  }
+
   // Send POL tokens (native currency) to another user
   async sendPOLTokens(fromChatId, toAddress, amount) {
     try {
@@ -485,7 +619,7 @@ class WalletService {
         // Get current gas prices
         const feeData = await rpcService.getFeeData();
         
-        // Estimate gas and set appropriate gas limit
+        // Estimate gas and set appropriate gas limit with minimal buffer
         const gasEstimate = await rpcService.estimateGas({
           to: toAddress,
           value: transferAmount,
@@ -494,7 +628,7 @@ class WalletService {
         
         // Fix BigInt operations by converting to BigInt first
         const gasEstimateBigInt = BigInt(gasEstimate.toString());
-        const gasLimit = (gasEstimateBigInt * 120n) / 100n; // Add 20% buffer
+        const gasLimit = (gasEstimateBigInt * 110n) / 100n; // Add only 10% buffer for simple transfers
         
         // Set gas prices with proper values for Polygon network
         // Ensure minimum values to avoid "gas price below minimum" errors
@@ -517,8 +651,8 @@ class WalletService {
           if (maxPriorityFeePerGas.gt(maxGasPrice)) maxPriorityFeePerGas = maxGasPrice;
         } else {
           // Fallback to safe defaults for Polygon
-          maxFeePerGas = utils.parseUnits('50', 'gwei');
-          maxPriorityFeePerGas = utils.parseUnits('30', 'gwei');
+          maxFeePerGas = utils.parseUnits('40', 'gwei'); // Lower fallback for POL
+          maxPriorityFeePerGas = utils.parseUnits('28', 'gwei'); // Optimized minimum
         }
         
         console.log(`🔥 POL Gas prices: maxFeePerGas=${utils.formatUnits(maxFeePerGas, 'gwei')} Gwei, maxPriorityFeePerGas=${utils.formatUnits(maxPriorityFeePerGas, 'gwei')} Gwei`);
@@ -651,7 +785,7 @@ class WalletService {
         
         // Fix BigInt operations by converting to BigInt first
         const gasEstimateBigInt = BigInt(gasEstimate.toString());
-        const gasLimit = gasEstimateBigInt * 120n / 100n; // Add 20% buffer
+        const gasLimit = gasEstimateBigInt * 115n / 100n; // Add 15% buffer for token transfers
         
         // Set gas prices with proper values for Polygon network
         // Ensure minimum values to avoid "gas price below minimum" errors
@@ -674,8 +808,8 @@ class WalletService {
           if (maxPriorityFeePerGas.gt(maxGasPrice)) maxPriorityFeePerGas = maxGasPrice;
         } else {
           // Fallback to safe defaults for Polygon
-          maxFeePerGas = utils.parseUnits('50', 'gwei');
-          maxPriorityFeePerGas = utils.parseUnits('30', 'gwei');
+          maxFeePerGas = utils.parseUnits('45', 'gwei'); // Lower fallback
+          maxPriorityFeePerGas = utils.parseUnits('28', 'gwei'); // Optimized minimum
         }
         
         console.log(`🔥 CES Gas prices: maxFeePerGas=${utils.formatUnits(maxFeePerGas, 'gwei')} Gwei, maxPriorityFeePerGas=${utils.formatUnits(maxPriorityFeePerGas, 'gwei')} Gwei`);

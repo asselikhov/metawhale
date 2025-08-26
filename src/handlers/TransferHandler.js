@@ -222,24 +222,77 @@ class TransferHandler {
         return await ctx.reply(`❌ Минимальная сумма перевода: 0.001 ${tokenType}`);
       }
       
-      // Show confirmation
+      // Show confirmation with fee estimation for POL transfers
       const recipient = await walletService.findUserByAddress(toAddress);
       const recipientInfo = recipient ? 
         `👤 Пользователь: @${recipient.username || recipient.firstName || 'Неизвестный'}` :
         '👤 Внешний кошелек';
       
-      const message = `🔒 Подтверждение перевода
+      let message = `🔒 Подтверждение перевода
 ` +
-                     `➖➖➖➖➖➖➖➖➖➖➖
+                   `➖➖➖➖➖➖➖➖➖➖➖
 ` +
-                     `Сумма: ${amount} ${tokenType}
+                   `Сумма: ${amount} ${tokenType}
 ` +
-                     `Кому: ${toAddress}
+                   `Кому: ${toAddress}
 ` +
-                     `${recipientInfo}
+                   `${recipientInfo}
 
-` +
-                     '⚠️ Перевод нельзя отменить!';
+`;
+      
+      // Add fee estimation for POL transfers
+      if (tokenType === 'POL') {
+        try {
+          const { User } = require('../database/models');
+          const user = await User.findOne({ chatId });
+          if (user && user.walletAddress) {
+            const feeEstimate = await walletService.calculatePOLTransferFee(
+              user.walletAddress, 
+              toAddress, 
+              amount
+            );
+            message += `💰 Сумма к переводу: ${amount} POL
+`;
+            message += `⛽ Примерная комиссия: ~${feeEstimate.estimatedFee.toFixed(6)} POL
+`;
+            message += `📊 Итого спишется: ~${(amount + feeEstimate.estimatedFee).toFixed(6)} POL
+
+`;
+          }
+        } catch (feeError) {
+          console.log('Fee estimation error:', feeError.message);
+          message += `⛽ Примерная комиссия: ~0.001 POL
+
+`;
+        }
+      }
+      
+      // Add fee estimation for CES transfers (paid in POL)
+      if (tokenType === 'CES') {
+        try {
+          const { User } = require('../database/models');
+          const user = await User.findOne({ chatId });
+          if (user && user.walletAddress) {
+            const feeEstimate = await walletService.calculateCESTransferFee(
+              user.walletAddress, 
+              toAddress, 
+              amount
+            );
+            message += `💰 Сумма к переводу: ${amount} CES
+`;
+            message += `⛽ Комиссия в POL: ~${feeEstimate.estimatedFee.toFixed(6)} POL
+
+`;
+          }
+        } catch (feeError) {
+          console.log('CES fee estimation error:', feeError.message);
+          message += `⛽ Комиссия в POL: ~0.0015 POL
+
+`;
+        }
+      }
+      
+      message += '⚠️ Перевод нельзя отменить!';
       
       // Store transfer data in session to avoid callback data length limits
       sessionManager.setPendingTransfer(chatId, {
