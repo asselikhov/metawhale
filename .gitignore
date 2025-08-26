@@ -10,6 +10,9 @@ yarn-error.log*
 .pnp.js
 jspm_packages/
 
+# NPM lock file (using Yarn instead)
+package-lock.json
+
 # ========================================
 # Environment Variables & Secrets
 # ========================================

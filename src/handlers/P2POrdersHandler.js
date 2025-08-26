@@ -17,8 +17,11 @@ class P2POrdersHandler {
       const result = await p2pService.getMarketOrders(limit, offset);
       const chatId = ctx.chat.id.toString();
       
+      // Filter out orders with null userId
+      const validSellOrders = result.sellOrders.filter(order => order.userId !== null);
+      
       // Buy orders section shows sell orders from database (users wanting to buy CES)
-      if (result.sellOrders.length === 0) {
+      if (validSellOrders.length === 0) {
         const message = `⚠️ Активных ордеров на покупку пока нет\n\n` +
                        `💡 Создайте первый ордер на покупку!`;
         
@@ -42,8 +45,8 @@ class P2POrdersHandler {
       const orderMessageIds = [];
       
       // Display sell orders from database (users wanting to buy CES from market perspective)
-      for (let i = 0; i < result.sellOrders.length; i++) {
-        const order = result.sellOrders[i];
+      for (let i = 0; i < validSellOrders.length; i++) {
+        const order = validSellOrders[i];
         // Проверяем, что userId существует перед доступом к username
         const username = order.userId ? (order.userId.username || order.userId.firstName || 'Пользователь') : 'Пользователь';
         
@@ -64,12 +67,12 @@ class P2POrdersHandler {
                            `Лимиты: ${minRubles} - ${maxRubles} ₽`;
         
         // Check if this is the last order on page to add navigation
-        const isLastOrder = i === result.sellOrders.length - 1;
+        const isLastOrder = i === validSellOrders.length - 1;
         let orderKeyboard;
         
         if (isLastOrder) {
           // Create navigation buttons for the last order
-          const navigationButtons = [[Markup.button.callback('🟩 Купить', `buy_details_${order.userId._id}_${order._id}`)]];
+          const navigationButtons = [[Markup.button.callback('🟩 Купить', order.userId && order.userId._id && order._id ? `buy_details_${order.userId._id}_${order._id}` : 'no_action')]];
           
           // Add pagination if there are multiple pages
           if (totalPages > 1) {
@@ -105,7 +108,7 @@ class P2POrdersHandler {
           orderKeyboard = Markup.inlineKeyboard(navigationButtons);
         } else {
           orderKeyboard = Markup.inlineKeyboard([
-            [Markup.button.callback('🟩 Купить', `buy_details_${order.userId._id}_${order._id}`)]
+            [Markup.button.callback('🟩 Купить', order.userId && order.userId._id && order._id ? `buy_details_${order.userId._id}_${order._id}` : 'no_action')]
           ]);
         }
         
@@ -158,8 +161,11 @@ class P2POrdersHandler {
       const result = await p2pService.getMarketOrders(limit, offset);
       const chatId = ctx.chat.id.toString();
       
+      // Filter out orders with null userId
+      const validBuyOrders = result.buyOrders.filter(order => order.userId !== null);
+      
       // Sell orders section shows buy orders from database (users wanting to sell CES)
-      if (result.buyOrders.length === 0) {
+      if (validBuyOrders.length === 0) {
         const message = `⚠️ Активных ордеров на продажу пока нет\n\n` +
                        `💡 Создайте первый ордер на продажу!`;
         
@@ -183,8 +189,8 @@ class P2POrdersHandler {
       const orderMessageIds = [];
       
       // Display buy orders from database (users wanting to sell CES from market perspective)
-      for (let i = 0; i < result.buyOrders.length; i++) {
-        const order = result.buyOrders[i];
+      for (let i = 0; i < validBuyOrders.length; i++) {
+        const order = validBuyOrders[i];
         // Проверяем, что userId существует перед доступом к username
         const username = order.userId ? (order.userId.username || order.userId.firstName || 'Пользователь') : 'Пользователь';
         
@@ -205,12 +211,12 @@ class P2POrdersHandler {
                            `Лимиты: ${minRubles} - ${maxRubles} ₽`;
         
         // Check if this is the last order on page to add navigation
-        const isLastOrder = i === result.buyOrders.length - 1;
+        const isLastOrder = i === validBuyOrders.length - 1;
         let orderKeyboard;
         
         if (isLastOrder) {
           // Create navigation buttons for the last order
-          const navigationButtons = [[Markup.button.callback('🟥 Продать', `sell_details_${order.userId._id}_${order._id}`)]];
+          const navigationButtons = [[Markup.button.callback('🟥 Продать', order.userId && order.userId._id && order._id ? `sell_details_${order.userId._id}_${order._id}` : 'no_action')]];
           
           // Add pagination if there are multiple pages
           if (totalPages > 1) {
@@ -246,7 +252,7 @@ class P2POrdersHandler {
           orderKeyboard = Markup.inlineKeyboard(navigationButtons);
         } else {
           orderKeyboard = Markup.inlineKeyboard([
-            [Markup.button.callback('🟥 Продать', `sell_details_${order.userId._id}_${order._id}`)]
+            [Markup.button.callback('🟥 Продать', order.userId && order.userId._id && order._id ? `sell_details_${order.userId._id}_${order._id}` : 'no_action')]
           ]);
         }
         
