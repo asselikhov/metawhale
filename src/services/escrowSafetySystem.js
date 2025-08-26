@@ -87,9 +87,20 @@ class EscrowSafetySystem {
           
           if (!statusCheck.canRefund) {
             if (statusCheck.alreadyRefunded) {
-              console.log(`✅ [SAFETY] Escrow already refunded in smart contract`);
+              console.log(`🔄 [SAFETY] Escrow already refunded in smart contract`);
               // Обновляем базу данных для синхронизации
               return await this.syncDatabaseAfterRefund(escrowTx, trade.sellerId._id, reason);
+            } else if (statusCheck.requiresManualIntervention) {
+              console.log(`⏰ [SAFETY] Timelock issue detected: ${statusCheck.reason}`);
+              // Create a specific timelock intervention record
+              await this.createTimelockInterventionRecord(escrowTx, trade, statusCheck.reason, statusCheck.timeRemaining);
+              return {
+                success: false,
+                error: statusCheck.reason,
+                requiresManualIntervention: true,
+                interventionType: 'timelock',
+                timeRemaining: statusCheck.timeRemaining
+              };
             } else {
               throw new Error(`Escrow cannot be refunded: ${statusCheck.reason}`);
             }
@@ -160,6 +171,21 @@ class EscrowSafetySystem {
       }
       
       if (escrowDetails.status === 0) {
+        // Check if timelock has expired
+        const currentTime = Math.floor(Date.now() / 1000);
+        const timelockExpired = currentTime > parseInt(escrowDetails.timelock);
+        
+        if (!timelockExpired) {
+          const timeRemaining = parseInt(escrowDetails.timelock) - currentTime;
+          return { 
+            canRefund: false, 
+            alreadyRefunded: false, 
+            reason: `Timelock not expired (${Math.ceil(timeRemaining / 60)} minutes remaining)`,
+            requiresManualIntervention: true,
+            timeRemaining: timeRemaining
+          };
+        }
+        
         return { canRefund: true, alreadyRefunded: false, reason: 'Active and can be refunded' };
       }
       
@@ -208,6 +234,34 @@ class EscrowSafetySystem {
       
     } catch (error) {
       console.error(`❌ [SAFETY] Database sync failed:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Создание записи для вмешательства по таймлоку
+   */
+  async createTimelockInterventionRecord(escrowTx, trade, reason, timeRemaining) {
+    try {
+      const interventionRecord = new EscrowTransaction({
+        userId: trade.sellerId._id,
+        tradeId: trade._id,
+        type: 'timeout_intervention_required',
+        tokenType: 'CES',
+        amount: trade.amount,
+        status: 'pending',
+        smartContractEscrowId: escrowTx.smartContractEscrowId,
+        reason: `Timelock intervention: ${reason}. Time remaining: ${Math.ceil(timeRemaining / 60)} minutes`,
+        createdAt: new Date()
+      });
+      
+      await interventionRecord.save();
+      
+      console.log(`⏰ [SAFETY] Timelock intervention record created: ${interventionRecord._id}`);
+      return interventionRecord;
+      
+    } catch (error) {
+      console.error(`❌ [SAFETY] Failed to create timelock intervention record:`, error);
       throw error;
     }
   }

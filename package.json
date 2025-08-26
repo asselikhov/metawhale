@@ -28,7 +28,10 @@
     "balance:detailed": "node scripts/detailed_balance_check.js",
     "escrow:release": "node scripts/check_escrow_release.js",
     "maintenance": "npm run health-check && npm run balance:check",
-    "emergency:escrow": "npm run admin:refund"
+    "emergency:escrow": "npm run admin:refund",
+    "emergency:override": "node scripts/admin_escrow_override.js",
+    "emergency:fix": "node scripts/emergency_escrow_fix.js",
+    "test:cancellation": "node scripts/test_trade_cancellation.js"
   },
   "keywords": [
     "telegram",

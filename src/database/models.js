@@ -300,7 +300,7 @@ priceHistorySchema.index({ timestamp: -1 });
 const escrowTransactionSchema = new mongoose.Schema({
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   tradeId: { type: mongoose.Schema.Types.ObjectId, ref: 'P2PTrade' },
-  type: { type: String, enum: ['lock', 'release', 'refund'], required: true },
+  type: { type: String, enum: ['lock', 'release', 'refund', 'manual_intervention_required', 'timeout_intervention_required'], required: true },
   tokenType: { type: String, enum: ['CES', 'POL'], required: true },
   amount: { type: Number, required: true },
   status: { type: String, enum: ['pending', 'completed', 'failed'], default: 'pending' },
