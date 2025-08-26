@@ -1320,7 +1320,8 @@ class MessageHandler {
       ]);
       
       // Отправляем сообщение мейкеру (покупателю)
-      const bot = require('../bot/telegramBot');
+      const botInstance = require('../bot/telegramBot');
+      const bot = botInstance.getInstance();
       try {
         await bot.telegram.sendMessage(buyer.chatId, buyerMessage, {
           reply_markup: buyerKeyboard.reply_markup,

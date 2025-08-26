@@ -109,7 +109,8 @@ async function cancelStuckTrades() {
         // Уведомляем покупателя (если возможно)
         if (trade.buyerId && trade.buyerId.chatId) {
           try {
-            const bot = require('../src/bot/telegramBot');
+            const botInstance = require('../src/bot/telegramBot');
+            const bot = botInstance.getInstance();
             const notificationMessage = `❌ СДЕЛКА ОТМЕНЕНА\n\n` +
                                        `Сделка ${trade._id.toString().slice(-8)} была отменена администрацией.\n` +
                                        `Количество: ${trade.amount} CES\n` +

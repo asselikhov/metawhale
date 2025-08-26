@@ -1582,7 +1582,8 @@ class P2PService {
       
       // Notify buyer about completion
       try {
-        const bot = require('../bot/telegramBot');
+        const botInstance = require('../bot/telegramBot');
+        const bot = botInstance.getInstance();
         const buyerMessage = `✅ СДЕЛКА ЗАВЕРШЕНА!\n` +
                              `⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️\n\n` +
                              `Продавец подтвердил получение платежа.\n` +
