@@ -387,15 +387,26 @@ class EscrowService {
       let smartContractEscrowId = null;
       let refundResult = null;
       
-      if (tradeId && tokenType === 'CES' && this.useSmartContract && this.escrowContractAddress) {
+      if (tokenType === 'CES' && this.useSmartContract && this.escrowContractAddress) {
         // Look for the lock transaction with smart contract escrow ID
-        const lockTx = await EscrowTransaction.findOne({
+        // For order cancellations (tradeId is null), look for transactions without tradeId
+        // For trade cancellations (tradeId is not null), look for transactions with tradeId
+        const lockTxQuery = {
           userId: userId,
-          tradeId: tradeId,
           type: 'lock',
           tokenType: 'CES',
           smartContractEscrowId: { $exists: true, $ne: null }
-        });
+        };
+        
+        // Add tradeId condition if it exists
+        if (tradeId) {
+          lockTxQuery.tradeId = tradeId;
+        } else {
+          // For order cancellations, look for transactions without tradeId
+          lockTxQuery.tradeId = null;
+        }
+        
+        const lockTx = await EscrowTransaction.findOne(lockTxQuery);
         
         if (lockTx) {
           smartContractEscrowId = lockTx.smartContractEscrowId;
