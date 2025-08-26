@@ -48,15 +48,13 @@ class OptimizedCallbackHandler {
         if (walletData.hasWallet) {
           let cesBalanceText = `Баланс CES: ${walletData.cesBalance.toFixed(4)}`;
           if (walletData.escrowCESBalance > 0) {
-            const available = (walletData.cesBalance - walletData.escrowCESBalance).toFixed(4);
-            cesBalanceText += ` (доступно: ${available}, в эскроу: ${walletData.escrowCESBalance.toFixed(4)})`;
+            cesBalanceText += ` (в эскроу: ${walletData.escrowCESBalance.toFixed(4)})`;
           }
           cesBalanceText += ` • $ ${walletData.cesTotalUsd} • ₽ ${walletData.cesTotalRub}\n`;
           
           let polBalanceText = `Баланс POL: ${walletData.polBalance.toFixed(4)}`;
           if (walletData.escrowPOLBalance > 0) {
-            const available = (walletData.polBalance - walletData.escrowPOLBalance).toFixed(4);
-            polBalanceText += ` (доступно: ${available}, в эскроу: ${walletData.escrowPOLBalance.toFixed(4)})`;
+            polBalanceText += ` (в эскроу: ${walletData.escrowPOLBalance.toFixed(4)})`;
           }
           polBalanceText += ` • $ ${walletData.polTotalUsd} • ₽ ${walletData.polTotalRub}\n`;
           

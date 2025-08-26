@@ -402,8 +402,21 @@ class EscrowService {
           console.log(`🔐 Found smart contract escrow ID: ${smartContractEscrowId}`);
           
           try {
-            // Refund tokens from smart contract escrow
+            // First check if the escrow can be refunded
             const smartContractService = require('./smartContractService');
+            const refundCheck = await smartContractService.canRefundEscrow(smartContractEscrowId);
+            
+            if (!refundCheck.canRefund) {
+              if (refundCheck.error) {
+                throw new Error(`Cannot check escrow status: ${refundCheck.error}`);
+              } else {
+                throw new Error(`Escrow cannot be refunded. Status: ${refundCheck.statusText}`);
+              }
+            }
+            
+            console.log(`🔍 Smart contract escrow ${smartContractEscrowId} status: ${refundCheck.statusText}, can refund: ${refundCheck.canRefund}`);
+            
+            // Proceed with refund
             const walletService = require('./walletService');
             const userPrivateKey = await walletService.getUserPrivateKey(user.chatId);
             
@@ -415,8 +428,11 @@ class EscrowService {
             console.log(`✅ Successfully refunded ${amount} ${tokenType} from smart contract escrow`);
           } catch (smartContractError) {
             console.error('❌ Smart contract refund failed:', smartContractError);
-            // Continue with database-only refund but log the error for manual intervention
             console.error(`⚠️ MANUAL INTERVENTION REQUIRED: Failed to refund ${amount} CES from smart contract escrow ${smartContractEscrowId}`);
+            
+            // For smart contract escrow, we must not update database if blockchain refund fails
+            // This prevents balance discrepancies
+            throw new Error(`Smart contract refund failed: ${smartContractError.message}. Manual intervention required for escrow ID ${smartContractEscrowId}`);
           }
         }
       }

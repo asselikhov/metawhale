@@ -63,15 +63,13 @@ class WalletHandler {
         // Format as requested with escrow information
         let cesBalanceText = `Баланс CES: ${walletInfo.cesBalance.toFixed(4)}`;
         if (walletInfo.escrowCESBalance > 0) {
-          const available = (walletInfo.cesBalance - walletInfo.escrowCESBalance).toFixed(4);
-          cesBalanceText += ` (доступно: ${available}, в эскроу: ${walletInfo.escrowCESBalance.toFixed(4)})`;
+          cesBalanceText += ` (в эскроу: ${walletInfo.escrowCESBalance.toFixed(4)})`;
         }
         cesBalanceText += ` • $ ${cesTotalUsd} • ₽ ${cesTotalRub}\n`;
         
         let polBalanceText = `Баланс POL: ${walletInfo.polBalance.toFixed(4)}`;
         if (walletInfo.escrowPOLBalance > 0) {
-          const available = (walletInfo.polBalance - walletInfo.escrowPOLBalance).toFixed(4);
-          polBalanceText += ` (доступно: ${available}, в эскроу: ${walletInfo.escrowPOLBalance.toFixed(4)})`;
+          polBalanceText += ` (в эскроу: ${walletInfo.escrowPOLBalance.toFixed(4)})`;
         }
         polBalanceText += ` • $ ${polTotalUsd} • ₽ ${polTotalRub}\n`;
         

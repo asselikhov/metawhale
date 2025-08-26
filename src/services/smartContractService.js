@@ -204,6 +204,43 @@ class SmartContractService {
     }
   }
 
+  // Check if escrow can be refunded
+  async canRefundEscrow(escrowId) {
+    try {
+      const details = await this.getEscrowDetails(escrowId);
+      
+      // Status 0 = Active, can be refunded
+      // Status 1 = Released, cannot be refunded  
+      // Status 2 = Already refunded
+      // Status 3 = Disputed
+      
+      return {
+        canRefund: details.status === 0,
+        status: details.status,
+        statusText: this.getEscrowStatusText(details.status),
+        details: details
+      };
+      
+    } catch (error) {
+      console.error('Error checking escrow refund status:', error);
+      return {
+        canRefund: false,
+        error: error.message
+      };
+    }
+  }
+
+  // Get human-readable status text
+  getEscrowStatusText(status) {
+    const statusMap = {
+      0: 'Active',
+      1: 'Released', 
+      2: 'Refunded',
+      3: 'Disputed'
+    };
+    return statusMap[status] || 'Unknown';
+  }
+
   // Initiate dispute for smart contract escrow
   async initiateEscrowDispute(escrowId, disputerPrivateKey) {
     try {

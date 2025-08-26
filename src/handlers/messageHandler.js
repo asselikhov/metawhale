@@ -1639,6 +1639,20 @@ class MessageHandler {
       const result = await p2pService.cancelTradeByUser(tradeId, chatId);
       
       if (!result.success) {
+        if (result.requiresManualIntervention) {
+          // Special handling for smart contract failures
+          const supportMessage = result.escrowId 
+            ? `Ошибка смарт-контракта (ID: ${result.escrowId}). Обратитесь в поддержку для ручного возврата средств.`
+            : `Ошибка смарт-контракта. Обратитесь в поддержку для ручного возврата средств.`;
+          
+          const errorKeyboard = Markup.inlineKeyboard([
+            [Markup.button.callback('📞 Обратиться в поддержку', 'contact_support')],
+            [Markup.button.callback('🔙 К P2P меню', 'p2p_menu')]
+          ]);
+          
+          return await ctx.reply(`❌ ${supportMessage}`, errorKeyboard);
+        }
+        
         return await ctx.reply(`❌ Ошибка отмены: ${result.error}`);
       }
       

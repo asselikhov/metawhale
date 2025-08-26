@@ -1668,13 +1668,32 @@ class P2PService {
       }
       
       // Refund tokens from escrow to seller
-      await escrowService.refundTokensFromEscrow(
-        trade.sellerId._id,
-        tradeId,
-        'CES',
-        trade.amount,
-        'Отменено пользователем'
-      );
+      try {
+        await escrowService.refundTokensFromEscrow(
+          trade.sellerId._id,
+          tradeId,
+          'CES',
+          trade.amount,
+          'Отменено пользователем'
+        );
+      } catch (refundError) {
+        console.error('❌ Escrow refund failed during trade cancellation:', refundError);
+        
+        // If smart contract refund fails, we need to handle this properly
+        if (refundError.message.includes('Smart contract refund failed')) {
+          // For smart contract escrow failures, we should not complete the cancellation
+          // The trade remains in its current state until manual intervention
+          return { 
+            success: false, 
+            error: 'Не удалось отменить сделку: ошибка смарт-контракта. Обратитесь в поддержку.',
+            requiresManualIntervention: true,
+            escrowId: refundError.message.match(/escrow ID (\d+)/)?.[1]
+          };
+        }
+        
+        // For other escrow errors, still fail the cancellation
+        return { success: false, error: `Ошибка возврата средств: ${refundError.message}` };
+      }
       
       // Update trade status
       trade.status = 'cancelled';
@@ -1738,13 +1757,30 @@ class P2PService {
       }
       
       // Refund tokens from escrow to seller
-      await escrowService.refundTokensFromEscrow(
-        trade.sellerId._id,
-        tradeId,
-        'CES',
-        trade.amount,
-        'Время оплаты истекло'
-      );
+      try {
+        await escrowService.refundTokensFromEscrow(
+          trade.sellerId._id,
+          tradeId,
+          'CES',
+          trade.amount,
+          'Время оплаты истекло'
+        );
+      } catch (refundError) {
+        console.error('❌ Escrow refund failed during timeout cancellation:', refundError);
+        
+        // If smart contract refund fails during timeout, log for manual intervention
+        // but don't fail the timeout process - the trade should still be marked as cancelled
+        if (refundError.message.includes('Smart contract refund failed')) {
+          console.error(`⚠️ MANUAL INTERVENTION REQUIRED: Timeout cancellation failed for trade ${tradeId} due to smart contract refund failure`);
+          console.error(`Escrow details: ${refundError.message}`);
+          
+          // TODO: Add this to a manual intervention queue or notification system
+          // For now, continue with the cancellation process in database
+        } else {
+          // For other escrow errors, re-throw to prevent inconsistent state
+          throw refundError;
+        }
+      }
       
       // Update trade status
       trade.status = 'cancelled';
