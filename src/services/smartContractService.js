@@ -12,7 +12,17 @@ const utils = ethers.utils || ethers;
 
 class SmartContractService {
   constructor() {
-    this.provider = new providers.JsonRpcProvider(config.wallet.polygonRpcUrl);
+    // Список резервных RPC провайдеров
+    this.rpcUrls = [
+      config.wallet.polygonRpcUrl,
+      'https://rpc.ankr.com/polygon',
+      'https://polygon.rpc.thirdweb.com',
+      'https://polygon-mainnet.g.alchemy.com/v2/demo',
+      'https://polygon-rpc.com'
+    ];
+    
+    this.currentProviderIndex = 0;
+    this.provider = new providers.JsonRpcProvider(this.rpcUrls[0]);
     this.escrowContractAddress = process.env.ESCROW_CONTRACT_ADDRESS;
     
     // Enhanced escrow contract ABI
@@ -32,9 +42,50 @@ class SmartContractService {
     ];
   }
 
+  // Метод для переключения на следующий RPC провайдер
+  async switchToNextProvider() {
+    this.currentProviderIndex = (this.currentProviderIndex + 1) % this.rpcUrls.length;
+    const newUrl = this.rpcUrls[this.currentProviderIndex];
+    this.provider = new providers.JsonRpcProvider(newUrl);
+    console.log(`🔄 Switched to RPC provider: ${newUrl}`);
+    return this.provider;
+  }
+
+  // Метод для выполнения операций с повтором при ошибках
+  async executeWithRetry(operation, maxRetries = 3) {
+    let lastError;
+    
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        return await operation();
+      } catch (error) {
+        lastError = error;
+        console.log(`⚠️ Attempt ${attempt + 1} failed: ${error.message}`);
+        
+        // Проверяем, является ли ошибка лимитом запросов
+        if (error.message.includes('Too many requests') || error.message.includes('rate limit') || 
+            error.message.includes('gas price below minimum')) {
+          if (attempt < maxRetries - 1) {
+            await this.switchToNextProvider();
+            await new Promise(resolve => setTimeout(resolve, 2000)); // Ожидание 2 секунды
+            continue;
+          }
+        }
+        
+        // Если ошибка не связана с RPC лимитами, пробрасываем сразу
+        if (!error.message.includes('Too many requests') && !error.message.includes('rate limit') &&
+            !error.message.includes('gas price below minimum')) {
+          throw error;
+        }
+      }
+    }
+    
+    throw lastError;
+  }
+
   // Create smart contract escrow
   async createSmartEscrow(sellerPrivateKey, buyerAddress, amount, timelockMinutes = 30) {
-    try {
+    return await this.executeWithRetry(async () => {
       console.log(`🔐 Creating smart contract escrow: ${amount} CES, timelock: ${timelockMinutes} minutes`);
 
       if (!this.escrowContractAddress) {
@@ -76,6 +127,18 @@ class SmartContractService {
       console.log(`   Current maxFeePerGas: ${ethers.utils.formatUnits(feeData.maxFeePerGas, 'gwei')} Gwei`);
       console.log(`   Current maxPriorityFeePerGas: ${ethers.utils.formatUnits(feeData.maxPriorityFeePerGas, 'gwei')} Gwei`);
 
+      // Ensure minimum gas price (25 Gwei priority fee, 30 Gwei max fee)
+      const minPriorityFee = ethers.utils.parseUnits('25', 'gwei');
+      const minMaxFee = ethers.utils.parseUnits('30', 'gwei');
+      
+      const priorityFee = feeData.maxPriorityFeePerGas.gte(minPriorityFee) 
+        ? feeData.maxPriorityFeePerGas.mul(150).div(100) // 50% выше если достаточно
+        : minPriorityFee;
+      
+      const maxFee = feeData.maxFeePerGas.gte(minMaxFee)
+        ? feeData.maxFeePerGas.mul(150).div(100) // 50% выше если достаточно
+        : minMaxFee;
+
       // Create escrow transaction with enhanced gas settings for faster confirmation
       const tx = await escrowContract.createEscrow(
         wallet.address,
@@ -84,8 +147,8 @@ class SmartContractService {
         timelockSeconds,
         {
           gasLimit: 500000, // Standard gas limit
-          maxFeePerGas: feeData.maxFeePerGas.mul(300).div(100), // 200% higher max fee for faster processing
-          maxPriorityFeePerGas: feeData.maxPriorityFeePerGas.mul(300).div(100) // 200% higher priority fee
+          maxFeePerGas: maxFee,
+          maxPriorityFeePerGas: priorityFee
         }
       );
 
@@ -126,11 +189,7 @@ class SmartContractService {
         timelock: timelockSeconds,
         expiresAt: new Date(Date.now() + timelockMinutes * 60 * 1000)
       };
-
-    } catch (error) {
-      console.error('Error creating smart contract escrow:', error);
-      throw new Error(`Smart contract escrow failed: ${error.message}`);
-    }
+    });
   }
 
   // Release smart contract escrow
@@ -146,10 +205,22 @@ class SmartContractService {
       console.log(`   Current maxFeePerGas: ${ethers.utils.formatUnits(feeData.maxFeePerGas, 'gwei')} Gwei`);
       console.log(`   Current maxPriorityFeePerGas: ${ethers.utils.formatUnits(feeData.maxPriorityFeePerGas, 'gwei')} Gwei`);
 
+      // Ensure minimum gas price (25 Gwei priority fee, 30 Gwei max fee)
+      const minPriorityFee = ethers.utils.parseUnits('25', 'gwei');
+      const minMaxFee = ethers.utils.parseUnits('30', 'gwei');
+      
+      const priorityFee = feeData.maxPriorityFeePerGas.gte(minPriorityFee) 
+        ? feeData.maxPriorityFeePerGas.mul(150).div(100)
+        : minPriorityFee;
+      
+      const maxFee = feeData.maxFeePerGas.gte(minMaxFee)
+        ? feeData.maxFeePerGas.mul(150).div(100)
+        : minMaxFee;
+
       const tx = await escrowContract.releaseEscrow(escrowId, {
         gasLimit: 500000, // Standard gas limit
-        maxFeePerGas: feeData.maxFeePerGas.mul(300).div(100), // 200% higher max fee for faster processing
-        maxPriorityFeePerGas: feeData.maxPriorityFeePerGas.mul(300).div(100) // 200% higher priority fee
+        maxFeePerGas: maxFee,
+        maxPriorityFeePerGas: priorityFee
       });
 
       console.log(`⏳ Escrow release transaction sent: ${tx.hash}`);
@@ -189,10 +260,22 @@ class SmartContractService {
       console.log(`   Current maxFeePerGas: ${ethers.utils.formatUnits(feeData.maxFeePerGas, 'gwei')} Gwei`);
       console.log(`   Current maxPriorityFeePerGas: ${ethers.utils.formatUnits(feeData.maxPriorityFeePerGas, 'gwei')} Gwei`);
       
+      // Ensure minimum gas price (25 Gwei priority fee, 30 Gwei max fee)
+      const minPriorityFee = ethers.utils.parseUnits('25', 'gwei');
+      const minMaxFee = ethers.utils.parseUnits('30', 'gwei');
+      
+      const priorityFee = feeData.maxPriorityFeePerGas.gte(minPriorityFee) 
+        ? feeData.maxPriorityFeePerGas.mul(150).div(100)
+        : minPriorityFee;
+      
+      const maxFee = feeData.maxFeePerGas.gte(minMaxFee)
+        ? feeData.maxFeePerGas.mul(150).div(100)
+        : minMaxFee;
+      
       const tx = await escrowContract.refundEscrow(escrowId, {
         gasLimit: 500000, // Standard gas limit
-        maxFeePerGas: feeData.maxFeePerGas.mul(300).div(100), // 200% higher max fee for faster processing
-        maxPriorityFeePerGas: feeData.maxPriorityFeePerGas.mul(300).div(100) // 200% higher priority fee
+        maxFeePerGas: maxFee,
+        maxPriorityFeePerGas: priorityFee
       });
 
       console.log(`⏳ Escrow refund transaction sent: ${tx.hash}`);
