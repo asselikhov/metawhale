@@ -71,27 +71,33 @@ class SmartContractService {
       // Convert timelock to seconds
       const timelockSeconds = timelockMinutes * 60;
 
-      // Get current gas fees and adjust them with higher premium to prevent transaction replacement
+      // Get current gas fees and adjust them with higher premium for faster confirmation
       const feeData = await this.provider.getFeeData();
       console.log(`   Current maxFeePerGas: ${ethers.utils.formatUnits(feeData.maxFeePerGas, 'gwei')} Gwei`);
       console.log(`   Current maxPriorityFeePerGas: ${ethers.utils.formatUnits(feeData.maxPriorityFeePerGas, 'gwei')} Gwei`);
 
-      // Create escrow transaction with improved gas settings
+      // Create escrow transaction with enhanced gas settings for faster confirmation
       const tx = await escrowContract.createEscrow(
         wallet.address,
         buyerAddress,
         amountWei,
         timelockSeconds,
         {
-          gasLimit: 500000, // Increased gas limit for better reliability
-          maxFeePerGas: feeData.maxFeePerGas.mul(200).div(100), // 100% higher max fee to ensure transaction is processed
-          maxPriorityFeePerGas: feeData.maxPriorityFeePerGas.mul(200).div(100) // 100% higher priority fee
+          gasLimit: 500000, // Standard gas limit
+          maxFeePerGas: feeData.maxFeePerGas.mul(300).div(100), // 200% higher max fee for faster processing
+          maxPriorityFeePerGas: feeData.maxPriorityFeePerGas.mul(300).div(100) // 200% higher priority fee
         }
       );
 
       console.log(`⏳ Smart escrow transaction sent: ${tx.hash}`);
       
-      const receipt = await tx.wait();
+      // Wait for confirmation with shorter timeout and better error handling
+      const receipt = await Promise.race([
+        tx.wait(),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Transaction confirmation timeout')), 120000)
+        )
+      ]);
       
       // Parse escrow creation event to get escrow ID
       const escrowCreatedEvent = receipt.logs.find(log => {
@@ -135,20 +141,26 @@ class SmartContractService {
       const wallet = new ethers.Wallet(releaserPrivateKey, this.provider);
       const escrowContract = new ethers.Contract(this.escrowContractAddress, this.escrowABI, wallet);
 
-      // Get current gas fees and adjust them with higher premium
+      // Get current gas fees and adjust them with higher premium for faster confirmation
       const feeData = await this.provider.getFeeData();
       console.log(`   Current maxFeePerGas: ${ethers.utils.formatUnits(feeData.maxFeePerGas, 'gwei')} Gwei`);
       console.log(`   Current maxPriorityFeePerGas: ${ethers.utils.formatUnits(feeData.maxPriorityFeePerGas, 'gwei')} Gwei`);
 
       const tx = await escrowContract.releaseEscrow(escrowId, {
-        gasLimit: 500000, // Increased gas limit for better reliability
-        maxFeePerGas: feeData.maxFeePerGas.mul(200).div(100), // 100% higher max fee to ensure transaction is processed
-        maxPriorityFeePerGas: feeData.maxPriorityFeePerGas.mul(200).div(100) // 100% higher priority fee
+        gasLimit: 500000, // Standard gas limit
+        maxFeePerGas: feeData.maxFeePerGas.mul(300).div(100), // 200% higher max fee for faster processing
+        maxPriorityFeePerGas: feeData.maxPriorityFeePerGas.mul(300).div(100) // 200% higher priority fee
       });
 
       console.log(`⏳ Escrow release transaction sent: ${tx.hash}`);
       
-      const receipt = await tx.wait();
+      // Wait for confirmation with shorter timeout and better error handling
+      const receipt = await Promise.race([
+        tx.wait(),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Transaction confirmation timeout')), 120000)
+        )
+      ]);
 
       console.log(`✅ Smart contract escrow released: ${escrowId}`);
 
@@ -172,20 +184,26 @@ class SmartContractService {
       const wallet = new ethers.Wallet(refunderPrivateKey, this.provider);
       const escrowContract = new ethers.Contract(this.escrowContractAddress, this.escrowABI, wallet);
 
-      // Get current gas fees and adjust them with higher premium
+      // Get current gas fees and adjust them with higher premium for faster confirmation
       const feeData = await this.provider.getFeeData();
       console.log(`   Current maxFeePerGas: ${ethers.utils.formatUnits(feeData.maxFeePerGas, 'gwei')} Gwei`);
       console.log(`   Current maxPriorityFeePerGas: ${ethers.utils.formatUnits(feeData.maxPriorityFeePerGas, 'gwei')} Gwei`);
       
       const tx = await escrowContract.refundEscrow(escrowId, {
-        gasLimit: 500000, // Increased gas limit for better reliability
-        maxFeePerGas: feeData.maxFeePerGas.mul(200).div(100), // 100% higher max fee to ensure transaction is processed
-        maxPriorityFeePerGas: feeData.maxPriorityFeePerGas.mul(200).div(100) // 100% higher priority fee
+        gasLimit: 500000, // Standard gas limit
+        maxFeePerGas: feeData.maxFeePerGas.mul(300).div(100), // 200% higher max fee for faster processing
+        maxPriorityFeePerGas: feeData.maxPriorityFeePerGas.mul(300).div(100) // 200% higher priority fee
       });
 
       console.log(`⏳ Escrow refund transaction sent: ${tx.hash}`);
       
-      const receipt = await tx.wait();
+      // Wait for confirmation with shorter timeout and better error handling
+      const receipt = await Promise.race([
+        tx.wait(),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Transaction confirmation timeout')), 120000)
+        )
+      ]);
 
       console.log(`✅ Smart contract escrow refunded: ${escrowId}`);
 
@@ -267,20 +285,26 @@ class SmartContractService {
       const wallet = new ethers.Wallet(disputerPrivateKey, this.provider);
       const escrowContract = new ethers.Contract(this.escrowContractAddress, this.escrowABI, wallet);
 
-      // Get current gas fees and adjust them with higher premium
+      // Get current gas fees and adjust them with higher premium for faster confirmation
       const feeData = await this.provider.getFeeData();
       console.log(`   Current maxFeePerGas: ${ethers.utils.formatUnits(feeData.maxFeePerGas, 'gwei')} Gwei`);
       console.log(`   Current maxPriorityFeePerGas: ${ethers.utils.formatUnits(feeData.maxPriorityFeePerGas, 'gwei')} Gwei`);
 
       const tx = await escrowContract.initiateDispute(escrowId, {
-        gasLimit: 500000, // Increased gas limit for better reliability
-        maxFeePerGas: feeData.maxFeePerGas.mul(200).div(100), // 100% higher max fee to ensure transaction is processed
-        maxPriorityFeePerGas: feeData.maxPriorityFeePerGas.mul(200).div(100) // 100% higher priority fee
+        gasLimit: 500000, // Standard gas limit
+        maxFeePerGas: feeData.maxFeePerGas.mul(300).div(100), // 200% higher max fee for faster processing
+        maxPriorityFeePerGas: feeData.maxPriorityFeePerGas.mul(300).div(100) // 200% higher priority fee
       });
 
       console.log(`⏳ Dispute initiation transaction sent: ${tx.hash}`);
       
-      await tx.wait();
+      // Wait for confirmation with shorter timeout
+      await Promise.race([
+        tx.wait(),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Transaction confirmation timeout')), 120000)
+        )
+      ]);
 
       console.log(`✅ Dispute initiated for escrow: ${escrowId}`);
 
@@ -303,20 +327,26 @@ class SmartContractService {
       const wallet = new ethers.Wallet(moderatorPrivateKey, this.provider);
       const escrowContract = new ethers.Contract(this.escrowContractAddress, this.escrowABI, wallet);
 
-      // Get current gas fees and adjust them with higher premium
+      // Get current gas fees and adjust them with higher premium for faster confirmation
       const feeData = await this.provider.getFeeData();
       console.log(`   Current maxFeePerGas: ${ethers.utils.formatUnits(feeData.maxFeePerGas, 'gwei')} Gwei`);
       console.log(`   Current maxPriorityFeePerGas: ${ethers.utils.formatUnits(feeData.maxPriorityFeePerGas, 'gwei')} Gwei`);
 
       const tx = await escrowContract.resolveDispute(escrowId, favorBuyer, {
-        gasLimit: 500000, // Increased gas limit for better reliability
-        maxFeePerGas: feeData.maxFeePerGas.mul(200).div(100), // 100% higher max fee to ensure transaction is processed
-        maxPriorityFeePerGas: feeData.maxPriorityFeePerGas.mul(200).div(100) // 100% higher priority fee
+        gasLimit: 500000, // Standard gas limit
+        maxFeePerGas: feeData.maxFeePerGas.mul(300).div(100), // 200% higher max fee for faster processing
+        maxPriorityFeePerGas: feeData.maxPriorityFeePerGas.mul(300).div(100) // 200% higher priority fee
       });
 
       console.log(`⏳ Dispute resolution transaction sent: ${tx.hash}`);
       
-      await tx.wait();
+      // Wait for confirmation with shorter timeout
+      await Promise.race([
+        tx.wait(),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Transaction confirmation timeout')), 120000)
+        )
+      ]);
 
       console.log(`✅ Dispute resolved for escrow: ${escrowId}`);
 

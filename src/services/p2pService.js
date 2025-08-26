@@ -83,12 +83,21 @@ class P2PService {
       const totalValue = amount * pricePerToken;
       console.log(`Общая стоимость ордера: ₽${totalValue.toFixed(2)}`);
       
+      // 🔧 FIX: Проверяем наличие средств для оплаты 1% комиссии при создании ордера на покупку
+      const commissionAmount = amount * this.commissionRate; // 1% комиссия в CES
+      const walletInfo = await walletService.getUserWallet(user.chatId);
+      const availableBalance = walletInfo.cesBalance;
+      
+      if (availableBalance < commissionAmount) {
+        throw new Error(`Недостаточно CES для оплаты комиссии 1%. Доступно: ${availableBalance.toFixed(4)} CES, требуется: ${commissionAmount.toFixed(4)} CES`);
+      }
+      
       // Проверяем доступность рублей у мейкера
       const rubleReserveService = require('./rubleReserveService');
-      const availableBalance = await rubleReserveService.getAvailableBalance(user._id.toString());
+      const availableRubleBalance = await rubleReserveService.getAvailableBalance(user._id.toString());
       
-      if (availableBalance < totalValue) {
-        throw new Error(`Недостаточно рублей. Доступно: ₽${availableBalance.toFixed(2)}, требуется: ₽${totalValue.toFixed(2)}`);
+      if (availableRubleBalance < totalValue) {
+        throw new Error(`Недостаточно рублей. Доступно: ₽${availableRubleBalance.toFixed(2)}, требуется: ₽${totalValue.toFixed(2)}`);
       }
       
       // Создаём новый ордер на покупку
@@ -116,6 +125,21 @@ class P2PService {
       );
       
       if (!reserveResult.success) {
+        // Если не удалось зарезервировать, удаляем ордер
+        await P2POrder.deleteOne({ _id: buyOrder._id });
+        throw new Error(`Ошибка резервирования средств: ${reserveResult.message}`);
+      }
+      
+      console.log(`Ордер на покупку создан: ${buyOrder._id}`);
+      console.log(`Зарезервировано ₽${totalValue} у мейкера ${user._id}`);
+      
+      return buyOrder;
+      
+    } catch (error) {
+      console.error('Ошибка создания ордера на покупку:', error);
+      throw error;
+    }
+  }
         // Если не удалось зарезервировать, удаляем ордер
         await P2POrder.deleteOne({ _id: buyOrder._id });
         throw new Error(`Ошибка резервирования средств: ${reserveResult.message}`);
@@ -187,10 +211,17 @@ class P2PService {
       
       // Проверяем доступный баланс CES у тейкера (исключая эскроу)
       const walletInfo = await walletService.getUserWallet(taker.chatId);
-      if (walletInfo.cesBalance < cesAmount) {
+      
+      // 🔧 FIX BUG: Reserve funds for 1% commission when takers sell their coins
+      // Takers need to have enough funds to cover both the sale amount and potential commission
+      // The commission will be determined later based on order creation times, but we need to 
+      // ensure they have funds in case they become the maker
+      const amountWithCommission = cesAmount * (1 + this.commissionRate);
+      
+      if (walletInfo.cesBalance < amountWithCommission) {
         return { 
           success: false, 
-          error: `Недостаточно доступных CES. Доступно: ${walletInfo.cesBalance.toFixed(4)} CES` 
+          error: `Недостаточно доступных CES с учетом возможной комиссии 1%. Доступно: ${walletInfo.cesBalance.toFixed(4)} CES, требуется: ${amountWithCommission.toFixed(4)} CES (включая возможную комиссию ${this.commissionRate * 100}%)` 
         };
       }
 
@@ -653,9 +684,14 @@ class P2PService {
       
       // Check available CES balance (excluding escrowed tokens)
       const walletInfo = await walletService.getUserWallet(user.chatId);
-      if (walletInfo.cesBalance < amount) {
-        console.log(`Insufficient available CES balance: ${walletInfo.cesBalance} < ${amount}`);
-        throw new Error(`Недостаточно доступных CES токенов. Доступно: ${walletInfo.cesBalance.toFixed(4)} CES`);
+      
+      // 🔧 FIX BUG: Reserve funds for 1% commission when creating sell orders
+      // Makers need to have enough funds to cover both the sale amount and the commission
+      const amountWithCommission = amount * (1 + this.commissionRate);
+      
+      if (walletInfo.cesBalance < amountWithCommission) {
+        console.log(`Insufficient available CES balance including commission: ${walletInfo.cesBalance} < ${amountWithCommission}`);
+        throw new Error(`Недостаточно CES токенов для создания ордера с учетом комиссии 1%. Доступно: ${walletInfo.cesBalance.toFixed(4)} CES, требуется: ${amountWithCommission.toFixed(4)} CES (включая комиссию ${this.commissionRate * 100}%)`);
       }
 
       // 🔧 ИСПРАВЛЕНИЕ: Проверяем на существование других активных sell ордеров
@@ -672,12 +708,15 @@ class P2PService {
         }
       });
       
-      // Проверяем, что у пользователя достаточно средств для нового эскроу
-      if (totalEscrowedAmount + amount > walletInfo.cesBalance + (user.escrowCESBalance || 0)) {
-        throw new Error(`Недостаточно CES для создания нового ордера. Общий баланс: ${(walletInfo.cesBalance + (user.escrowCESBalance || 0)).toFixed(4)} CES, требуется: ${(totalEscrowedAmount + amount).toFixed(4)} CES`);
+      // 🔧 FIX BUG: Проверяем, что у пользователя достаточно средств для нового эскроу с учетом комиссии
+      // Учитываем комиссию 1% при расчете необходимого баланса
+      const totalEscrowedWithCommission = totalEscrowedAmount + amountWithCommission;
+      
+      if (totalEscrowedWithCommission > walletInfo.cesBalance + (user.escrowCESBalance || 0)) {
+        throw new Error(`Недостаточно CES для создания нового ордера с учетом комиссии 1%. Общий баланс: ${(walletInfo.cesBalance + (user.escrowCESBalance || 0)).toFixed(4)} CES, требуется: ${totalEscrowedWithCommission.toFixed(4)} CES (включая комиссию ${this.commissionRate * 100}%)`);
       }
       
-      console.log(`✅ Escrow validation passed: Total will be ${(totalEscrowedAmount + amount).toFixed(4)} CES`);
+      console.log(`✅ Escrow validation passed: Total will be ${totalEscrowedWithCommission.toFixed(4)} CES (including commission)`);
       
       const totalValue = amount * pricePerToken;
       console.log(`Total order value: ₽${totalValue.toFixed(2)}`);
@@ -688,6 +727,7 @@ class P2PService {
       
       // Create new sell order
       console.log(`Creating new sell order`);
+      
       const sellOrder = new P2POrder({
         userId: user._id,
         type: 'sell',
