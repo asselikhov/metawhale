@@ -1,9 +1,11 @@
 const { Telegraf } = require('telegraf');
 const MessageHandler = require('../handlers/messageHandler');
+const OptimizedCallbackHandler = require('../handlers/OptimizedCallbackHandler');
 const config = require('../config/configuration');
 
-// Create an instance of MessageHandler
+// Create an instance of MessageHandler and OptimizedCallbackHandler
 const messageHandler = new MessageHandler();
+const optimizedHandler = new OptimizedCallbackHandler();
 
 class TelegramBot {
   constructor() {
@@ -86,36 +88,38 @@ class TelegramBot {
     // Callback handlers
     this.bot.action('personal_cabinet', (ctx) => {
       console.log('📥 Received personal_cabinet callback');
-      return messageHandler.handlePersonalCabinetText(ctx);
+      return optimizedHandler.handlePersonalCabinetOptimized(ctx);
     });
     
     this.bot.action('p2p_menu', (ctx) => {
       console.log('📥 Received p2p_menu callback');
-      return messageHandler.handleP2PMenu(ctx);
+      return optimizedHandler.handleP2PMenuOptimized(ctx);
     });
     
-    this.bot.action('get_price', (ctx) => {
+    this.bot.action('get_price', async (ctx) => {
       console.log('Received get_price callback');
+      await optimizedHandler.handleInstantCallback(ctx, '📊 Получаем цену...');
       return messageHandler.handlePrice(ctx);
     });
     
-    this.bot.action('create_wallet', (ctx) => {
+    this.bot.action('create_wallet', async (ctx) => {
       console.log('Received create_wallet callback');
       return messageHandler.handleCreateWallet(ctx);
     });
     
-    this.bot.action('edit_wallet', (ctx) => {
+    this.bot.action('edit_wallet', async (ctx) => {
       console.log('Received edit_wallet callback');
       return messageHandler.handleWalletEdit(ctx);
     });
     
-    this.bot.action('wallet_details', (ctx) => {
+    this.bot.action('wallet_details', async (ctx) => {
       console.log('Received wallet_details callback');
       return messageHandler.handleWalletDetails(ctx);
     });
     
-    this.bot.action('transfer_menu', (ctx) => {
+    this.bot.action('transfer_menu', async (ctx) => {
       console.log('Received transfer_menu callback');
+      await optimizedHandler.handleInstantCallback(ctx, '💸 Загружаем меню переводов...');
       return messageHandler.handleTransferMenu(ctx);
     });
     
@@ -450,31 +454,34 @@ class TelegramBot {
       return messageHandler.handleCancelTrade(ctx);
     });
     
-    this.bot.action('payment_completed', (ctx) => {
+    this.bot.action('payment_completed', async (ctx) => {
       console.log('Received payment_completed callback');
+      await optimizedHandler.handleInstantCallback(ctx, '✅ Обрабатываем...');
       return messageHandler.handlePaymentCompleted(ctx);
     });
     
-    this.bot.action('payment_received', (ctx) => {
+    this.bot.action('payment_received', async (ctx) => {
       console.log('Received payment_received callback');
+      await optimizedHandler.handleInstantCallback(ctx, '✅ Подтверждаем...');
       return messageHandler.handlePaymentReceived(ctx);
     });
     
-    this.bot.action('cancel_payment', (ctx) => {
+    this.bot.action('cancel_payment', async (ctx) => {
       console.log('Received cancel_payment callback');
+      await optimizedHandler.handleInstantCallback(ctx, '❌ Отменяем...');
       return messageHandler.handleCancelPayment(ctx);
     });
     
     // Handle real-time price refresh for buy orders
     this.bot.action('refresh_price_buy', (ctx) => {
       console.log('Received refresh_price_buy callback');
-      return messageHandler.handlePriceRefresh(ctx, 'buy');
+      return optimizedHandler.handlePriceRefreshOptimized(ctx, 'buy');
     });
     
     // Handle real-time price refresh for sell orders
     this.bot.action('refresh_price_sell', (ctx) => {
       console.log('Received refresh_price_sell callback');
-      return messageHandler.handlePriceRefresh(ctx, 'sell');
+      return optimizedHandler.handlePriceRefreshOptimized(ctx, 'sell');
     });
     
     // Error handling for the bot

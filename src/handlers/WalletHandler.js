@@ -60,9 +60,22 @@ class WalletHandler {
         const polTotalUsd = (walletInfo.polBalance * polTokenPrice).toFixed(2);
         const polTotalRub = (walletInfo.polBalance * polTokenPriceRub).toFixed(2);
       
-        // Format as requested
-        message += `Баланс CES: ${walletInfo.cesBalance.toFixed(4)} • $ ${cesTotalUsd} • ₽ ${cesTotalRub}\n`;
-        message += `Баланс POL: ${walletInfo.polBalance.toFixed(4)} • $ ${polTotalUsd} • ₽ ${polTotalRub}\n`;
+        // Format as requested with escrow information
+        let cesBalanceText = `Баланс CES: ${walletInfo.cesBalance.toFixed(4)}`;
+        if (walletInfo.escrowCESBalance > 0) {
+          const available = (walletInfo.cesBalance - walletInfo.escrowCESBalance).toFixed(4);
+          cesBalanceText += ` (доступно: ${available}, в эскроу: ${walletInfo.escrowCESBalance.toFixed(4)})`;
+        }
+        cesBalanceText += ` • $ ${cesTotalUsd} • ₽ ${cesTotalRub}\n`;
+        
+        let polBalanceText = `Баланс POL: ${walletInfo.polBalance.toFixed(4)}`;
+        if (walletInfo.escrowPOLBalance > 0) {
+          const available = (walletInfo.polBalance - walletInfo.escrowPOLBalance).toFixed(4);
+          polBalanceText += ` (доступно: ${available}, в эскроу: ${walletInfo.escrowPOLBalance.toFixed(4)})`;
+        }
+        polBalanceText += ` • $ ${polTotalUsd} • ₽ ${polTotalRub}\n`;
+        
+        message += cesBalanceText + polBalanceText;
       
         // Removed the refresh button as requested
         const keyboard = Markup.inlineKeyboard([
@@ -157,6 +170,9 @@ class WalletHandler {
   // Handle wallet creation
   async handleCreateWallet(ctx) {
     try {
+      // Immediate callback response
+      await ctx.answerCbQuery('🔨 Создаем кошелек...');
+      
       const chatId = ctx.chat.id.toString();
       const walletResult = await walletService.createUserWallet(chatId);
       
@@ -184,6 +200,9 @@ class WalletHandler {
   // Handle wallet editing menu
   async handleWalletEdit(ctx) {
     try {
+      // Immediate callback response
+      await ctx.answerCbQuery('⚙️ Загружаем меню...');
+      
       const message = '⚙️ **Редактирование кошелька**\n\n' +
                      'Выберите действие:';
       
@@ -205,6 +224,9 @@ class WalletHandler {
   // Handle wallet details view
   async handleWalletDetails(ctx) {
     try {
+      // Immediate callback response
+      await ctx.answerCbQuery('💳 Загружаем данные кошелька...');
+      
       const chatId = ctx.chat.id.toString();
       const walletInfo = await walletService.getUserWallet(chatId);
 

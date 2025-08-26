@@ -351,10 +351,12 @@ class WalletService {
       return {
         hasWallet: true,
         address: user.walletAddress,
-        cesBalance: availableCESBalance, // Return available balance instead of total
-        polBalance: availablePOLBalance, // Return available balance instead of total
+        cesBalance: cesBalance, // Show total balance instead of available only
+        polBalance: polBalance, // Show total balance instead of available only  
         totalCESBalance: cesBalance, // Keep total for reference
         totalPOLBalance: polBalance, // Keep total for reference
+        availableCESBalance: availableCESBalance, // Available for spending
+        availablePOLBalance: availablePOLBalance, // Available for spending
         escrowCESBalance: user.escrowCESBalance || 0,
         escrowPOLBalance: user.escrowPOLBalance || 0,
         lastUpdate: user.lastBalanceUpdate,

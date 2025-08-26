@@ -123,6 +123,8 @@ class SmartNotificationService {
       const chatId = user.chatId;
       let message = '';
       
+      console.log(`🔍 [SMART-NOTIFICATION] Generating message for status: ${status}, user: ${user.chatId}`);
+      
       switch (status) {
         case 'payment_pending':
           message = this.generatePaymentPendingMessage(user, trade);
@@ -147,6 +149,17 @@ class SmartNotificationService {
         case 'timeout':
           message = this.generateTradeTimeoutMessage(user, trade);
           break;
+          
+        default:
+          console.warn(`⚠️ [SMART-NOTIFICATION] Unknown status: ${status}`);
+          message = `ℹ️ Обновление по сделке #${trade._id.toString().substr(0, 8)}`;
+      }
+      
+      console.log(`📝 [SMART-NOTIFICATION] Generated message: "${message}"`);
+      
+      if (!message || message.trim() === '') {
+        console.error(`❌ [SMART-NOTIFICATION] Empty message generated for status: ${status}`);
+        return; // Don't send empty messages
       }
 
       // Add to notification queue
@@ -194,6 +207,9 @@ class SmartNotificationService {
 
   // Generate payment completed message
   generatePaymentCompletedMessage(user, trade) {
+    // When seller marks payment as completed, we notify the buyer (maker)
+    // user parameter is the buyer who receives notification
+    // trade.sellerId is who marked payment as completed
     const isBuyer = trade.buyerId._id.toString() === user._id.toString();
     
     if (isBuyer) {
@@ -205,7 +221,7 @@ class SmartNotificationService {
             `Продавец отметил, что получил оплату.\n` +
             `CES будут освобождены с эскроу автоматически.`;
     } else {
-      // Message for seller - this shouldn't happen as seller marks payment
+      // Message for seller - fallback (shouldn't normally happen)
       return `✅ Платёж отмечен как выполненный\n\n` +
             `Сделка #${trade._id.toString().substr(0, 8)}\n` +
             `Ожидаем подтверждения от покупателя.`;

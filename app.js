@@ -57,21 +57,27 @@ class Application {
       // 2. Setup notification callback
       this.setupNotificationCallback();
       
-      // 3. Setup bot webhook
+      // 3. Initialize performance monitoring
+      Utils.log('info', 'Starting performance monitoring...');
+      const performanceMonitor = require('./src/services/performanceMonitorService');
+      performanceMonitor.startPeriodicLogging(60); // Log every hour
+      performanceMonitor.setThreshold(500); // 500ms threshold for slow callbacks
+      
+      // 4. Setup bot webhook
       Utils.log('info', 'Setting up bot webhook...');
       await bot.setWebhook();
       
-      // 4. Setup server with webhook
+      // 5. Setup server with webhook
       Utils.log('info', 'Starting Express server...');
       server.setupWebhook(bot.getInstance());
       await server.start();
       
-      // 5. Setup scheduler
+      // 6. Setup scheduler
       Utils.log('info', 'Starting scheduler service...');
       schedulerService.setBot(bot.getInstance());
       schedulerService.startScheduler();
       
-      // 6. 🔧 ИСПРАВЛЕНИЕ: Start escrow cleanup service
+      // 7. 🔧 ИСПРАВЛЕНИЕ: Start escrow cleanup service
       Utils.log('info', 'Starting escrow cleanup service...');
       escrowCleanupService.startAutoCleanup();
       
