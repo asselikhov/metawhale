@@ -196,12 +196,43 @@ class WalletService {
         return { success: true, txHash: null, message: 'Одобрение уже есть' };
       }
       
-      // Execute approval transaction
+      // Execute approval transaction with proper EIP-1559 gas pricing
       console.log('🔐 Executing automatic approval transaction...');
+      
+      // Get current gas prices for EIP-1559
+      const feeData = await rpcService.getFeeData();
+      
+      // Set gas prices with proper values for Polygon network
+      const minGasPrice = utils.parseUnits('30', 'gwei'); // 30 Gwei minimum
+      const maxGasPrice = utils.parseUnits('200', 'gwei'); // 200 Gwei maximum
+      
+      let maxFeePerGas, maxPriorityFeePerGas;
+      
+      if (feeData.maxFeePerGas && feeData.maxPriorityFeePerGas) {
+        // Use network suggested prices with 150% buffer and enforce minimums
+        maxFeePerGas = feeData.maxFeePerGas.mul(150).div(100);
+        maxPriorityFeePerGas = feeData.maxPriorityFeePerGas.mul(150).div(100);
+        
+        // Enforce minimum values
+        if (maxFeePerGas.lt(minGasPrice)) maxFeePerGas = minGasPrice;
+        if (maxPriorityFeePerGas.lt(minGasPrice)) maxPriorityFeePerGas = minGasPrice;
+        
+        // Enforce maximum values to prevent overpaying
+        if (maxFeePerGas.gt(maxGasPrice)) maxFeePerGas = maxGasPrice;
+        if (maxPriorityFeePerGas.gt(maxGasPrice)) maxPriorityFeePerGas = maxGasPrice;
+      } else {
+        // Fallback to safe defaults for Polygon
+        maxFeePerGas = utils.parseUnits('50', 'gwei');
+        maxPriorityFeePerGas = utils.parseUnits('30', 'gwei');
+      }
+      
+      console.log(`🔥 Approval Gas prices: maxFeePerGas=${utils.formatUnits(maxFeePerGas, 'gwei')} Gwei, maxPriorityFeePerGas=${utils.formatUnits(maxPriorityFeePerGas, 'gwei')} Gwei`);
       
       const tx = await cesContract.approve(escrowContractAddress, amountWei, {
         gasLimit: 100000,
-        gasPrice: utils.parseUnits('30', 'gwei')
+        maxFeePerGas: maxFeePerGas,
+        maxPriorityFeePerGas: maxPriorityFeePerGas,
+        type: 2 // EIP-1559 transaction
       });
       
       console.log(`⏳ Approval transaction sent: ${tx.hash}`);
@@ -466,8 +497,31 @@ class WalletService {
         const gasLimit = (gasEstimateBigInt * 120n) / 100n; // Add 20% buffer
         
         // Set gas prices with proper values for Polygon network
-        const maxFeePerGas = feeData.maxFeePerGas ? feeData.maxFeePerGas.mul(120).div(100) : utils.parseUnits('50', 'gwei');
-        const maxPriorityFeePerGas = feeData.maxPriorityFeePerGas ? feeData.maxPriorityFeePerGas.mul(120).div(100) : utils.parseUnits('30', 'gwei');
+        // Ensure minimum values to avoid "gas price below minimum" errors
+        const minGasPrice = utils.parseUnits('30', 'gwei'); // 30 Gwei minimum
+        const maxGasPrice = utils.parseUnits('200', 'gwei'); // 200 Gwei maximum
+        
+        let maxFeePerGas, maxPriorityFeePerGas;
+        
+        if (feeData.maxFeePerGas && feeData.maxPriorityFeePerGas) {
+          // Use network suggested prices with 150% buffer and enforce minimums
+          maxFeePerGas = feeData.maxFeePerGas.mul(150).div(100);
+          maxPriorityFeePerGas = feeData.maxPriorityFeePerGas.mul(150).div(100);
+          
+          // Enforce minimum values
+          if (maxFeePerGas.lt(minGasPrice)) maxFeePerGas = minGasPrice;
+          if (maxPriorityFeePerGas.lt(minGasPrice)) maxPriorityFeePerGas = minGasPrice;
+          
+          // Enforce maximum values to prevent overpaying
+          if (maxFeePerGas.gt(maxGasPrice)) maxFeePerGas = maxGasPrice;
+          if (maxPriorityFeePerGas.gt(maxGasPrice)) maxPriorityFeePerGas = maxGasPrice;
+        } else {
+          // Fallback to safe defaults for Polygon
+          maxFeePerGas = utils.parseUnits('50', 'gwei');
+          maxPriorityFeePerGas = utils.parseUnits('30', 'gwei');
+        }
+        
+        console.log(`🔥 POL Gas prices: maxFeePerGas=${utils.formatUnits(maxFeePerGas, 'gwei')} Gwei, maxPriorityFeePerGas=${utils.formatUnits(maxPriorityFeePerGas, 'gwei')} Gwei`);
         
         const tx = await rpcService.sendTransaction(wallet, {
           to: toAddress,
@@ -600,8 +654,31 @@ class WalletService {
         const gasLimit = gasEstimateBigInt * 120n / 100n; // Add 20% buffer
         
         // Set gas prices with proper values for Polygon network
-        const maxFeePerGas = feeData.maxFeePerGas ? feeData.maxFeePerGas.mul(120).div(100) : utils.parseUnits('50', 'gwei');
-        const maxPriorityFeePerGas = feeData.maxPriorityFeePerGas ? feeData.maxPriorityFeePerGas.mul(120).div(100) : utils.parseUnits('30', 'gwei');
+        // Ensure minimum values to avoid "gas price below minimum" errors
+        const minGasPrice = utils.parseUnits('30', 'gwei'); // 30 Gwei minimum
+        const maxGasPrice = utils.parseUnits('200', 'gwei'); // 200 Gwei maximum
+        
+        let maxFeePerGas, maxPriorityFeePerGas;
+        
+        if (feeData.maxFeePerGas && feeData.maxPriorityFeePerGas) {
+          // Use network suggested prices with 150% buffer and enforce minimums
+          maxFeePerGas = feeData.maxFeePerGas.mul(150).div(100);
+          maxPriorityFeePerGas = feeData.maxPriorityFeePerGas.mul(150).div(100);
+          
+          // Enforce minimum values
+          if (maxFeePerGas.lt(minGasPrice)) maxFeePerGas = minGasPrice;
+          if (maxPriorityFeePerGas.lt(minGasPrice)) maxPriorityFeePerGas = minGasPrice;
+          
+          // Enforce maximum values to prevent overpaying
+          if (maxFeePerGas.gt(maxGasPrice)) maxFeePerGas = maxGasPrice;
+          if (maxPriorityFeePerGas.gt(maxGasPrice)) maxPriorityFeePerGas = maxGasPrice;
+        } else {
+          // Fallback to safe defaults for Polygon
+          maxFeePerGas = utils.parseUnits('50', 'gwei');
+          maxPriorityFeePerGas = utils.parseUnits('30', 'gwei');
+        }
+        
+        console.log(`🔥 CES Gas prices: maxFeePerGas=${utils.formatUnits(maxFeePerGas, 'gwei')} Gwei, maxPriorityFeePerGas=${utils.formatUnits(maxPriorityFeePerGas, 'gwei')} Gwei`);
         
         const tx = await rpcService.sendTransaction(wallet, {
           to: config.wallet.cesContractAddress,
