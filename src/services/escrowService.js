@@ -218,6 +218,20 @@ class EscrowService {
       await escrowTx.save();
 
       console.log(`⚠️ Successfully locked ${amount} ${tokenType} in database only`);
+      
+      // Validate balance consistency after lock
+      try {
+        const balanceValidationService = require('./balanceValidationService');
+        await balanceValidationService.validateAfterEscrowOperation(
+          userId, 
+          'lock', 
+          amount, 
+          tokenType
+        );
+      } catch (validationError) {
+        console.warn('⚠️ Balance validation after lock failed:', validationError.message);
+      }
+      
       return {
         success: true,
         escrowTxId: escrowTx._id,
@@ -317,6 +331,20 @@ class EscrowService {
       await escrowTx.save();
 
       console.log(`✅ Successfully released ${amount} ${tokenType} from escrow`);
+      
+      // Validate balance consistency after release
+      try {
+        const balanceValidationService = require('./balanceValidationService');
+        await balanceValidationService.validateAfterEscrowOperation(
+          userId, 
+          'release', 
+          amount, 
+          tokenType
+        );
+      } catch (validationError) {
+        console.warn('⚠️ Balance validation after release failed:', validationError.message);
+      }
+      
       return {
         success: true,
         txHash: releaseResult.txHash,
@@ -423,6 +451,20 @@ class EscrowService {
       await escrowTx.save();
 
       console.log(`✅ Successfully refunded ${amount} ${tokenType} to user`);
+      
+      // Validate balance consistency after refund
+      try {
+        const balanceValidationService = require('./balanceValidationService');
+        await balanceValidationService.validateAfterEscrowOperation(
+          userId, 
+          'refund', 
+          amount, 
+          tokenType
+        );
+      } catch (validationError) {
+        console.warn('⚠️ Balance validation after refund failed:', validationError.message);
+      }
+      
       return {
         success: true,
         txHash: refundResult?.txHash,

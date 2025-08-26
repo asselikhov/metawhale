@@ -1692,6 +1692,20 @@ class P2PService {
       }
       
       console.log(`Trade ${tradeId} cancelled by user`);
+      
+      // Validate seller balance after cancellation
+      try {
+        const balanceValidationService = require('./balanceValidationService');
+        await balanceValidationService.validateAfterEscrowOperation(
+          trade.sellerId._id,
+          'cancel_trade',
+          trade.amount,
+          'CES'
+        );
+      } catch (validationError) {
+        console.warn('⚠️ Balance validation after trade cancellation failed:', validationError.message);
+      }
+      
       return { success: true };
       
     } catch (error) {
