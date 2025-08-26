@@ -454,9 +454,26 @@ class EscrowService {
             console.error('❌ Smart contract refund failed:', smartContractError);
             console.error(`⚠️ MANUAL INTERVENTION REQUIRED: Failed to refund ${amount} CES from smart contract escrow ${smartContractEscrowId}`);
             
-            // For smart contract escrow, we must not update database if blockchain refund fails
-            // This prevents balance discrepancies
-            throw new Error(`Smart contract refund failed: ${smartContractError.message}. Manual intervention required for escrow ID ${smartContractEscrowId}`);
+            // Try to use admin key as fallback
+            try {
+              console.log('🔄 Attempting fallback with admin key...');
+              const adminPrivateKey = process.env.ADMIN_PRIVATE_KEY;
+              if (adminPrivateKey) {
+                refundResult = await smartContractService.refundSmartEscrow(
+                  smartContractEscrowId,
+                  adminPrivateKey
+                );
+                console.log(`✅ Successfully refunded ${amount} ${tokenType} from smart contract escrow using admin key`);
+              } else {
+                console.log('❌ Admin private key not available for fallback');
+              }
+            } catch (adminRefundError) {
+              console.error('❌ Admin key refund also failed:', adminRefundError);
+              
+              // For smart contract escrow, we must not update database if blockchain refund fails
+              // This prevents balance discrepancies
+              throw new Error(`Smart contract refund failed: ${smartContractError.message}. Manual intervention required for escrow ID ${smartContractEscrowId}`);
+            }
           }
         }
       }
