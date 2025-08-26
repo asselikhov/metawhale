@@ -122,6 +122,7 @@ class SmartNotificationService {
 
       const chatId = user.chatId;
       let message = '';
+      let keyboard = null;
       
       console.log(`🔍 [SMART-NOTIFICATION] Generating message for status: ${status}, user: ${user.chatId}`);
       
@@ -132,6 +133,12 @@ class SmartNotificationService {
           
         case 'payment_completed':
           message = this.generatePaymentCompletedMessage(user, trade);
+          break;
+          
+        case 'payment_made':
+          const result = this.generatePaymentMadeMessage(user, trade);
+          message = result.message;
+          keyboard = result.keyboard;
           break;
           
         case 'payment_confirmed':
@@ -162,10 +169,11 @@ class SmartNotificationService {
         return; // Don't send empty messages
       }
 
-      // Add to notification queue
+      // Add to notification queue with keyboard
       this.notificationQueue.push({
         chatId,
         message,
+        keyboard,
         type: 'smart_trade_status',
         timestamp: new Date()
       });
@@ -195,6 +203,37 @@ class SmartNotificationService {
             `💰 Сумма: ₽${trade.totalValue.toFixed(2)}\n` +
             `🕐 Время на оплату: ${config.escrow.displayFormat.minutes(config.escrow.timeoutMinutes)}`;
     }
+  }
+
+  // Generate payment made message (when buyer marks payment as completed)
+  generatePaymentMadeMessage(user, trade) {
+    // This message is sent to the seller (taker) when buyer (maker) marks payment as completed
+    const orderNumber = `CES${trade.buyOrderId.toString().slice(-8)}`;
+    
+    const message = `💰 Покупатель отметил платёж как выполненный!\n\n` +
+          `Ордер: ${orderNumber}\n` +
+          `💰 Количество: ${trade.amount.toFixed(2)} CES\n` +
+          `💵 Сумма: ₽${trade.totalValue.toFixed(2)}\n\n` +
+          `⚠️ ПРОВЕРЬТЕ ПОЛУЧЕНИЕ ДЕНЕГ!\n` +
+          `Если деньги НЕ поступили - НЕ НАЖИМАЙТЕ "Платёж получен"\n\n` +
+          `🚨 В случае мошенничества:\n` +
+          `• Свяжитесь с поддержкой\n` +
+          `• Сделайте скриншоты переписки\n` +
+          `• НЕ освобождайте токены из эскроу\n\n` +
+          `✅ Если деньги поступили - нажмите "Платёж получен"`;
+    
+    // Create keyboard with action buttons
+    const { Markup } = require('telegraf');
+    const keyboard = Markup.inlineKeyboard([
+      [Markup.button.callback('✅ Платёж получен', 'payment_received')],
+      [Markup.button.callback('📞 Обратиться в поддержку', 'contact_support')],
+      [Markup.button.callback('❌ Отменить сделку', 'cancel_payment')]
+    ]);
+    
+    return {
+      message,
+      keyboard
+    };
   }
 
   // Generate payment confirmed message
@@ -415,7 +454,13 @@ class SmartNotificationService {
       // To avoid circular dependencies, we'll use a callback approach
       // The actual sending will be handled by the message handler
       if (this.notificationCallback) {
-        await this.notificationCallback(notification.chatId, notification.message);
+        if (notification.keyboard) {
+          // Send message with keyboard
+          await this.notificationCallback(notification.chatId, notification.message, notification.keyboard);
+        } else {
+          // Send simple message
+          await this.notificationCallback(notification.chatId, notification.message);
+        }
       }
       
     } catch (error) {

@@ -471,6 +471,12 @@ class TelegramBot {
       return messageHandler.handleCancelPayment(ctx);
     });
     
+    this.bot.action('contact_support', async (ctx) => {
+      console.log('Received contact_support callback');
+      await optimizedHandler.handleInstantCallback(ctx, '📞 Обращаемся...');
+      return messageHandler.handleContactSupport(ctx);
+    });
+    
     // Handle real-time price refresh for buy orders
     this.bot.action('refresh_price_buy', (ctx) => {
       console.log('Received refresh_price_buy callback');

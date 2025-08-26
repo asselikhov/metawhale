@@ -36,9 +36,13 @@ class Application {
   // Setup notification callback for smart notifications
   setupNotificationCallback() {
     // Set up the callback for smart notifications to send messages through the bot
-    smartNotificationService.setNotificationCallback(async (chatId, message) => {
+    smartNotificationService.setNotificationCallback(async (chatId, message, keyboard = null) => {
       try {
-        await bot.getInstance().telegram.sendMessage(chatId, message);
+        const options = {};
+        if (keyboard) {
+          options.reply_markup = keyboard.reply_markup;
+        }
+        await bot.getInstance().telegram.sendMessage(chatId, message, options);
       } catch (error) {
         console.error(`Failed to send notification to ${chatId}:`, error);
       }
