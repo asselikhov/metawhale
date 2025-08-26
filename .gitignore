@@ -189,6 +189,10 @@ typechain-types/
 # ========================================
 # Documentation & Generated Files
 # ========================================
+# Markdown documentation files
+*.md
+!README.md
+
 # Auto-generated documentation
 docs/build/
 
