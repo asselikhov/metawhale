@@ -95,7 +95,9 @@ class BalanceValidationService {
         };
 
         // Check CES balance discrepancy
-        const expectedCES = results.balances.before.cesDB + results.balances.before.cesEscrowDB;
+        // Fix: The expected blockchain balance should be just the available balance (cesDB)
+        // because escrowed tokens are held elsewhere and not part of the blockchain balance
+        const expectedCES = results.balances.before.cesDB;
         const cesDifference = Math.abs(results.balances.blockchain.ces - expectedCES);
         
         if (cesDifference > 0.0001) { // Allow small floating point differences
@@ -107,7 +109,8 @@ class BalanceValidationService {
 
           if (autoFix) {
             // Fix: Sync database with blockchain reality
-            const newCESBalance = Math.max(0, results.balances.blockchain.ces - results.balances.before.cesEscrowDB);
+            // The available balance should match the blockchain balance
+            const newCESBalance = results.balances.blockchain.ces;
             user.cesBalance = newCESBalance;
             
             results.fixes.push({
@@ -115,6 +118,34 @@ class BalanceValidationService {
               description: `Updated CES balance from ${results.balances.before.cesDB} to ${newCESBalance}`,
               oldValue: results.balances.before.cesDB,
               newValue: newCESBalance
+            });
+          }
+        }
+
+        // Check POL balance discrepancy
+        // Fix: The expected blockchain balance should be just the available balance (polDB)
+        // because escrowed tokens are held elsewhere and not part of the blockchain balance
+        const expectedPOL = results.balances.before.polDB;
+        const polDifference = Math.abs(results.balances.blockchain.pol - expectedPOL);
+        
+        if (polDifference > 0.0001) { // Allow small floating point differences
+          results.issues.push({
+            type: 'POL_BALANCE_MISMATCH',
+            description: `POL balance mismatch: DB=${expectedPOL}, Blockchain=${results.balances.blockchain.pol}, Difference=${polDifference}`,
+            severity: polDifference > 0.1 ? 'HIGH' : 'MEDIUM'
+          });
+
+          if (autoFix) {
+            // Fix: Sync database with blockchain reality
+            // The available balance should match the blockchain balance
+            const newPOLBalance = results.balances.blockchain.pol;
+            user.polBalance = newPOLBalance;
+            
+            results.fixes.push({
+              type: 'POL_BALANCE_SYNC',
+              description: `Updated POL balance from ${results.balances.before.polDB} to ${newPOLBalance}`,
+              oldValue: results.balances.before.polDB,
+              newValue: newPOLBalance
             });
           }
         }
