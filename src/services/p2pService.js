@@ -149,6 +149,11 @@ class P2PService {
         return { success: false, error: 'Ордер не найден или неактивен' };
       }
       
+      // Add null check for buyOrder.userId
+      if (!buyOrder.userId) {
+        return { success: false, error: 'Данные пользователя в ордере не найдены' };
+      }
+      
       // Получаем тейкера
       const taker = await User.findOne({ chatId: takerChatId });
       if (!taker) {
@@ -168,6 +173,11 @@ class P2PService {
         };
       }
       
+      // Проверяем баланс тейкера
+      if (taker.balance < buyOrder.pricePerUnit * cesAmount) {
+        return { success: false, error: 'Недостаточно средств для совершения сделки' };
+      }
+      
       if (cesAmount > buyOrder.remainingAmount) {
         return { 
           success: false, 
@@ -181,6 +191,62 @@ class P2PService {
         return { 
           success: false, 
           error: `Недостаточно доступных CES. Доступно: ${walletInfo.cesBalance.toFixed(4)} CES` 
+        };
+      }
+
+      // Проверяем доступный баланс токена у мейкера (исключая эскроу)
+      const makerWalletInfo = await walletService.getUserWallet(maker.chatId);
+      if (makerWalletInfo[tokenSymbol].balance < tokenAmount) {
+        return { 
+          success: false, 
+          error: `Недостаточно доступного токена ${tokenSymbol}. Доступно: ${makerWalletInfo[tokenSymbol].balance.toFixed(4)} ${tokenSymbol}` 
+        };
+      }
+      
+      // Проверяем, что тейкер не является мейкером
+      if (taker.chatId === maker.chatId) {
+        return { 
+          success: false, 
+          error: `Тейкер и мейкер не могут быть одним и тем же пользователем` 
+        };
+      }
+      
+      // Проверяем, что токен существует
+      const token = await tokenService.getTokenBySymbol(tokenSymbol);
+      if (!token) {
+        return { 
+          success: false, 
+          error: `Токен с символом ${tokenSymbol} не существует` 
+        };
+      }
+      
+      // Проверяем, что ордер активен
+      if (buyOrder.status !== 'active') {
+        return { 
+          success: false, 
+          error: 'Ордер неактивен' 
+        };
+      }
+      
+      // Проверяем, что цена ордера соответствует текущей цене
+      if (buyOrder.price !== price) {
+        return { 
+          success: false, 
+          error: `Цена ордера (${buyOrder.price}) не соответствует текущей цене (${price})` 
+        };
+      }
+      
+      // Выполняем транзакцию
+      try {
+        await walletService.transferCes(taker.chatId, maker.chatId, cesAmount);
+        await walletService.transferToken(maker.chatId, taker.chatId, tokenSymbol, tokenAmount);
+        buyOrder.remainingAmount = 0;
+        buyOrder.status = 'filled';
+        await buyOrder.save();
+      } catch (error) {
+        return { 
+          success: false, 
+          error: `Ошибка при выполнении транзакции: ${error.message}` 
         };
       }
       
@@ -674,7 +740,19 @@ class P2PService {
       
       // Smart matching algorithm
       for (const buyOrder of buyOrders) {
+        // Add null check for buyOrder.userId
+        if (!buyOrder.userId) {
+          console.log('⚠️ Skipping buy order with missing user data');
+          continue;
+        }
+        
         for (const sellOrder of sellOrders) {
+          // Add null check for sellOrder.userId
+          if (!sellOrder.userId) {
+            console.log('⚠️ Skipping sell order with missing user data');
+            continue;
+          }
+          
           // Skip if same user (no self-trading)
           if (buyOrder.userId._id.toString() === sellOrder.userId._id.toString()) {
             continue;
@@ -699,6 +777,9 @@ class P2PService {
             // Calculate trade amount (minimum of remaining amounts)
             const tradeAmount = Math.min(buyOrder.remainingAmount, sellOrder.remainingAmount);
             
+            // Define tradePrice before it's used
+            const tradePrice = sellOrder.pricePerToken;
+            
             // 🔧 FIX BUG #8: Enhanced trading limit validation
             const tradeValue = PrecisionUtil.multiply(tradeAmount, tradePrice, 2);
             
@@ -718,8 +799,8 @@ class P2PService {
               continue; // Skip this pair and try next
             }
             
-            // Use seller's price for the trade
-            const tradePrice = sellOrder.pricePerToken;
+            // Use seller's price for the trade (already defined above)
+            // const tradePrice = sellOrder.pricePerToken;  // REMOVED - already defined above
             const totalValue = tradeAmount * tradePrice;
             
             // 🔧 FIX BUG #1: Standardized commission logic across all trade creation paths
@@ -1223,17 +1304,22 @@ class P2PService {
       
       // Send smart notification about timeout
       if (trade) {
-        const smartNotificationService = require('./smartNotificationService');
-        await smartNotificationService.sendSmartTradeStatusNotification(
-          trade.buyerId._id, 
-          trade, 
-          'timeout'
-        );
-        await smartNotificationService.sendSmartTradeStatusNotification(
-          trade.sellerId._id, 
-          trade, 
-          'timeout'
-        );
+        // Add null checks for buyerId and sellerId
+        if (trade.buyerId && trade.sellerId) {
+          const smartNotificationService = require('./smartNotificationService');
+          await smartNotificationService.sendSmartTradeStatusNotification(
+            trade.buyerId._id, 
+            trade, 
+            'timeout'
+          );
+          await smartNotificationService.sendSmartTradeStatusNotification(
+            trade.sellerId._id, 
+            trade, 
+            'timeout'
+          );
+        } else {
+          console.log('⚠️ Skipping timeout notifications due to missing buyerId or sellerId');
+        }
       }
     } catch (error) {
       console.error('Error handling trade timeout:', error);
@@ -1250,7 +1336,17 @@ class P2PService {
         .populate('sellerId');
       
       if (!trade) {
-        throw new Error('Сделка не найдена');
+        return { success: false, error: 'Сделка не найдена' };
+      }
+      
+      // Add null checks for buyerId and sellerId
+      if (!trade.buyerId || !trade.sellerId) {
+        return { success: false, error: 'Данные пользователей в сделке не найдены' };
+      }
+      
+      // Check if user is the seller (who marks payment as completed)
+      if (trade.sellerId.chatId !== userChatId) {
+        return { success: false, error: 'Только продавец может отметить платеж как выполненный' };
       }
       
       if (trade.buyerId.chatId !== buyerChatId) {
@@ -1660,16 +1756,27 @@ class P2PService {
       if (result.success) {
         const trade = result.trade;
         
+        // Add null check for trade
+        if (!trade) {
+          console.log('⚠️ Trade data not available in cancellation result');
+          return { success: false, error: 'Данные сделки не найдены' };
+        }
+        
         // Send notifications to both participants
         try {
           const smartNotificationService = require('./smartNotificationService');
-          const otherUserId = trade.buyerId.chatId === userChatId ? trade.sellerId._id : trade.buyerId._id;
-          
-          await smartNotificationService.sendSmartTradeStatusNotification(
-            otherUserId,
-            trade,
-            'cancelled'
-          );
+          // Add null checks for buyerId and sellerId
+          if (trade.buyerId && trade.sellerId) {
+            const otherUserId = trade.buyerId.chatId === userChatId ? trade.sellerId._id : trade.buyerId._id;
+            
+            await smartNotificationService.sendSmartTradeStatusNotification(
+              otherUserId,
+              trade,
+              'cancelled'
+            );
+          } else {
+            console.log('⚠️ Skipping notifications due to missing buyerId or sellerId');
+          }
         } catch (notifyError) {
           console.log('Warning: Could not send notification');
         }
@@ -1677,12 +1784,17 @@ class P2PService {
         // Validate seller balance after cancellation
         try {
           const balanceValidationService = require('./balanceValidationService');
-          await balanceValidationService.validateAfterEscrowOperation(
-            trade.sellerId._id,
-            'cancel_trade',
-            trade.amount,
-            'CES'
-          );
+          // Add null check for sellerId
+          if (trade.sellerId) {
+            await balanceValidationService.validateAfterEscrowOperation(
+              trade.sellerId._id,
+              'cancel_trade',
+              trade.amount,
+              'CES'
+            );
+          } else {
+            console.log('⚠️ Skipping balance validation due to missing sellerId');
+          }
         } catch (validationError) {
           console.warn('⚠️ Balance validation after trade cancellation failed:', validationError.message);
         }
@@ -1714,6 +1826,12 @@ class P2PService {
         return;
       }
       
+      // Add null checks for buyerId and sellerId
+      if (!trade.buyerId || !trade.sellerId) {
+        console.log(`Trade ${tradeId} missing user data for timeout cancellation`);
+        return;
+      }
+      
       if (!['escrow_locked', 'payment_pending'].includes(trade.status)) {
         console.log(`Trade ${tradeId} cannot be cancelled (status: ${trade.status})`);
         return;
@@ -1740,19 +1858,24 @@ class P2PService {
             
             // Create a timeout-specific manual intervention record
             const { EscrowTransaction } = require('../database/models');
-            const timeoutIntervention = new EscrowTransaction({
-              userId: trade.sellerId._id,
-              tradeId: tradeId,
-              type: 'timeout_intervention_required',
-              tokenType: 'CES',
-              amount: trade.amount,
-              status: 'pending',
-              reason: `Timeout cancellation failed: ${result.error}`,
-              createdAt: new Date()
-            });
-            
-            await timeoutIntervention.save();
-            console.log(`📝 [ENHANCED] Timeout intervention record created: ${timeoutIntervention._id}`);
+            // Add null check for sellerId
+            if (trade.sellerId) {
+              const timeoutIntervention = new EscrowTransaction({
+                userId: trade.sellerId._id,
+                tradeId: tradeId,
+                type: 'timeout_intervention_required',
+                tokenType: 'CES',
+                amount: trade.amount,
+                status: 'pending',
+                reason: `Timeout cancellation failed: ${result.error}`,
+                createdAt: new Date()
+              });
+              
+              await timeoutIntervention.save();
+              console.log(`📝 [ENHANCED] Timeout intervention record created: ${timeoutIntervention._id}`);
+            } else {
+              console.log('⚠️ Skipping timeout intervention record creation due to missing sellerId');
+            }
           }
           
           // Continue with trade status update in database even if escrow refund fails
@@ -1780,16 +1903,21 @@ class P2PService {
       // Notify both participants regardless of escrow status
       try {
         const smartNotificationService = require('./smartNotificationService');
-        await smartNotificationService.sendSmartTradeStatusNotification(
-          trade.buyerId._id,
-          trade,
-          'timeout'
-        );
-        await smartNotificationService.sendSmartTradeStatusNotification(
-          trade.sellerId._id,
-          trade,
-          'timeout'
-        );
+        // Add null checks for buyerId and sellerId
+        if (trade.buyerId && trade.sellerId) {
+          await smartNotificationService.sendSmartTradeStatusNotification(
+            trade.buyerId._id,
+            trade,
+            'timeout'
+          );
+          await smartNotificationService.sendSmartTradeStatusNotification(
+            trade.sellerId._id,
+            trade,
+            'timeout'
+          );
+        } else {
+          console.log('⚠️ Skipping timeout notifications due to missing buyerId or sellerId');
+        }
       } catch (notifyError) {
         console.log('Warning: Could not send timeout notifications');
       }

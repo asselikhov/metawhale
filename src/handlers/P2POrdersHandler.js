@@ -44,13 +44,14 @@ class P2POrdersHandler {
       // Display sell orders from database (users wanting to buy CES from market perspective)
       for (let i = 0; i < result.sellOrders.length; i++) {
         const order = result.sellOrders[i];
-        const username = order.userId.username || order.userId.firstName || 'Пользователь';
+        // Проверяем, что userId существует перед доступом к username
+        const username = order.userId ? (order.userId.username || order.userId.firstName || 'Пользователь') : 'Пользователь';
         
         // Get standardized user statistics
-        const stats = await reputationService.getStandardizedUserStats(order.userId._id);
+        const stats = await reputationService.getStandardizedUserStats(order.userId ? order.userId._id : null);
         
         // Extract only emoji from rating (remove the number part)
-        const emoji = stats.rating.split(' ').pop(); // Gets the last part after space (emoji)
+        const emoji = stats && stats.rating ? stats.rating.split(' ').pop() : '⭐'; // Gets the last part after space (emoji)
         
         // Calculate limits in rubles based on price and amounts
         const minAmount = order.minTradeAmount || 1;
@@ -184,13 +185,14 @@ class P2POrdersHandler {
       // Display buy orders from database (users wanting to sell CES from market perspective)
       for (let i = 0; i < result.buyOrders.length; i++) {
         const order = result.buyOrders[i];
-        const username = order.userId.username || order.userId.firstName || 'Пользователь';
+        // Проверяем, что userId существует перед доступом к username
+        const username = order.userId ? (order.userId.username || order.userId.firstName || 'Пользователь') : 'Пользователь';
         
         // Get standardized user statistics
-        const stats = await reputationService.getStandardizedUserStats(order.userId._id);
+        const stats = await reputationService.getStandardizedUserStats(order.userId ? order.userId._id : null);
         
         // Extract only emoji from rating (remove the number part)
-        const emoji = stats.rating.split(' ').pop(); // Gets the last part after space (emoji)
+        const emoji = stats && stats.rating ? stats.rating.split(' ').pop() : '⭐'; // Gets the last part after space (emoji)
         
         // Calculate limits in rubles based on price and amounts
         const minAmount = order.minTradeAmount || 1;

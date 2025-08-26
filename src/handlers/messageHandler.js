@@ -270,13 +270,13 @@ class MessageHandler {
                      `• Завершено: ${userAnalytics.activity.completedTrades}\n` +
                      `• Споров: ${userAnalytics.activity.disputedTrades}\n\n` +
                      `📈 ОБЪЕМ ТОРГОВ:\n` +
-                     `• Общий объем: ₽ ${userAnalytics.performance.totalVolume.toFixed(2)}\n` +
-                     `• Средняя сделка: ₽ ${userAnalytics.performance.avgTradeSize.toFixed(2)}\n` +
-                     `• Успешность: ${userAnalytics.performance.successRate}%\n\n` +
+                     `• Общий объем: ₽ ${(userAnalytics.performance.totalVolume || 0).toFixed(2)}\n` +
+                     `• Средняя сделка: ₽ ${(userAnalytics.performance.avgTradeSize || 0).toFixed(2)}\n` +
+                     `• Успешность: ${userAnalytics.performance.successRate || 0}%\n\n` +
                      `🏆 МЕСТО НА РЫНКЕ:\n` +
-                     `• Общий объем рынка: ₽ ${marketStats.volume.totalRubles.toFixed(2)}\n` +
-                     `• Всего сделок: ${marketStats.trades.total}\n` +
-                     `• Активных трейдеров: ${marketStats.users.uniqueTraders}`;
+                     `• Общий объем рынка: ₽ ${(marketStats.volume.totalRubles || 0).toFixed(2)}\n` +
+                     `• Всего сделок: ${marketStats.trades.total || 0}\n` +
+                     `• Активных трейдеров: ${marketStats.users.uniqueTraders || 0}`;
 
       const keyboard = Markup.inlineKeyboard([
         [Markup.button.callback('🔄 Обновить', 'p2p_analytics')],

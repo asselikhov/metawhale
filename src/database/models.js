@@ -165,7 +165,11 @@ const userSchema = new mongoose.Schema({
   adminProtected: { type: Boolean, default: false },
   balanceOverride: Number,
   skipBalanceSync: { type: Boolean, default: false },
-  manualBalance: { type: Boolean, default: false }
+  manualBalance: { type: Boolean, default: false },
+  // Emergency Protection Fields (for cleanup service bypass)
+  emergencyProtection: { type: Boolean, default: false },
+  cleanupServiceBypass: { type: Boolean, default: false },
+  balanceRestorationTimestamp: Date
 });
 
 // Add indexes for faster queries (remove duplicates)

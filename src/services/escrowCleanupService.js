@@ -100,6 +100,18 @@ class EscrowCleanupService {
           
           if (createdHoursAgo > 24) {
             try {
+              // Check if user still exists before attempting refund
+              const user = await User.findById(escrowTx.userId);
+              if (!user) {
+                console.log(`⚠️ User not found for orphaned escrow ${escrowTx._id}, marking as resolved`); 
+                // Mark the escrow transaction as resolved since user no longer exists
+                escrowTx.status = 'cancelled';
+                escrowTx.reason = 'Automatic cleanup: user account deleted';
+                await escrowTx.save();
+                fixedCount++;
+                continue;
+              }
+              
               await escrowService.refundTokensFromEscrow(
                 escrowTx.userId,
                 null,
@@ -136,6 +148,16 @@ class EscrowCleanupService {
 
       for (const user of users) {
         try {
+          // CRITICAL: Check for balance protection flags before any automatic corrections
+          if (user.balanceProtectionEnabled || user.adminProtected || user.skipBalanceSync || user.manualBalance || 
+              user.emergencyProtection || user.cleanupServiceBypass) {
+            console.log(`🔒 [CLEANUP] Skipping balance check for protected user ${user.chatId}:`);
+            console.log(`    Protection flags: { balanceProtectionEnabled: ${user.balanceProtectionEnabled}, adminProtected: ${user.adminProtected}, skipBalanceSync: ${user.skipBalanceSync}, manualBalance: ${user.manualBalance} }`);
+            console.log(`    Emergency flags: { emergencyProtection: ${user.emergencyProtection}, cleanupServiceBypass: ${user.cleanupServiceBypass} }`);
+            console.log(`    Admin allocation: ${user.adminAllocationAmount || 'none'} CES`);
+            continue; // Skip this user completely
+          }
+          
           // Получить реальный баланс из блокчейна
           const realCESBalance = await walletService.getCESBalance(user.walletAddress);
           
@@ -273,6 +295,18 @@ class EscrowCleanupService {
 
       for (const trade of staleTrades) {
         try {
+          // Check if trade and required fields exist
+          if (!trade || !trade._id || !trade.timeTracking) {
+            console.log(`⚠️ Skipping invalid trade: ${trade?._id || 'null'} - missing required fields`);
+            continue;
+          }
+          
+          // Check if seller and buyer exist
+          if (!trade.sellerId || !trade.sellerId._id) {
+            console.log(`⚠️ Skipping trade ${trade._id} - missing seller information`);
+            continue;
+          }
+          
           // Проверить, истек ли таймаут сделки
           const expiryTime = trade.timeTracking?.expiresAt || 
                             new Date(trade.timeTracking.createdAt.getTime() + 30 * 60 * 1000);
