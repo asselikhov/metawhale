@@ -124,6 +124,8 @@ class Server {
 
   // Setup webhook for bot
   setupWebhook(bot) {
+    console.log(`🛠️ Настраиваем webhook для бота:`, typeof bot, bot.constructor.name);
+    
     // Add logging middleware for webhook requests
     this.app.use(config.telegram.webhookPath, (req, res, next) => {
       console.log(`📥 Webhook request received at ${new Date().toISOString()}`);
@@ -139,34 +141,21 @@ class Server {
           console.log(`🔴 Update type: OTHER`);
         }
       }
+      console.log(`🔵 Передаем управление webhook обработчику...`);
       next();
     });
     
-    // Правильная настройка webhook обработчика
+    // Простая и надежная настройка webhook обработчика
+    const webhookHandler = bot.webhookCallback(config.telegram.webhookPath);
+    console.log(`🔗 Создан webhook handler:`, typeof webhookHandler);
+    
     this.app.use(config.telegram.webhookPath, (req, res, next) => {
+      console.log(`🟢 Webhook handler вызывается...`);
       try {
-        // Используем правильный метод для обработки webhook
-        const handler = bot.webhookCallback(config.telegram.webhookPath);
-        return handler(req, res, (err) => {
-          if (err) {
-            console.error(`❌ Webhook обработка ошибка:`, err);
-            // Всегда отвечаем 200, чтобы Telegram не переотправлял
-            if (!res.headersSent) {
-              res.status(200).json({ ok: true });
-            }
-          } else {
-            // Обработка успешна
-            if (!res.headersSent) {
-              res.status(200).json({ ok: true });
-            }
-          }
-        });
+        return webhookHandler(req, res, next);
       } catch (error) {
-        console.error(`❌ Webhook синхронная ошибка:`, error);
-        // Отправляем статус 200, чтобы Telegram не переотправлял update
-        if (!res.headersSent) {
-          res.status(200).json({ ok: true });
-        }
+        console.error(`❌ Ошибка в webhook handler:`, error);
+        res.status(200).json({ ok: true });
       }
     });
     

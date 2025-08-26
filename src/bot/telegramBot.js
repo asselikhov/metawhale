@@ -147,40 +147,49 @@ class TelegramBot {
 
 // Setup command and callback handlers
   setupHandlers() {
+    console.log('🛠️ Настраиваем обработчики Telegraf...');
+    
+    // Общий обработчик всех update для диагностики (должен быть ПЕРВЫМ!)
+    this.bot.use((ctx, next) => {
+      console.log('🔄 Telegraf получил update:', {
+        updateType: ctx.updateType,
+        chatId: ctx.chat?.id,
+        userId: ctx.from?.id,
+        username: ctx.from?.username
+      });
+      return next();
+    });
+    
     // Commands
     this.bot.start((ctx) => {
-      console.log('📥 Received /start command');
+      console.log('📥 Received /start command from user:', ctx.from.username);
       return messageHandler.handleStart(ctx);
     });
     
     this.bot.command('ces', (ctx) => {
-      console.log('📥 Received /ces command');
+      console.log('📥 Received /ces command from user:', ctx.from.username);
       return messageHandler.handlePrice(ctx);
     });
     
     this.bot.command('fees', (ctx) => {
-      console.log('📥 Received /fees command');
+      console.log('📥 Received /fees command from user:', ctx.from.username);
       return messageHandler.handleFees(ctx);
     });
     
     this.bot.command('stat', (ctx) => {
-      console.log('📥 Received /stat command');
+      console.log('📥 Received /stat command from user:', ctx.from.username);
       return messageHandler.handleStat(ctx);
     });
 
     // Text messages (for regular keyboard buttons)
     this.bot.on('text', (ctx) => {
-      console.log('📥 Received text message:', ctx.message.text);
+      console.log('📥 Received text message from user:', ctx.from.username, 'text:', ctx.message.text);
       return messageHandler.handleTextMessage(ctx);
     });
 
     // Общий обработчик всех callback_query для диагностики
     this.bot.on('callback_query', (ctx, next) => {
-      console.log('🔘 CALLBACK_QUERY received:', {
-        data: ctx.callbackQuery.data,
-        from: ctx.callbackQuery.from.username,
-        messageId: ctx.callbackQuery.message?.message_id
-      });
+      console.log('🔘 CALLBACK_QUERY received from user:', ctx.callbackQuery.from.username, 'data:', ctx.callbackQuery.data);
       return next(); // Передаем управление следующему обработчику
     });
 
