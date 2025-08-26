@@ -77,6 +77,16 @@ class TelegramBot {
       console.log('📥 Received /ces command');
       return messageHandler.handlePrice(ctx);
     });
+    
+    this.bot.command('fees', (ctx) => {
+      console.log('📥 Received /fees command');
+      return messageHandler.handleFees(ctx);
+    });
+    
+    this.bot.command('stat', (ctx) => {
+      console.log('📥 Received /stat command');
+      return messageHandler.handleStat(ctx);
+    });
 
     // Text messages (for regular keyboard buttons)
     this.bot.on('text', (ctx) => {

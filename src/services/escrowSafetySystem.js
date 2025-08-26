@@ -61,8 +61,16 @@ class EscrowSafetySystem {
       if (refundResult.success) {
         return await this.updateTradeStatus(trade, reason);
       } else {
-        // Если возврат не удался, сделка остается в текущем статусе
-        throw new Error(`Не удалось вернуть средства: ${refundResult.error}`);
+        // Если возврат не удался, возвращаем структурированный ответ с деталями ошибки
+        console.log(`⚠️ [SAFETY] Refund failed, returning structured error response`);
+        return {
+          success: false,
+          error: refundResult.error,
+          requiresManualIntervention: refundResult.requiresManualIntervention,
+          interventionType: refundResult.interventionType,
+          timeRemaining: refundResult.timeRemaining,
+          escrowId: refundResult.escrowId
+        };
       }
       
     } catch (error) {

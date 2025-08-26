@@ -52,6 +52,14 @@ class MessageHandler {
     return this.baseHandler.handlePrice(ctx);
   }
 
+  async handleFees(ctx) {
+    return this.baseHandler.handleFees(ctx);
+  }
+
+  async handleStat(ctx) {
+    return this.baseHandler.handleStat(ctx);
+  }
+
   async handleTextMessage(ctx) {
     const chatId = ctx.chat.id.toString();
     const sessionData = sessionManager.getUserSession(chatId);
@@ -322,15 +330,14 @@ class MessageHandler {
       const chatId = ctx.chat.id.toString();
       const sessionManager = require('./SessionManager');
       
-      // Double-click protection: Clear pending data immediately after validation
+      // Double-click protection: Get pending data but don't clear until process completes
       const pendingOrder = sessionManager.getPendingP2POrder(chatId);
       
       if (!pendingOrder) {
         return await ctx.reply('❌ Ордер не найден. Попробуйте создать ордер заново.');
       }
       
-      // Clear pending data immediately to prevent duplicate processing
-      sessionManager.clearUserSession(chatId);
+      // Don't clear session here - it's needed for smart contract approval flow
       
       const { orderType, amount, pricePerToken, minAmount, maxAmount } = pendingOrder;
       
@@ -384,8 +391,14 @@ class MessageHandler {
           const paymentMethods = user.p2pProfile?.paymentMethods?.filter(pm => pm.isActive) || [];
           order = await p2pService.createSellOrder(chatId, amount, pricePerToken, paymentMethods, minAmount, maxAmount);
         }
+        
+        // Clear session after successful order creation
+        sessionManager.clearUserSession(chatId);
+        
       } catch (error) {
         console.error('Order creation error:', error);
+        // Clear session on error as well
+        sessionManager.clearUserSession(chatId);
         return await ctx.reply(`❌ Ошибка создания ордера: ${error.message}`);
       }
       
@@ -399,6 +412,9 @@ class MessageHandler {
       
     } catch (error) {
       console.error('P2P order confirmation error:', error);
+      // Clear session on error to prevent stuck states
+      const sessionManager = require('./SessionManager');
+      sessionManager.clearUserSession(ctx.chat.id.toString());
       await ctx.reply('❌ Ошибка подтверждения ордера.');
     }
   }
@@ -511,11 +527,17 @@ class MessageHandler {
         
       } catch (error) {
         console.error('Secure order creation error:', error);
+        // Clear session on error
+        const sessionManager = require('./SessionManager');
+        sessionManager.clearUserSession(chatId);
         await ctx.reply(`❌ Ошибка создания безопасного ордера: ${error.message}`);
       }
       
     } catch (error) {
       console.error('Proceed with secure order creation error:', error);
+      // Clear session on error
+      const sessionManager = require('./SessionManager');
+      sessionManager.clearUserSession(ctx.chat.id.toString());
       await ctx.reply('❌ Ошибка создания ордера.');
     }
   }
@@ -623,11 +645,18 @@ class MessageHandler {
           [Markup.button.callback('❌ Отмена', 'p2p_menu')]
         ]);
         
+        // Clear session on approval error
+        const sessionManager = require('./SessionManager');
+        sessionManager.clearUserSession(chatId);
+        
         await ctx.reply(`${errorMessage}\n\nПодробности: ${error.message}`, keyboard);
       }
       
     } catch (error) {
       console.error('Approve and create order error:', error);
+      // Clear session on error to prevent stuck states
+      const sessionManager = require('./SessionManager');
+      sessionManager.clearUserSession(ctx.chat.id.toString());
       await ctx.reply('❌ Ошибка обработки запроса.');
     }
   }
@@ -1365,13 +1394,34 @@ class MessageHandler {
                             `Ордер: ${orderNumber}\n` +
                             `Количество: ${confirmedAmount} CES\n` +
                             `Сумма: ${totalPrice.toFixed(2)} ₽\n\n` +
-                            `🔒 Ваши CES заморожены в эскроу!\n` +
+                            `🔒 Ваши CES заморожены в смарт-контракте!\n` +
                             `💵 Ожидайте перевод от покупателя.\n\n` +
+                            `⏰ ВАЖНО: Средства блокируются на 30 минут для безопасности.\n` +
+                            `❌ Отмена возможна только после истечения блокировки.\n\n` +
                             `✅ После получения денег подтвердите платёж.`;
 
-      const sellerKeyboard = Markup.inlineKeyboard([
-        [Markup.button.callback('❌ Отменить сделку', 'cancel_payment')]
-      ]);
+      // 🎯 ИСПРАВЛЕНИЕ: Показываем кнопку отмены только тем, кто имеет право отменить
+      // Определяем, кто является мейкером на основе времени создания ордеров
+      const { P2POrder } = require('../database/models');
+      const buyOrder = await P2POrder.findById(orderData.buyOrderId || orderData._id);
+      
+      let sellerCanCancel = false;
+      
+      if (buyOrder) {
+        // Если есть связанный buy order, определяем роли
+        // Тейкер (продавец) может отменить только если мейкер продаёт CES
+        // Но в этом случае тейкер - это покупатель, а не продавец
+        // Логика: тейкер (тот кто нажал make_payment) может отменить только если мейкер продаёт CES
+        // В нашем случае orderData - это buy order мейкера, значит мейкер покупает
+        // Следовательно, тейкер (продавец) НЕ может отменить
+        sellerCanCancel = false;
+      }
+      
+      const sellerKeyboard = sellerCanCancel 
+        ? Markup.inlineKeyboard([
+            [Markup.button.callback('❌ Отменить сделку', 'cancel_payment')]
+          ])
+        : null; // Не показываем кнопку отмены
 
       await ctx.reply(sellerMessage, sellerKeyboard);
       
@@ -1415,6 +1465,7 @@ class MessageHandler {
                           `⚠️ Оплатите точную сумму в указанные сроки.\n` +
                           `После оплаты нажмите "Платёж выполнен".`;
 
+      // 🎯 Мейкер (покупатель) всегда может отменить, когда он покупает CES
       const buyerKeyboard = Markup.inlineKeyboard([
         [Markup.button.callback('✅ Платёж выполнен', 'payment_completed')],
         [Markup.button.callback('❌ Отменить сделку', 'cancel_payment')]
@@ -1634,13 +1685,125 @@ class MessageHandler {
         console.log(`🔍 Found active trade for user ${chatId}: tradeId=${tradeId}, orderNumber=${orderNumber}`);
       }
       
+      // 🔒 НОВАЯ ЛОГИКА ОТМЕНЫ СДЕЛОК
+      // Получаем данные сделки для проверки прав отмены
+      const { P2PTrade, User, P2POrder } = require('../database/models');
+      
+      const trade = await P2PTrade.findById(tradeId)
+        .populate('buyerId')
+        .populate('sellerId');
+        
+      if (!trade) {
+        return await ctx.reply('❌ Сделка не найдена.');
+      }
+      
+      // Проверяем, что пользователь является участником сделки
+      const user = await User.findOne({ chatId });
+      if (!user) {
+        return await ctx.reply('❌ Пользователь не найден.');
+      }
+      
+      const isParticipant = trade.buyerId._id.toString() === user._id.toString() || 
+                           trade.sellerId._id.toString() === user._id.toString();
+      
+      if (!isParticipant) {
+        return await ctx.reply('❌ Вы не являетесь участником этой сделки.');
+      }
+      
+      // 🚫 ПРАВИЛО 1: После подтверждения оплаты никто не может отменить
+      if (['payment_made', 'payment_confirmed', 'completed', 'disputed'].includes(trade.status)) {
+        const message = `🚫 ОТМЕНА НЕВОЗМОЖНА\n` +
+                       `➖➖➖➖➖➖➖➖➖➖➖\n` +
+                       `Ордер: ${orderNumber}\n\n` +
+                       `⚠️ Сделка находится в стадии подтверждения платежа.\n` +
+                       `Отмена невозможна - только открытие спора.\n\n` +
+                       `💡 Варианты действий:\n` +
+                       `• Дождитесь завершения сделки\n` +
+                       `• Обратитесь в поддержку при проблемах`;
+        
+        const keyboard = Markup.inlineKeyboard([
+          [Markup.button.callback('📞 Связаться с поддержкой', 'contact_support')],
+          [Markup.button.callback('🔙 К P2P меню', 'p2p_menu')]
+        ]);
+        
+        return await ctx.reply(message, keyboard);
+      }
+      
+      // Определяем, кто является мейкером и тейкером на основе времени создания ордеров
+      const buyOrder = await P2POrder.findById(trade.buyOrderId);
+      const sellOrder = await P2POrder.findById(trade.sellOrderId);
+      
+      if (!buyOrder || !sellOrder) {
+        return await ctx.reply('❌ Ошибка получения данных ордеров.');
+      }
+      
+      const buyOrderTime = new Date(buyOrder.createdAt).getTime();
+      const sellOrderTime = new Date(sellOrder.createdAt).getTime();
+      
+      let isBuyerMaker = buyOrderTime < sellOrderTime;
+      let isUserBuyer = trade.buyerId._id.toString() === user._id.toString();
+      
+      // 🎯 ПРАВИЛО 2: Определяем права отмены
+      let canCancel = false;
+      let cancelReason = '';
+      
+      if (isBuyerMaker) {
+        // Мейкер покупает CES → только мейкер (покупатель) может отменить
+        canCancel = isUserBuyer;
+        cancelReason = isUserBuyer ? '' : 'Только покупатель (мейкер) может отменить эту сделку.';
+      } else {
+        // Мейкер продаёт CES → только тейкер (покупатель) может отменить  
+        canCancel = isUserBuyer;
+        cancelReason = isUserBuyer ? '' : 'Только покупатель (тейкер) может отменить эту сделку.';
+      }
+      
+      if (!canCancel) {
+        const message = `🚫 ОТМЕНА ЗАПРЕЩЕНА\n` +
+                       `➖➖➖➖➖➖➖➖➖➖➖\n` +
+                       `Ордер: ${orderNumber}\n\n` +
+                       `⚠️ ${cancelReason}\n\n` +
+                       `💡 Если есть проблемы, обратитесь в поддержку.`;
+        
+        const keyboard = Markup.inlineKeyboard([
+          [Markup.button.callback('📞 Связаться с поддержкой', 'contact_support')],
+          [Markup.button.callback('🔙 К P2P меню', 'p2p_menu')]
+        ]);
+        
+        return await ctx.reply(message, keyboard);
+      }
+      
+      // ✅ Пользователь имеет право отменить сделку - выполняем отмену
+      console.log(`🔄 User ${chatId} has permission to cancel trade ${tradeId}`);
+      
       // Cancel trade and release escrow
       const p2pService = require('../services/p2pService');
       const result = await p2pService.cancelTradeByUser(tradeId, chatId);
       
       if (!result.success) {
+        // Check for timelock-specific errors
+        if (result.requiresManualIntervention && result.interventionType === 'timelock') {
+          const timeRemainingMinutes = Math.ceil(result.timeRemaining / 60);
+          
+          const timelockMessage = `⏰ СДЕЛКА НЕ МОЖЕТ БЫТЬ ОТМЕНЕНА\n` +
+                                 `➖➖➖➖➖➖➖➖➖➖➖\n` +
+                                 `Ордер: ${orderNumber}\n\n` +
+                                 `🔒 Смарт-контракт блокирует средства на 30 минут для безопасности.\n` +
+                                 `⏰ Осталось ждать: ${timeRemainingMinutes} мин.\n\n` +
+                                 `💡 Варианты действий:\n` +
+                                 `• Дождитесь истечения блокировки\n` +
+                                 `• Продолжите сделку как обычно\n` +
+                                 `• Обратитесь в поддержку при проблемах`;
+          
+          const timelockKeyboard = Markup.inlineKeyboard([
+            [Markup.button.callback('📞 Связаться с поддержкой', 'contact_support')],
+            [Markup.button.callback('🔙 К P2P меню', 'p2p_menu')]
+          ]);
+          
+          return await ctx.reply(timelockMessage, timelockKeyboard);
+        }
+        
         if (result.requiresManualIntervention) {
-          // Special handling for smart contract failures
+          // Other types of manual intervention
           const supportMessage = result.escrowId 
             ? `Ошибка смарт-контракта (ID: ${result.escrowId}). Обратитесь в поддержку для ручного возврата средств.`
             : `Ошибка смарт-контракта. Обратитесь в поддержку для ручного возврата средств.`;

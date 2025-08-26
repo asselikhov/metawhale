@@ -5,8 +5,11 @@
 
 const { Markup } = require('telegraf');
 const priceService = require('../services/priceService');
+const commissionTrackingService = require('../services/commissionTrackingService');
+const visitorStatsService = require('../services/visitorStatsService');
 const { User, PriceHistory, isDatabaseConnected } = require('../database/models');
 const sessionManager = require('./SessionManager');
+const fs = require('fs').promises;
 
 class BaseCommandHandler {
   constructor() {
@@ -272,6 +275,182 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
         await ctx.reply('❌ Произошла ошибка. Попробуйте еще раз.');
       } catch (replyError) {
         console.error('Failed to send error message:', replyError);
+      }
+    }
+  }
+
+  // Handle /stat command (admin only)
+  async handleStat(ctx) {
+    try {
+      const chatId = ctx.chat.id.toString();
+      console.log(`📊 handleStat called by user ${chatId}`);
+      
+      // Check if user is admin
+      const ADMIN_CHAT_ID = '942851377';
+      if (chatId !== ADMIN_CHAT_ID) {
+        console.log(`❌ Unauthorized stat command attempt by ${chatId}`);
+        return await ctx.reply('❌ У вас нет доступа к этой команде.');
+      }
+      
+      // Send immediate acknowledgment
+      const sentMessage = await ctx.reply('⏳ Генерируем статистику посетителей...');
+      console.log('📊 Stat command acknowledgment sent');
+      
+      // Process stat data in background and send Excel file
+      this.processStatData(ctx, sentMessage);
+      
+    } catch (error) {
+      console.error('Error handling stat command:', error);
+      try {
+        await ctx.reply('❌ Ошибка генерации статистики посетителей.');
+      } catch (replyError) {
+        console.error('Failed to send error message:', replyError);
+      }
+    }
+  }
+
+  // Process stat data in background and send Excel file
+  async processStatData(ctx, sentMessage) {
+    try {
+      console.log('📊 Generating visitor statistics Excel report...');
+      
+      // Generate summary first
+      const summary = await visitorStatsService.getVisitorStatsSummary();
+      
+      // Update message with progress
+      await ctx.telegram.editMessageText(
+        sentMessage.chat.id,
+        sentMessage.message_id,
+        null,
+        `📊 Генерируем Excel файл...
+
+📊 Найдено посетителей: ${summary.totalMonthlyVisitors}
+📅 Период: ${summary.monthYear}`
+      );
+      
+      // Generate Excel file
+      const excelFilePath = await visitorStatsService.generateExcelReport();
+      
+      // Create caption for the Excel file
+      const caption = `📊 СТАТИСТИКА ПОСЕТИТЕЛЕЙ
+` +
+                     `➖➖➖➖➖➖➖➖➖➖➖
+
+` +
+                     `📅 Период: ${summary.monthYear}
+` +
+                     `👥 Всего посетителей: ${summary.totalMonthlyVisitors}
+` +
+                     `🔄 Активных на неделе: ${summary.recentlyActive}
+` +
+                     `🌅 Активных сегодня: ${summary.todayActive}
+` +
+                     `⭐ Новых за неделю: ${summary.newThisWeek}
+
+` +
+                     `📝 Столбцы:
+` +
+                     `1. ID Пользователя
+` +
+                     `2. Username
+` +
+                     `3. Имя
+` +
+                     `4. Дата посещения
+` +
+                     `5. Последняя активность
+
+` +
+                     `🕰 Сгенерировано: ${new Date().toLocaleString('ru-RU')}`;
+      
+      // Send Excel file
+      await ctx.replyWithDocument(
+        { source: excelFilePath },
+        { caption }
+      );
+      
+      // Delete the original processing message
+      try {
+        await ctx.telegram.deleteMessage(sentMessage.chat.id, sentMessage.message_id);
+      } catch (deleteError) {
+        console.log('Note: Could not delete processing message:', deleteError.message);
+      }
+      
+      // Clean up the temporary file
+      try {
+        await fs.unlink(excelFilePath);
+        console.log('🗑️ Temporary Excel file cleaned up');
+      } catch (cleanupError) {
+        console.log('Note: Could not clean up temporary file:', cleanupError.message);
+      }
+      
+      // Clean up old files
+      await visitorStatsService.cleanupOldFiles();
+      
+      console.log('✅ Visitor statistics Excel report sent successfully');
+      
+    } catch (error) {
+      console.error('Error processing stat data:', error);
+      
+      // Update the message with error
+      try {
+        await ctx.telegram.editMessageText(
+          sentMessage.chat.id,
+          sentMessage.message_id,
+          null,
+          `❌ Ошибка генерации статистики посетителей.
+
+⚠️ Ошибка: ${error.message}
+
+🔄 Попробуйте позже.`
+        );
+      } catch (editError) {
+        console.error('Error editing message:', editError);
+        try {
+          await ctx.reply('❌ Ошибка генерации статистики посетителей. Попробуйте позже.');
+        } catch (replyError) {
+          console.error('Failed to send error message:', replyError);
+        }
+      }
+    }
+  }
+
+  // Process fee data in background
+  async processFeeData(ctx, sentMessage) {
+    try {
+      console.log('💰 Generating comprehensive fee report...');
+      
+      const report = await commissionTrackingService.generateFeeReport();
+      const formattedMessage = commissionTrackingService.formatFeeReport(report);
+      
+      // Edit the original message with the fee report
+      await ctx.telegram.editMessageText(
+        sentMessage.chat.id,
+        sentMessage.message_id,
+        null,
+        formattedMessage
+      );
+      
+      console.log('✅ Fee report sent successfully');
+      
+    } catch (error) {
+      console.error('Error processing fee data:', error);
+      
+      // Update the message with error
+      try {
+        await ctx.telegram.editMessageText(
+          sentMessage.chat.id,
+          sentMessage.message_id,
+          null,
+          '❌ Ошибка генерации отчета по комиссиям. Попробуйте позже.'
+        );
+      } catch (editError) {
+        console.error('Error editing message:', editError);
+        try {
+          await ctx.reply('❌ Ошибка генерации отчета по комиссиям. Попробуйте позже.');
+        } catch (replyError) {
+          console.error('Failed to send error message:', replyError);
+        }
       }
     }
   }
