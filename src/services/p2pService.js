@@ -1644,103 +1644,66 @@ class P2PService {
     }
   }
   
-  // Cancel trade by user request
+  // Cancel trade by user request with enhanced safety
   async cancelTradeByUser(tradeId, userChatId) {
     try {
-      console.log(`Cancelling trade ${tradeId} by user request`);
+      console.log(`🛡️ [ENHANCED] Starting safe trade cancellation: ${tradeId}`);
       
-      const trade = await P2PTrade.findById(tradeId)
-        .populate('buyerId')
-        .populate('sellerId');
+      // Use enhanced safety system for trade cancellation
+      const escrowSafetySystem = require('./escrowSafetySystem');
+      const result = await escrowSafetySystem.safeCancelTrade(
+        tradeId, 
+        'Отменено пользователем', 
+        userChatId
+      );
       
-      if (!trade) {
-        return { success: false, error: 'Сделка не найдена' };
-      }
-      
-      // Check if user is participant
-      const isParticipant = trade.buyerId.chatId === userChatId || trade.sellerId.chatId === userChatId;
-      if (!isParticipant) {
-        return { success: false, error: 'Вы не являетесь участником этой сделки' };
-      }
-      
-      if (!['escrow_locked', 'payment_pending'].includes(trade.status)) {
-        return { success: false, error: 'Нельзя отменить эту сделку' };
-      }
-      
-      // Refund tokens from escrow to seller
-      try {
-        await escrowService.refundTokensFromEscrow(
-          trade.sellerId._id,
-          tradeId,
-          'CES',
-          trade.amount,
-          'Отменено пользователем'
-        );
-      } catch (refundError) {
-        console.error('❌ Escrow refund failed during trade cancellation:', refundError);
+      if (result.success) {
+        const trade = result.trade;
         
-        // If smart contract refund fails, we need to handle this properly
-        if (refundError.message.includes('Smart contract refund failed')) {
-          // For smart contract escrow failures, we should not complete the cancellation
-          // The trade remains in its current state until manual intervention
-          return { 
-            success: false, 
-            error: 'Не удалось отменить сделку: ошибка смарт-контракта. Обратитесь в поддержку.',
-            requiresManualIntervention: true,
-            escrowId: refundError.message.match(/escrow ID (\d+)/)?.[1]
-          };
+        // Send notifications to both participants
+        try {
+          const smartNotificationService = require('./smartNotificationService');
+          const otherUserId = trade.buyerId.chatId === userChatId ? trade.sellerId._id : trade.buyerId._id;
+          
+          await smartNotificationService.sendSmartTradeStatusNotification(
+            otherUserId,
+            trade,
+            'cancelled'
+          );
+        } catch (notifyError) {
+          console.log('Warning: Could not send notification');
         }
         
-        // For other escrow errors, still fail the cancellation
-        return { success: false, error: `Ошибка возврата средств: ${refundError.message}` };
+        // Validate seller balance after cancellation
+        try {
+          const balanceValidationService = require('./balanceValidationService');
+          await balanceValidationService.validateAfterEscrowOperation(
+            trade.sellerId._id,
+            'cancel_trade',
+            trade.amount,
+            'CES'
+          );
+        } catch (validationError) {
+          console.warn('⚠️ Balance validation after trade cancellation failed:', validationError.message);
+        }
+        
+        console.log(`✅ [ENHANCED] Trade ${tradeId} cancelled safely by user`);
+        return { success: true };
+      } else {
+        console.error(`❌ [ENHANCED] Trade cancellation failed: ${result.error}`);
+        return result; // Return the error details from safety system
       }
-      
-      // Update trade status
-      trade.status = 'cancelled';
-      trade.escrowStatus = 'returned';
-      trade.disputeReason = 'Отменено пользователем';
-      
-      await trade.save();
-      
-      // Notify other participant
-      try {
-        const otherUserId = trade.buyerId.chatId === userChatId ? trade.sellerId._id : trade.buyerId._id;
-        await smartNotificationService.sendSmartTradeStatusNotification(
-          otherUserId,
-          trade,
-          'cancelled'
-        );
-      } catch (notifyError) {
-        console.log('Warning: Could not send notification');
-      }
-      
-      console.log(`Trade ${tradeId} cancelled by user`);
-      
-      // Validate seller balance after cancellation
-      try {
-        const balanceValidationService = require('./balanceValidationService');
-        await balanceValidationService.validateAfterEscrowOperation(
-          trade.sellerId._id,
-          'cancel_trade',
-          trade.amount,
-          'CES'
-        );
-      } catch (validationError) {
-        console.warn('⚠️ Balance validation after trade cancellation failed:', validationError.message);
-      }
-      
-      return { success: true };
       
     } catch (error) {
-      console.error('Error cancelling trade by user:', error);
+      console.error('Error in enhanced trade cancellation:', error);
       return { success: false, error: error.message };
     }
   }
   
-  // Cancel trade with timeout (automatic cancellation)
+  // Cancel trade with timeout (automatic cancellation) with enhanced safety
   async cancelTradeWithTimeout(tradeId) {
     try {
-      console.log(`Cancelling trade ${tradeId} due to timeout`);
+      console.log(`🛡️ [ENHANCED] Cancelling trade ${tradeId} due to timeout with safety checks`);
       
       const trade = await P2PTrade.findById(tradeId)
         .populate('buyerId')
@@ -1756,41 +1719,67 @@ class P2PService {
         return;
       }
       
-      // Refund tokens from escrow to seller
+      // Use enhanced safety system for timeout cancellation
       try {
-        await escrowService.refundTokensFromEscrow(
-          trade.sellerId._id,
-          tradeId,
-          'CES',
-          trade.amount,
-          'Время оплаты истекло'
+        const escrowSafetySystem = require('./escrowSafetySystem');
+        const result = await escrowSafetySystem.safeCancelTrade(
+          tradeId, 
+          'Время оплаты истекло', 
+          trade.sellerId.chatId // Use seller as the requesting user for timeout
         );
-      } catch (refundError) {
-        console.error('❌ Escrow refund failed during timeout cancellation:', refundError);
         
-        // If smart contract refund fails during timeout, log for manual intervention
-        // but don't fail the timeout process - the trade should still be marked as cancelled
-        if (refundError.message.includes('Smart contract refund failed')) {
-          console.error(`⚠️ MANUAL INTERVENTION REQUIRED: Timeout cancellation failed for trade ${tradeId} due to smart contract refund failure`);
-          console.error(`Escrow details: ${refundError.message}`);
-          
-          // TODO: Add this to a manual intervention queue or notification system
-          // For now, continue with the cancellation process in database
+        if (result.success) {
+          console.log(`✅ [ENHANCED] Trade ${tradeId} cancelled safely due to timeout`);
         } else {
-          // For other escrow errors, re-throw to prevent inconsistent state
-          throw refundError;
+          console.error(`❌ [ENHANCED] Timeout cancellation failed: ${result.error}`);
+          
+          // For timeout cancellations, we may need special handling
+          if (result.requiresManualIntervention) {
+            console.error(`⚠️ MANUAL INTERVENTION REQUIRED: Timeout cancellation failed for trade ${tradeId}`);
+            console.error(`Escrow details: ${result.error}`);
+            
+            // Create a timeout-specific manual intervention record
+            const { EscrowTransaction } = require('../database/models');
+            const timeoutIntervention = new EscrowTransaction({
+              userId: trade.sellerId._id,
+              tradeId: tradeId,
+              type: 'timeout_intervention_required',
+              tokenType: 'CES',
+              amount: trade.amount,
+              status: 'pending',
+              reason: `Timeout cancellation failed: ${result.error}`,
+              createdAt: new Date()
+            });
+            
+            await timeoutIntervention.save();
+            console.log(`📝 [ENHANCED] Timeout intervention record created: ${timeoutIntervention._id}`);
+          }
+          
+          // Continue with trade status update in database even if escrow refund fails
+          // This prevents trades from being stuck in pending status forever
+          trade.status = 'cancelled';
+          trade.escrowStatus = 'failed_refund';
+          trade.disputeReason = `Время оплаты истекло - требуется ручное вмешательство`;
+          
+          await trade.save();
+          console.log(`⚠️ [ENHANCED] Trade ${tradeId} marked as cancelled with failed refund status`);
         }
+        
+      } catch (safetyError) {
+        console.error(`❌ [ENHANCED] Safety system error during timeout cancellation:`, safetyError);
+        
+        // Fallback: mark trade as cancelled in database to prevent permanent pending status
+        trade.status = 'cancelled';
+        trade.escrowStatus = 'system_error';
+        trade.disputeReason = `Системная ошибка при таймауте: ${safetyError.message}`;
+        
+        await trade.save();
+        console.log(`⚠️ [ENHANCED] Trade ${tradeId} marked as cancelled due to system error`);
       }
       
-      // Update trade status
-      trade.status = 'cancelled';
-      trade.escrowStatus = 'returned';
-      trade.disputeReason = 'Время оплаты истекло';
-      
-      await trade.save();
-      
-      // Notify both participants
+      // Notify both participants regardless of escrow status
       try {
+        const smartNotificationService = require('./smartNotificationService');
         await smartNotificationService.sendSmartTradeStatusNotification(
           trade.buyerId._id,
           trade,
@@ -1802,13 +1791,13 @@ class P2PService {
           'timeout'
         );
       } catch (notifyError) {
-        console.log('Warning: Could not send notifications');
+        console.log('Warning: Could not send timeout notifications');
       }
       
-      console.log(`Trade ${tradeId} cancelled due to timeout`);
+      console.log(`✅ [ENHANCED] Timeout cancellation process completed for trade ${tradeId}`);
       
     } catch (error) {
-      console.error('Error cancelling trade with timeout:', error);
+      console.error('Error in enhanced timeout cancellation:', error);
     }
   }
 

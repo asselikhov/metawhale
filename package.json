@@ -20,10 +20,15 @@
     "postinstall": "echo \"Installation completed successfully\"",
     "cache:clear": "yarn cache clean --force && npm cache clean --force",
     "fresh-install": "rm -rf node_modules yarn.lock && yarn install",
-    "cleanup": "node scripts/cleanup.js --cleanup",
-    "health-check": "node scripts/cleanup.js --check",
-    "monitor-balance": "node scripts/balance-monitor.js",
-    "test-transactions": "node scripts/test-transaction-fixes.js"
+    "cleanup:orders": "node scripts/comprehensive_cleanup_orders.js",
+    "health-check": "node scripts/quick_escrow_check.js",
+    "monitor:escrow": "node scripts/escrow_monitoring.js",
+    "admin:refund": "node scripts/admin_escrow_refund.js",
+    "balance:check": "node scripts/quick_balance_check.js",
+    "balance:detailed": "node scripts/detailed_balance_check.js",
+    "escrow:release": "node scripts/check_escrow_release.js",
+    "maintenance": "npm run health-check && npm run balance:check",
+    "emergency:escrow": "npm run admin:refund"
   },
   "keywords": [
     "telegram",
