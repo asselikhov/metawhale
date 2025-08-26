@@ -1403,16 +1403,34 @@ class MessageHandler {
     try {
       const chatId = ctx.chat.id.toString();
       const sessionManager = require('./SessionManager');
-      const tradeId = sessionManager.getSessionData(chatId, 'tradeId');
-      const orderNumber = sessionManager.getSessionData(chatId, 'orderNumber');
+      let tradeId = sessionManager.getSessionData(chatId, 'tradeId');
+      let orderNumber = sessionManager.getSessionData(chatId, 'orderNumber');
       
+      // If session data is missing (e.g., notification sent via script), find active trade for buyer
       if (!tradeId || !orderNumber) {
-        return await ctx.reply('❌ Данные сделки не найдены.');
+        console.log(`🔍 Session data missing for user ${chatId}, searching for active trade`);
+        
+        // Import required models and services
+        const { P2PTrade } = require('../database/models');
+        
+        // Find active trade where user is the buyer
+        const trade = await P2PTrade.findOne({
+          buyerId: chatId,
+          status: { $in: ['escrow_locked', 'payment_pending'] }
+        }).populate('buyerId').populate('sellerId');
+        
+        if (!trade) {
+          return await ctx.reply('❌ Активная сделка не найдена. Возможно, время оплаты истекло.');
+        }
+        
+        tradeId = trade._id.toString();
+        orderNumber = `CES${trade.buyOrderId.toString().slice(-8)}`;
+        console.log(`🔍 Found active trade for buyer ${chatId}: tradeId=${tradeId}, orderNumber=${orderNumber}`);
       }
       
-      // Mark payment as completed in P2P service
+      // Mark payment as made by buyer (not completed by seller)
       const p2pService = require('../services/p2pService');
-      const result = await p2pService.markPaymentCompleted(tradeId, chatId);
+      const result = await p2pService.markPaymentMade(tradeId, chatId);
       
       if (!result.success) {
         return await ctx.reply(`❌ Ошибка: ${result.error}`);
@@ -1424,9 +1442,9 @@ class MessageHandler {
       const message = `✅ ПЛАТЁЖ ОТМЕЧЕН КАК ВЫПОЛНЕННЫЙ\n` +
                      `⁠⁠⁠⁠⁠⁠⁠⁠⁠⁠\n` +
                      `Ордер: ${orderNumber}\n\n` +
-                     `Мы уведомили покупателя о выполненном платеже.\n` +
+                     `Мы уведомили продавца о выполненном платеже.\n` +
                      `Ожидайте подтверждения и освобождения CES с эскроу.\n\n` +
-                     `Сделка будет завершена после подтверждения получения платежа.`;
+                     `Сделка будет завершена после подтверждения получения платежа продавцом.`;
       
       const keyboard = Markup.inlineKeyboard([
         [Markup.button.callback('🔙 К P2P меню', 'p2p_menu')]

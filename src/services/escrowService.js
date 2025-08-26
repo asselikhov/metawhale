@@ -251,8 +251,43 @@ class EscrowService {
         throw new Error(`Недостаточно средств в эскроу. Доступно: ${escrowBalance.toFixed(4)} ${tokenType}`);
       }
 
-      // Execute blockchain transfer from seller to buyer
-      const transferResult = await this.executeEscrowTransfer(seller, buyer, tokenType, amount);
+      // Check if this is a smart contract escrow by looking for the escrow transaction
+      let smartContractEscrowId = null;
+      let releaseResult = null;
+      
+      if (tradeId && tokenType === 'CES' && this.useSmartContract && this.escrowContractAddress) {
+        // Look for the lock transaction with smart contract escrow ID
+        const lockTx = await EscrowTransaction.findOne({
+          userId: userId,
+          tradeId: tradeId,
+          type: 'lock',
+          tokenType: 'CES',
+          smartContractEscrowId: { $exists: true, $ne: null }
+        });
+        
+        if (lockTx) {
+          smartContractEscrowId = lockTx.smartContractEscrowId;
+          console.log(`🔐 Found smart contract escrow ID: ${smartContractEscrowId}`);
+          
+          // Release tokens from smart contract escrow
+          const smartContractService = require('./smartContractService');
+          const sellerPrivateKey = await walletService.getUserPrivateKey(seller.chatId);
+          
+          releaseResult = await smartContractService.releaseSmartEscrow(
+            smartContractEscrowId,
+            sellerPrivateKey
+          );
+          
+          console.log(`✅ Successfully released ${amount} ${tokenType} from smart contract escrow`);
+        }
+      }
+      
+      // If not a smart contract escrow or smart contract release failed, use direct transfer
+      if (!releaseResult) {
+        console.log('🔄 Using direct wallet transfer for escrow release');
+        // Execute blockchain transfer from seller to buyer
+        releaseResult = await this.executeEscrowTransfer(seller, buyer, tokenType, amount);
+      }
 
       // Update escrow balances
       if (tokenType === 'CES') {
@@ -271,8 +306,11 @@ class EscrowService {
         tokenType: tokenType,
         amount: amount,
         status: 'completed',
-        txHash: transferResult.txHash,
-        reason: 'Released after successful P2P trade',
+        txHash: releaseResult.txHash,
+        smartContractEscrowId: smartContractEscrowId,
+        reason: smartContractEscrowId 
+          ? 'Released from smart contract escrow after successful P2P trade' 
+          : 'Released after successful P2P trade',
         completedAt: new Date()
       });
 
@@ -281,7 +319,7 @@ class EscrowService {
       console.log(`✅ Successfully released ${amount} ${tokenType} from escrow`);
       return {
         success: true,
-        txHash: transferResult.txHash,
+        txHash: releaseResult.txHash,
         escrowTxId: escrowTx._id,
         sellerEscrowBalance: tokenType === 'CES' ? seller.escrowCESBalance : seller.escrowPOLBalance
       };

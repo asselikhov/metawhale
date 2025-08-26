@@ -389,7 +389,8 @@ class P2PService {
         return { success: false, error: 'Только мейкер может отметить оплату' };
       }
       
-      if (trade.status !== 'escrow_locked') {
+      // Accept both escrow_locked and payment_pending statuses
+      if (!['escrow_locked', 'payment_pending'].includes(trade.status)) {
         return { success: false, error: 'Нельзя отметить оплату для этой сделки' };
       }
       
