@@ -71,9 +71,10 @@ class SmartContractService {
       // Convert timelock to seconds
       const timelockSeconds = timelockMinutes * 60;
 
-      // Get current gas price and adjust it
-      const gasPrice = await this.provider.getGasPrice();
-      console.log(`   Current gas price: ${ethers.utils.formatUnits(gasPrice, 'gwei')} Gwei`);
+      // Get current gas fees and adjust them
+      const feeData = await this.provider.getFeeData();
+      console.log(`   Current maxFeePerGas: ${ethers.utils.formatUnits(feeData.maxFeePerGas, 'gwei')} Gwei`);
+      console.log(`   Current maxPriorityFeePerGas: ${ethers.utils.formatUnits(feeData.maxPriorityFeePerGas, 'gwei')} Gwei`);
 
       // Create escrow transaction with improved gas settings
       const tx = await escrowContract.createEscrow(
@@ -83,7 +84,8 @@ class SmartContractService {
         timelockSeconds,
         {
           gasLimit: 500000, // Increased gas limit for better reliability
-          gasPrice: gasPrice.mul(150).div(100) // 50% higher gas price to ensure transaction is processed
+          maxFeePerGas: feeData.maxFeePerGas.mul(150).div(100), // 50% higher max fee to ensure transaction is processed
+          maxPriorityFeePerGas: feeData.maxPriorityFeePerGas.mul(150).div(100) // 50% higher priority fee
         }
       );
 
@@ -133,13 +135,15 @@ class SmartContractService {
       const wallet = new ethers.Wallet(releaserPrivateKey, this.provider);
       const escrowContract = new ethers.Contract(this.escrowContractAddress, this.escrowABI, wallet);
 
-      // Get current gas price and adjust it
-      const gasPrice = await this.provider.getGasPrice();
-      console.log(`   Current gas price: ${ethers.utils.formatUnits(gasPrice, 'gwei')} Gwei`);
+      // Get current gas fees and adjust them
+      const feeData = await this.provider.getFeeData();
+      console.log(`   Current maxFeePerGas: ${ethers.utils.formatUnits(feeData.maxFeePerGas, 'gwei')} Gwei`);
+      console.log(`   Current maxPriorityFeePerGas: ${ethers.utils.formatUnits(feeData.maxPriorityFeePerGas, 'gwei')} Gwei`);
 
       const tx = await escrowContract.releaseEscrow(escrowId, {
         gasLimit: 500000, // Increased gas limit for better reliability
-        gasPrice: gasPrice.mul(150).div(100) // 50% higher gas price to ensure transaction is processed
+        maxFeePerGas: feeData.maxFeePerGas.mul(150).div(100), // 50% higher max fee to ensure transaction is processed
+        maxPriorityFeePerGas: feeData.maxPriorityFeePerGas.mul(150).div(100) // 50% higher priority fee
       });
 
       console.log(`⏳ Escrow release transaction sent: ${tx.hash}`);
@@ -169,12 +173,14 @@ class SmartContractService {
       const escrowContract = new ethers.Contract(this.escrowContractAddress, this.escrowABI, wallet);
 
       // Get current gas price and adjust it with higher premium for reliability
-      const gasPrice = await this.provider.getGasPrice();
-      console.log(`   Current gas price: ${ethers.utils.formatUnits(gasPrice, 'gwei')} Gwei`);
+      const feeData = await this.provider.getFeeData();
+      console.log(`   Current maxFeePerGas: ${ethers.utils.formatUnits(feeData.maxFeePerGas, 'gwei')} Gwei`);
+      console.log(`   Current maxPriorityFeePerGas: ${ethers.utils.formatUnits(feeData.maxPriorityFeePerGas, 'gwei')} Gwei`);
       
       const tx = await escrowContract.refundEscrow(escrowId, {
         gasLimit: 500000, // Increased gas limit for better reliability
-        gasPrice: gasPrice.mul(150).div(100) // 50% higher gas price to ensure transaction is processed
+        maxFeePerGas: feeData.maxFeePerGas.mul(150).div(100), // 50% higher max fee to ensure transaction is processed
+        maxPriorityFeePerGas: feeData.maxPriorityFeePerGas.mul(150).div(100) // 50% higher priority fee
       });
 
       console.log(`⏳ Escrow refund transaction sent: ${tx.hash}`);
@@ -261,13 +267,15 @@ class SmartContractService {
       const wallet = new ethers.Wallet(disputerPrivateKey, this.provider);
       const escrowContract = new ethers.Contract(this.escrowContractAddress, this.escrowABI, wallet);
 
-      // Get current gas price and adjust it
-      const gasPrice = await this.provider.getGasPrice();
-      console.log(`   Current gas price: ${ethers.utils.formatUnits(gasPrice, 'gwei')} Gwei`);
+      // Get current gas fees and adjust them
+      const feeData = await this.provider.getFeeData();
+      console.log(`   Current maxFeePerGas: ${ethers.utils.formatUnits(feeData.maxFeePerGas, 'gwei')} Gwei`);
+      console.log(`   Current maxPriorityFeePerGas: ${ethers.utils.formatUnits(feeData.maxPriorityFeePerGas, 'gwei')} Gwei`);
 
       const tx = await escrowContract.initiateDispute(escrowId, {
         gasLimit: 500000, // Increased gas limit for better reliability
-        gasPrice: gasPrice.mul(150).div(100) // 50% higher gas price to ensure transaction is processed
+        maxFeePerGas: feeData.maxFeePerGas.mul(150).div(100), // 50% higher max fee to ensure transaction is processed
+        maxPriorityFeePerGas: feeData.maxPriorityFeePerGas.mul(150).div(100) // 50% higher priority fee
       });
 
       console.log(`⏳ Dispute initiation transaction sent: ${tx.hash}`);
@@ -295,13 +303,15 @@ class SmartContractService {
       const wallet = new ethers.Wallet(moderatorPrivateKey, this.provider);
       const escrowContract = new ethers.Contract(this.escrowContractAddress, this.escrowABI, wallet);
 
-      // Get current gas price and adjust it
-      const gasPrice = await this.provider.getGasPrice();
-      console.log(`   Current gas price: ${ethers.utils.formatUnits(gasPrice, 'gwei')} Gwei`);
+      // Get current gas fees and adjust them
+      const feeData = await this.provider.getFeeData();
+      console.log(`   Current maxFeePerGas: ${ethers.utils.formatUnits(feeData.maxFeePerGas, 'gwei')} Gwei`);
+      console.log(`   Current maxPriorityFeePerGas: ${ethers.utils.formatUnits(feeData.maxPriorityFeePerGas, 'gwei')} Gwei`);
 
       const tx = await escrowContract.resolveDispute(escrowId, favorBuyer, {
         gasLimit: 500000, // Increased gas limit for better reliability
-        gasPrice: gasPrice.mul(150).div(100) // 50% higher gas price to ensure transaction is processed
+        maxFeePerGas: feeData.maxFeePerGas.mul(150).div(100), // 50% higher max fee to ensure transaction is processed
+        maxPriorityFeePerGas: feeData.maxPriorityFeePerGas.mul(150).div(100) // 50% higher priority fee
       });
 
       console.log(`⏳ Dispute resolution transaction sent: ${tx.hash}`);
