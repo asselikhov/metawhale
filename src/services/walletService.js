@@ -409,7 +409,7 @@ class WalletService {
       
       // Reserve some POL for gas (0.001 POL minimum)
       const gasReserve = 0.001;
-      if (currentBalance - amount < gasReserve) {
+      if (availableBalance - amount < gasReserve) {
         throw new Error(`Оставьте минимум ${gasReserve} POL для комиссии`);
       }
       
@@ -461,10 +461,14 @@ class WalletService {
           from: fromUser.walletAddress
         });
         
+        // Fix BigInt operations by converting to BigInt first
+        const gasEstimateBigInt = BigInt(gasEstimate.toString());
+        const gasLimit = (gasEstimateBigInt * 120n) / 100n; // Add 20% buffer
+        
         const tx = await wallet.sendTransaction({
           to: toAddress,
           value: transferAmount,
-          gasLimit: gasEstimate * 120n / 100n, // Add 20% buffer
+          gasLimit: gasLimit,
           gasPrice: await provider.getFeeData().then(feeData => feeData.gasPrice)
         });
         
@@ -536,7 +540,7 @@ class WalletService {
       }
       
       // Validate recipient address
-      if (!ethers.isAddress(toAddress)) {
+      if (!utils.isAddress(toAddress)) {
         throw new Error('Неверный адрес получателя');
       }
       
@@ -592,10 +596,14 @@ class WalletService {
       // Execute blockchain transaction
       try {
         // Estimate gas and set appropriate gas limit for ERC-20 transfer
-        const gasEstimate = await contract.transfer.estimateGas(toAddress, transferAmount);
+        const gasEstimate = await contract.estimateGas.transfer(toAddress, transferAmount);
+        
+        // Fix BigInt operations by converting to BigInt first
+        const gasEstimateBigInt = BigInt(gasEstimate.toString());
+        const gasLimit = gasEstimateBigInt * 120n / 100n; // Add 20% buffer
         
         const tx = await contract.transfer(toAddress, transferAmount, {
-          gasLimit: gasEstimate * 120n / 100n, // Add 20% buffer
+          gasLimit: gasLimit,
         });
         
         console.log(`⏳ Transaction sent to blockchain: ${tx.hash}`);
