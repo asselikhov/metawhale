@@ -1091,6 +1091,10 @@ class P2PService {
       
       console.log(`✅ Escrow validation passed: Total will be ${totalRequired.toFixed(4)} CES`);
       
+      // Calculate total value before using it
+      const totalValue = amount * pricePerToken;
+      console.log(`Total order value: ₽${totalValue.toFixed(2)}`);
+      
       // 🔍 ANTI-FRAUD: Проверка безопасности перед созданием ордера
       console.log(`🔍 [SECURITY] Проверка безопасности sell ордера для ${chatId}`);
       const securityCheck = await antiFraudService.checkOrderSecurity(chatId, {
@@ -1108,9 +1112,6 @@ class P2PService {
       if (securityCheck.riskLevel === 'MEDIUM') {
         console.log(`⚠️ [SECURITY] Предупреждение: ${securityCheck.reason}`);
       }
-      
-      const totalValue = amount * pricePerToken;
-      console.log(`Total order value: ₽${totalValue.toFixed(2)}`);
       
       // Lock tokens in escrow before creating order
       console.log(`Locking ${amount} CES in escrow`);

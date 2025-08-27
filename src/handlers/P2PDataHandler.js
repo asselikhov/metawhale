@@ -345,10 +345,36 @@ class P2PDataHandler {
         60: 'длинные сделки'
       };
       
-      await ctx.reply(`✅ Время сделки установлено: ${timeMinutes} мин.\n📝 Тип: ${timeDescription[timeMinutes] || 'обычные сделки'}`);
+      // Answer callback query first to remove loading indicator
+      await ctx.answerCbQuery(`✅ Время сделки: ${timeMinutes} мин.`);
       
-      // Refresh the trade time menu
-      setTimeout(() => this.handleP2PEditTradeTime(ctx), 1500);
+      // Update the message with new time selection (use updated value from DB)
+      const currentTime = timeMinutes; // Use the value we just saved
+      
+      const message = '⏰ ВРЕМЯ СДЕЛКИ\n' +
+                     '➖➖➖➖➖➖➖➖➖➖➖\n' +
+                     `Текущая настройка: ${currentTime} мин.\n\n` +
+                     'Выберите время для оплаты в сделках:\n\n' +
+                     '🟢 Короткие сделки: 10-15 мин.\n' +
+                     '🟠 Стандартные: 30 мин.\n' +
+                     '🟡 Длинные: 60 мин.';
+      
+      const keyboard = Markup.inlineKeyboard([
+        [Markup.button.callback(`${currentTime === 10 ? '✅' : '⚫'} 10 мин.`, 'p2p_set_time_10')],
+        [Markup.button.callback(`${currentTime === 15 ? '✅' : '⚫'} 15 мин.`, 'p2p_set_time_15')],
+        [Markup.button.callback(`${currentTime === 30 ? '✅' : '⚫'} 30 мин. (рекомендуемо)`, 'p2p_set_time_30')],
+        [Markup.button.callback(`${currentTime === 60 ? '✅' : '⚫'} 60 мин.`, 'p2p_set_time_60')],
+        [Markup.button.callback('🔙 Назад', 'p2p_edit_data')]
+      ]);
+      
+      // Edit existing message instead of sending new one
+      try {
+        await ctx.editMessageText(message, keyboard);
+      } catch (editError) {
+        // If editing fails, send a new message
+        console.log('⚠️ Failed to edit message, sending new one:', editError.message);
+        await ctx.reply(message, keyboard);
+      }
       
     } catch (error) {
       console.error('Set trade time error:', error);
