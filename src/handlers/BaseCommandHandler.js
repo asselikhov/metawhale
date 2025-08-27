@@ -137,15 +137,15 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
       })} • 🅐🅣🅗 ${athDisplay}
 
 Торгуй CES удобно и безопасно  
-P2P Биржа: https://t.me/rogassistant_bot
-Покупка и продажа за ₽`;
+<a href="https://t.me/rogassistant_bot">P2P Биржа</a>: Покупка и продажа за ₽`;
       
-      // Edit the original message without parse_mode to avoid Markdown issues
+      // Edit the original message with parse_mode HTML to support links
       await ctx.telegram.editMessageText(
         sentMessage.chat.id,
         sentMessage.message_id,
         null,
-        message
+        message,
+        { parse_mode: 'HTML' }
       );
       
     } catch (error) {

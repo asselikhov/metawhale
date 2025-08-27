@@ -102,12 +102,11 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
       })} • 🅐🅣🅗 ${athDisplay}
 
 Торгуй CES удобно и безопасно  
-P2P Биржа: https://t.me/rogassistant_bot
-Покупка и продажа за ₽`;
+<a href="https://t.me/rogassistant_bot">P2P Биржа</a>: Покупка и продажа за ₽`;
       
-      // Send message to group without parse_mode to avoid Markdown issues
+      // Send message to group with HTML parse mode to support links
       if (this.bot) {
-        await this.bot.telegram.sendMessage(targetGroupId, message);
+        await this.bot.telegram.sendMessage(targetGroupId, message, { parse_mode: 'HTML' });
         this.lastMessageSent = now; // Update last message timestamp
         console.log(`✅ Price message sent to group ${targetGroupId}`);
       } else {
@@ -168,15 +167,21 @@ P2P Биржа: https://t.me/rogassistant_bot
       
       const now = new Date();
       
-      // Находим все активные ордера
+      // Находим все активные ордера с валидными пользователями
       const activeOrders = await P2POrder.find({
-        status: { $in: ['active', 'partial'] }
+        status: { $in: ['active', 'partial'] },
+        userId: { $ne: null } // Исключаем ордера без пользователей
       }).populate('userId');
+      
+      // Фильтруем ордера с корректно популированными пользователями
+      const validOrders = activeOrders.filter(order => {
+        return order.userId && (order.userId._id || order.userId.toString);
+      });
       
       let expiredCount = 0;
       let warningCount = 0;
       
-      for (const order of activeOrders) {
+      for (const order of validOrders) {
         const timeLimit = order.tradeTimeLimit || 30; // По умолчанию 30 минут
         const orderCreatedAt = new Date(order.createdAt);
         const expiresAt = new Date(orderCreatedAt.getTime() + timeLimit * 60 * 1000);
@@ -208,8 +213,18 @@ P2P Биржа: https://t.me/rogassistant_bot
    */
   async cancelExpiredOrder(order) {
     try {
+      // Проверяем валидность ордера
+      if (!order || !order._id) {
+        console.error('⚠️ [P2P-TIMER] Невалидный ордер, пропускаем');
+        return;
+      }
+      
       console.log(`⏰ [P2P-TIMER] Отмена просроченного ордера ${order._id} (тип: ${order.type})`);
       
+      // Проверяем, что пользователь существует
+      if (!order.userId) {
+        console.log(`⚠️ [P2P-TIMER] Ордер ${order._id} не связан с пользователем, просто отменяем`);
+      }
       // Обновляем статус ордера (используем 'cancelled' для обратной совместимости)
       order.status = 'cancelled';
       order.cancelReason = 'Время ордера истекло (автоотмена)';
@@ -217,17 +232,32 @@ P2P Биржа: https://t.me/rogassistant_bot
       await order.save();
       
       // Освобождаем заблокированные средства для sell ордеров
-      if (order.type === 'sell' && order.escrowLocked && order.escrowAmount > 0) {
-        const escrowService = require('./escrowService');
-        await escrowService.releaseTokensFromEscrow(order.userId, null, 'CES', order.escrowAmount);
-        console.log(`💰 [P2P-TIMER] Освобождены заблокированные токены: ${order.escrowAmount} CES`);
+      if (order.type === 'sell' && order.escrowLocked && order.escrowAmount > 0 && order.userId) {
+        try {
+          const escrowService = require('./escrowService');
+          await escrowService.releaseTokensFromEscrow(order.userId, null, 'CES', order.escrowAmount);
+          console.log(`💰 [P2P-TIMER] Освобождены заблокированные токены: ${order.escrowAmount} CES`);
+        } catch (escrowError) {
+          console.error(`⚠️ [P2P-TIMER] Ошибка освобождения токенов из эскроу для ордера ${order._id}:`, escrowError);
+        }
       }
       
       // Освобождаем заблокированные рубли для buy ордеров
-      if (order.type === 'buy') {
-        const rubleReserveService = require('./rubleReserveService');
-        await rubleReserveService.releaseReservation(order.userId.toString(), order._id.toString());
-        console.log(`💰 [P2P-TIMER] Освобождены заблокированные рубли для ордера ${order._id}`);
+      if (order.type === 'buy' && order.userId) {
+        try {
+          const rubleReserveService = require('./rubleReserveService');
+          // Безопасно получаем ID пользователя
+          const userId = order.userId._id ? order.userId._id.toString() : order.userId.toString();
+          const result = await rubleReserveService.releaseOrderReserve(userId, order._id.toString());
+          
+          if (result.success) {
+            console.log(`💰 [P2P-TIMER] Освобождены заблокированные рубли: ${result.amount} ₽ для ордера ${order._id}`);
+          } else {
+            console.log(`⚠️ [P2P-TIMER] Не удалось освободить резерв рублей для ордера ${order._id}: ${result.message}`);
+          }
+        } catch (rubleError) {
+          console.error(`⚠️ [P2P-TIMER] Ошибка освобождения рублевого резерва для ордера ${order._id}:`, rubleError);
+        }
       }
       
       // Отправляем уведомление пользователю
