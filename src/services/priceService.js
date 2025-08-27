@@ -194,26 +194,484 @@ class PriceService {
     }
   }
 
-  // Main function to get POL price
-  async getPOLPrice() {
+  // Get TRX token price from CoinGecko API
+  async getTRXPriceFromCoinGecko() {
     try {
-      console.log('🔍 Getting POL price from CoinGecko...');
+      console.log('🦎 Getting TRX token data from CoinGecko...');
       
-      const coinGeckoData = await this.getPOLPriceFromCoinGecko();
+      const response = await axios.get(
+        `${config.apis.coinGecko.baseUrl}/simple/price`,
+        {
+          headers: {
+            'X-CG-Demo-API-Key': config.apis.coinGecko.apiKey,
+            'Accept': 'application/json'
+          },
+          params: {
+            ids: 'tron',
+            vs_currencies: 'usd',
+            include_24hr_change: true,
+            include_market_cap: true,
+            include_24hr_vol: true
+          },
+          timeout: 8000
+        }
+      );
+      
+      if (response.data?.tron) {
+        const data = response.data.tron;
+        const usdToRubRate = await this.getUSDToRUBRate();
+        const priceUSD = data.usd;
+        const priceRub = priceUSD * usdToRubRate;
+        
+        console.log(`🦎 TRX price from CoinGecko: $${priceUSD.toFixed(4)}`);
+        
+        return {
+          price: priceUSD,
+          priceRub: priceRub,
+          change24h: data.usd_24h_change || 0,
+          marketCap: data.usd_market_cap || 0,
+          volume24h: data.usd_24h_vol || 0,
+          source: 'coingecko'
+        };
+      }
+      
+      return null;
+    } catch (error) {
+      console.log('⚠️ CoinGecko API error for TRX:', error.message);
+      return null;
+    }
+  }
+
+  // Get USDT token price
+  async getUSDTPriceFromCoinGecko() {
+    try {
+      console.log('💵 Getting USDT token data from CoinGecko...');
+      
+      const response = await axios.get(
+        `${config.apis.coinGecko.baseUrl}/simple/price`,
+        {
+          headers: {
+            'X-CG-Demo-API-Key': config.apis.coinGecko.apiKey,
+            'Accept': 'application/json'
+          },
+          params: {
+            ids: 'tether',
+            vs_currencies: 'usd',
+            include_24hr_change: true,
+            include_market_cap: true,
+            include_24hr_vol: true
+          },
+          timeout: 8000
+        }
+      );
+      
+      if (response.data?.tether) {
+        const data = response.data.tether;
+        const usdToRubRate = await this.getUSDToRUBRate();
+        const priceUSD = data.usd;
+        const priceRub = priceUSD * usdToRubRate;
+        
+        console.log(`💵 USDT price from CoinGecko: $${priceUSD.toFixed(4)}`);
+        
+        return {
+          price: priceUSD,
+          priceRub: priceRub,
+          change24h: data.usd_24h_change || 0,
+          marketCap: data.usd_market_cap || 0,
+          volume24h: data.usd_24h_vol || 0,
+          source: 'coingecko'
+        };
+      }
+      
+      return null;
+    } catch (error) {
+      console.log('⚠️ CoinGecko API error for USDT:', error.message);
+      return null;
+    }
+  }
+
+  // Main function to get TRX price
+  async getTRXPrice() {
+    try {
+      console.log('🔍 Getting TRX price from CoinGecko...');
+      
+      const coinGeckoData = await this.getTRXPriceFromCoinGecko();
       if (coinGeckoData) {
-        console.log(`✅ POL price from CoinGecko: $${coinGeckoData.price.toFixed(4)}`);
+        console.log(`✅ TRX price from CoinGecko: $${coinGeckoData.price.toFixed(4)}`);
         return coinGeckoData;
       }
       
-      throw new Error('Failed to get POL data from CoinGecko');
+      throw new Error('Failed to get TRX data from CoinGecko');
     } catch (error) {
-      console.error('Error getting POL price:', error.message);
+      console.error('Error getting TRX price:', error.message);
       
       // Return fallback price as last resort
-      console.log('⚠️ Using fallback POL price values');
+      console.log('⚠️ Using fallback TRX price values');
       return {
-        price: 0.45,
-        priceRub: 45.0,
+        price: 0.10,
+        priceRub: 10.0,
+        change24h: 0,
+        source: 'fallback'
+      };
+    }
+  }
+
+  // Main function to get USDT price
+  async getUSDTPrice() {
+    try {
+      console.log('🔍 Getting USDT price from CoinGecko...');
+      
+      const coinGeckoData = await this.getUSDTPriceFromCoinGecko();
+      if (coinGeckoData) {
+        console.log(`✅ USDT price from CoinGecko: $${coinGeckoData.price.toFixed(4)}`);
+        return coinGeckoData;
+      }
+      
+      throw new Error('Failed to get USDT data from CoinGecko');
+    } catch (error) {
+      console.error('Error getting USDT price:', error.message);
+      
+      // Return fallback price as last resort (USDT is stable)
+      console.log('⚠️ Using fallback USDT price values');
+      const usdToRubRate = await this.getUSDToRUBRate();
+      return {
+        price: 1.0,
+        priceRub: usdToRubRate,
+        change24h: 0,
+        source: 'fallback'
+      };
+    }
+  }
+
+  // Get BNB token price
+  async getBNBPrice() {
+    try {
+      console.log('🔍 Getting BNB price from CoinGecko...');
+      
+      const response = await axios.get(
+        `${config.apis.coinGecko.baseUrl}/simple/price`,
+        {
+          headers: {
+            'X-CG-Demo-API-Key': config.apis.coinGecko.apiKey,
+            'Accept': 'application/json'
+          },
+          params: {
+            ids: 'binancecoin',
+            vs_currencies: 'usd',
+            include_24hr_change: true,
+            include_market_cap: true,
+            include_24hr_vol: true
+          },
+          timeout: 8000
+        }
+      );
+      
+      if (response.data?.binancecoin) {
+        const data = response.data.binancecoin;
+        const usdToRubRate = await this.getUSDToRUBRate();
+        return {
+          price: data.usd,
+          priceRub: data.usd * usdToRubRate,
+          change24h: data.usd_24h_change || 0,
+          marketCap: data.usd_market_cap || 0,
+          volume24h: data.usd_24h_vol || 0,
+          source: 'coingecko'
+        };
+      }
+      
+      throw new Error('Failed to get BNB data from CoinGecko');
+    } catch (error) {
+      console.error('Error getting BNB price:', error.message);
+      const usdToRubRate = await this.getUSDToRUBRate();
+      return {
+        price: 300,
+        priceRub: 300 * usdToRubRate,
+        change24h: 0,
+        source: 'fallback'
+      };
+    }
+  }
+
+  // Get SOL token price
+  async getSOLPrice() {
+    try {
+      console.log('🔍 Getting SOL price from CoinGecko...');
+      
+      const response = await axios.get(
+        `${config.apis.coinGecko.baseUrl}/simple/price`,
+        {
+          headers: {
+            'X-CG-Demo-API-Key': config.apis.coinGecko.apiKey,
+            'Accept': 'application/json'
+          },
+          params: {
+            ids: 'solana',
+            vs_currencies: 'usd',
+            include_24hr_change: true,
+            include_market_cap: true,
+            include_24hr_vol: true
+          },
+          timeout: 8000
+        }
+      );
+      
+      if (response.data?.solana) {
+        const data = response.data.solana;
+        const usdToRubRate = await this.getUSDToRUBRate();
+        return {
+          price: data.usd,
+          priceRub: data.usd * usdToRubRate,
+          change24h: data.usd_24h_change || 0,
+          marketCap: data.usd_market_cap || 0,
+          volume24h: data.usd_24h_vol || 0,
+          source: 'coingecko'
+        };
+      }
+      
+      throw new Error('Failed to get SOL data from CoinGecko');
+    } catch (error) {
+      console.error('Error getting SOL price:', error.message);
+      const usdToRubRate = await this.getUSDToRUBRate();
+      return {
+        price: 100,
+        priceRub: 100 * usdToRubRate,
+        change24h: 0,
+        source: 'fallback'
+      };
+    }
+  }
+
+  // Get ETH token price
+  async getETHPrice() {
+    try {
+      console.log('🔍 Getting ETH price from CoinGecko...');
+      
+      const response = await axios.get(
+        `${config.apis.coinGecko.baseUrl}/simple/price`,
+        {
+          headers: {
+            'X-CG-Demo-API-Key': config.apis.coinGecko.apiKey,
+            'Accept': 'application/json'
+          },
+          params: {
+            ids: 'ethereum',
+            vs_currencies: 'usd',
+            include_24hr_change: true,
+            include_market_cap: true,
+            include_24hr_vol: true
+          },
+          timeout: 8000
+        }
+      );
+      
+      if (response.data?.ethereum) {
+        const data = response.data.ethereum;
+        const usdToRubRate = await this.getUSDToRUBRate();
+        return {
+          price: data.usd,
+          priceRub: data.usd * usdToRubRate,
+          change24h: data.usd_24h_change || 0,
+          marketCap: data.usd_market_cap || 0,
+          volume24h: data.usd_24h_vol || 0,
+          source: 'coingecko'
+        };
+      }
+      
+      throw new Error('Failed to get ETH data from CoinGecko');
+    } catch (error) {
+      console.error('Error getting ETH price:', error.message);
+      const usdToRubRate = await this.getUSDToRUBRate();
+      return {
+        price: 2500,
+        priceRub: 2500 * usdToRubRate,
+        change24h: 0,
+        source: 'fallback'
+      };
+    }
+  }
+
+  // Get ARB token price
+  async getARBPrice() {
+    try {
+      console.log('🔍 Getting ARB price from CoinGecko...');
+      
+      const response = await axios.get(
+        `${config.apis.coinGecko.baseUrl}/simple/price`,
+        {
+          headers: {
+            'X-CG-Demo-API-Key': config.apis.coinGecko.apiKey,
+            'Accept': 'application/json'
+          },
+          params: {
+            ids: 'arbitrum',
+            vs_currencies: 'usd',
+            include_24hr_change: true,
+            include_market_cap: true,
+            include_24hr_vol: true
+          },
+          timeout: 8000
+        }
+      );
+      
+      if (response.data?.arbitrum) {
+        const data = response.data.arbitrum;
+        const usdToRubRate = await this.getUSDToRUBRate();
+        return {
+          price: data.usd,
+          priceRub: data.usd * usdToRubRate,
+          change24h: data.usd_24h_change || 0,
+          marketCap: data.usd_market_cap || 0,
+          volume24h: data.usd_24h_vol || 0,
+          source: 'coingecko'
+        };
+      }
+      
+      throw new Error('Failed to get ARB data from CoinGecko');
+    } catch (error) {
+      console.error('Error getting ARB price:', error.message);
+      const usdToRubRate = await this.getUSDToRUBRate();
+      return {
+        price: 1,
+        priceRub: 1 * usdToRubRate,
+        change24h: 0,
+        source: 'fallback'
+      };
+    }
+  }
+
+  // Get AVAX token price
+  async getAVAXPrice() {
+    try {
+      console.log('🔍 Getting AVAX price from CoinGecko...');
+      
+      const response = await axios.get(
+        `${config.apis.coinGecko.baseUrl}/simple/price`,
+        {
+          headers: {
+            'X-CG-Demo-API-Key': config.apis.coinGecko.apiKey,
+            'Accept': 'application/json'
+          },
+          params: {
+            ids: 'avalanche-2',
+            vs_currencies: 'usd',
+            include_24hr_change: true,
+            include_market_cap: true,
+            include_24hr_vol: true
+          },
+          timeout: 8000
+        }
+      );
+      
+      if (response.data?.['avalanche-2']) {
+        const data = response.data['avalanche-2'];
+        const usdToRubRate = await this.getUSDToRUBRate();
+        return {
+          price: data.usd,
+          priceRub: data.usd * usdToRubRate,
+          change24h: data.usd_24h_change || 0,
+          marketCap: data.usd_market_cap || 0,
+          volume24h: data.usd_24h_vol || 0,
+          source: 'coingecko'
+        };
+      }
+      
+      throw new Error('Failed to get AVAX data from CoinGecko');
+    } catch (error) {
+      console.error('Error getting AVAX price:', error.message);
+      const usdToRubRate = await this.getUSDToRUBRate();
+      return {
+        price: 30,
+        priceRub: 30 * usdToRubRate,
+        change24h: 0,
+        source: 'fallback'
+      };
+    }
+  }
+
+  // Get BUSD token price
+  async getBUSDPrice() {
+    try {
+      console.log('🔍 Getting BUSD price from CoinGecko...');
+      
+      const response = await axios.get(
+        `${config.apis.coinGecko.baseUrl}/simple/price`,
+        {
+          headers: {
+            'X-CG-Demo-API-Key': config.apis.coinGecko.apiKey,
+            'Accept': 'application/json'
+          },
+          params: {
+            ids: 'binance-usd',
+            vs_currencies: 'usd',
+            include_24hr_change: true
+          },
+          timeout: 8000
+        }
+      );
+      
+      if (response.data?.['binance-usd']) {
+        const data = response.data['binance-usd'];
+        const usdToRubRate = await this.getUSDToRUBRate();
+        return {
+          price: data.usd,
+          priceRub: data.usd * usdToRubRate,
+          change24h: data.usd_24h_change || 0,
+          source: 'coingecko'
+        };
+      }
+      
+      throw new Error('Failed to get BUSD data from CoinGecko');
+    } catch (error) {
+      console.error('Error getting BUSD price:', error.message);
+      const usdToRubRate = await this.getUSDToRUBRate();
+      return {
+        price: 1,
+        priceRub: usdToRubRate,
+        change24h: 0,
+        source: 'fallback'
+      };
+    }
+  }
+
+  // Get USDC token price
+  async getUSDCPrice() {
+    try {
+      console.log('🔍 Getting USDC price from CoinGecko...');
+      
+      const response = await axios.get(
+        `${config.apis.coinGecko.baseUrl}/simple/price`,
+        {
+          headers: {
+            'X-CG-Demo-API-Key': config.apis.coinGecko.apiKey,
+            'Accept': 'application/json'
+          },
+          params: {
+            ids: 'usd-coin',
+            vs_currencies: 'usd',
+            include_24hr_change: true
+          },
+          timeout: 8000
+        }
+      );
+      
+      if (response.data?.['usd-coin']) {
+        const data = response.data['usd-coin'];
+        const usdToRubRate = await this.getUSDToRUBRate();
+        return {
+          price: data.usd,
+          priceRub: data.usd * usdToRubRate,
+          change24h: data.usd_24h_change || 0,
+          source: 'coingecko'
+        };
+      }
+      
+      throw new Error('Failed to get USDC data from CoinGecko');
+    } catch (error) {
+      console.error('Error getting USDC price:', error.message);
+      const usdToRubRate = await this.getUSDToRUBRate();
+      return {
+        price: 1,
+        priceRub: usdToRubRate,
         change24h: 0,
         source: 'fallback'
       };

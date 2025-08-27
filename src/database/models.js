@@ -169,7 +169,91 @@ const userSchema = new mongoose.Schema({
   // Emergency Protection Fields (for cleanup service bypass)
   emergencyProtection: { type: Boolean, default: false },
   cleanupServiceBypass: { type: Boolean, default: false },
-  balanceRestorationTimestamp: Date
+  balanceRestorationTimestamp: Date,
+  // Multi-Chain Support Fields
+  selectedNetwork: { type: String, default: 'polygon', enum: ['polygon', 'tron', 'bsc', 'solana', 'arbitrum', 'avalanche'] },
+  lastNetworkSwitch: Date,
+  networkSwitches: [{
+    from: String,
+    to: String,
+    timestamp: { type: Date, default: Date.now }
+  }],
+  // Multi-chain balances
+  balances: {
+    polygon: {
+      POL: { type: Number, default: 0 },
+      CES: { type: Number, default: 0 },
+      USDT: { type: Number, default: 0 }
+    },
+    tron: {
+      TRX: { type: Number, default: 0 },
+      USDT: { type: Number, default: 0 }
+    },
+    bsc: {
+      BNB: { type: Number, default: 0 },
+      USDT: { type: Number, default: 0 },
+      BUSD: { type: Number, default: 0 },
+      USDC: { type: Number, default: 0 }
+    },
+    solana: {
+      SOL: { type: Number, default: 0 },
+      USDT: { type: Number, default: 0 },
+      USDC: { type: Number, default: 0 }
+    },
+    arbitrum: {
+      ETH: { type: Number, default: 0 },
+      USDT: { type: Number, default: 0 },
+      USDC: { type: Number, default: 0 },
+      ARB: { type: Number, default: 0 }
+    },
+    avalanche: {
+      AVAX: { type: Number, default: 0 },
+      USDT: { type: Number, default: 0 },
+      USDC: { type: Number, default: 0 }
+    }
+  },
+  // Multi-chain escrow balances
+  escrowBalances: {
+    polygon: {
+      POL: { type: Number, default: 0 },
+      CES: { type: Number, default: 0 },
+      USDT: { type: Number, default: 0 }
+    },
+    tron: {
+      TRX: { type: Number, default: 0 },
+      USDT: { type: Number, default: 0 }
+    },
+    bsc: {
+      BNB: { type: Number, default: 0 },
+      USDT: { type: Number, default: 0 },
+      BUSD: { type: Number, default: 0 },
+      USDC: { type: Number, default: 0 }
+    },
+    solana: {
+      SOL: { type: Number, default: 0 },
+      USDT: { type: Number, default: 0 },
+      USDC: { type: Number, default: 0 }
+    },
+    arbitrum: {
+      ETH: { type: Number, default: 0 },
+      USDT: { type: Number, default: 0 },
+      USDC: { type: Number, default: 0 },
+      ARB: { type: Number, default: 0 }
+    },
+    avalanche: {
+      AVAX: { type: Number, default: 0 },
+      USDT: { type: Number, default: 0 },
+      USDC: { type: Number, default: 0 }
+    }
+  },
+  lastBalanceUpdateByNetwork: {
+    polygon: Date,
+    tron: Date,
+    bsc: Date,
+    solana: Date,
+    arbitrum: Date,
+    avalanche: Date
+  }
 });
 
 // Add indexes for faster queries (remove duplicates)

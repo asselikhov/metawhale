@@ -122,6 +122,15 @@ class MessageHandler {
     return this.walletHandler.handleRefreshBalance(ctx);
   }
 
+  // Network switching operations
+  async handleSwitchNetwork(ctx) {
+    return this.walletHandler.handleSwitchNetwork(ctx);
+  }
+
+  async handleNetworkSwitch(ctx, networkId) {
+    return this.walletHandler.handleNetworkSwitch(ctx, networkId);
+  }
+
   // Delegate transfer operations
   async handleTransferMenu(ctx) {
     return this.transferHandler.handleTransferMenu(ctx);

@@ -6,6 +6,9 @@
 const { Markup } = require('telegraf');
 const walletService = require('../services/walletService');
 const priceService = require('../services/priceService');
+const multiChainWalletService = require('../services/multiChainWalletService');
+const userNetworkService = require('../services/userNetworkService');
+const multiChainService = require('../services/multiChainService');
 const { isDatabaseConnected } = require('../database/models');
 const sessionManager = require('./SessionManager');
 
@@ -19,7 +22,8 @@ class WalletHandler {
       let walletInfo = null;
       if (isDatabaseConnected()) {
         try {
-          walletInfo = await walletService.getUserWallet(chatId);
+          // Get multi-chain wallet info
+          walletInfo = await multiChainWalletService.getMultiChainWalletInfo(chatId);
         } catch (dbError) {
           console.error('Database error during wallet retrieval:', dbError);
         }
@@ -28,55 +32,36 @@ class WalletHandler {
       // If database is not available or user not found, create a mock wallet info
       if (!walletInfo) {
         walletInfo = {
-          hasWallet: false
+          hasWallet: false,
+          currentNetwork: 'polygon',
+          networkInfo: '🟣 Polygon'
         };
       }
       
-      if (!walletInfo) {
-        console.log(`❌ User ${chatId} not found`);
-        return await ctx.reply('❌ Пользователь не найден. Выполните /start');
-      }
-      
-      // Header as requested
+      // Header
       let message = '👤 ЛИЧНЫЙ КАБИНЕТ\n' +
                    '➖➖➖➖➖➖➖➖➖➖➖\n';
       
       if (walletInfo.hasWallet) {
-        console.log(`💼 User ${chatId} has wallet, showing wallet info`);
-        // Get current price data for both tokens
-        const [cesData, polData] = await Promise.all([
-          priceService.getCESPrice(),
-          priceService.getPOLPrice()
-        ]);
-      
-        const cesTokenPrice = cesData ? cesData.price : 0;
-        const cesTokenPriceRub = cesData ? cesData.priceRub : 0;
-        const polTokenPrice = polData ? polData.price : 0.45;
-        const polTokenPriceRub = polData ? polData.priceRub : 45.0;
-      
-        // Calculate total value of tokens on wallet
-        const cesTotalUsd = (walletInfo.cesBalance * cesTokenPrice).toFixed(2);
-        const cesTotalRub = (walletInfo.cesBalance * cesTokenPriceRub).toFixed(2);
-        const polTotalUsd = (walletInfo.polBalance * polTokenPrice).toFixed(2);
-        const polTotalRub = (walletInfo.polBalance * polTokenPriceRub).toFixed(2);
-      
-        // Format as requested with escrow information
-        let cesBalanceText = `Баланс CES: ${walletInfo.cesBalance.toFixed(4)}`;
-        if (walletInfo.escrowCESBalance > 0) {
-          cesBalanceText += ` (в эскроу: ${walletInfo.escrowCESBalance.toFixed(4)})`;
-        }
-        cesBalanceText += ` • $ ${cesTotalUsd} • ₽ ${cesTotalRub}\n`;
+        console.log(`💼 User ${chatId} has wallet, showing multi-chain wallet info`);
         
-        let polBalanceText = `Баланс POL: ${walletInfo.polBalance.toFixed(4)}`;
-        if (walletInfo.escrowPOLBalance > 0) {
-          polBalanceText += ` (в эскроу: ${walletInfo.escrowPOLBalance.toFixed(4)})`;
-        }
-        polBalanceText += ` • $ ${polTotalUsd} • ₽ ${polTotalRub}\n`;
+        // Add current network info
+        message += `🌐 Текущая сеть: ${walletInfo.networkInfo}\n\n`;
         
-        message += cesBalanceText + polBalanceText;
+        // Add balances for current network
+        if (walletInfo.balances) {
+          for (const [tokenSymbol, tokenInfo] of Object.entries(walletInfo.balances)) {
+            message += tokenInfo.displayText + '\n';
+          }
+        }
+        
+        // Add total value if available
+        if (walletInfo.totalValue) {
+          message += `\n💰 Общая стоимость: $${walletInfo.totalValue.usd} • ₽${walletInfo.totalValue.rub}`;
+        }
       
-        // Removed the refresh button as requested
         const keyboard = Markup.inlineKeyboard([
+          [Markup.button.callback('🌐 Сменить сеть', 'switch_network')],
           [Markup.button.callback('💳 Кошелек', 'wallet_details')],
           [Markup.button.callback('💸 Перевод', 'transfer_menu')]
         ]);
@@ -86,7 +71,8 @@ class WalletHandler {
       } else {
         console.log(`⚠️ User ${chatId} has no wallet, showing wallet creation prompt`);
         message += '⚠️ Кошелек не создан\n\n';
-        message += '💡 Создайте кошелек для хранения токенов CES и POL';
+        message += '💡 Создайте кошелек для хранения токенов в разных сетях\n';
+        message += `🌐 Поддерживаемые сети: ${multiChainService.getNetworks().map(n => `${multiChainService.getNetworkEmoji(n.id)} ${n.name}`).join(', ')}`;
       
         const keyboard = Markup.inlineKeyboard([
           [Markup.button.callback('➕ Создать кошелек', 'create_wallet')]
@@ -356,20 +342,94 @@ class WalletHandler {
     }
   }
 
-  // Refresh balance
+  // Refresh balance - updated for multi-chain support
   async handleRefreshBalance(ctx) {
     try {
-      await this.handleUserProfile(ctx);
+      await ctx.answerCbQuery('🔄 Обновляем баланс...');
+      await this.handlePersonalCabinetText(ctx);
     } catch (error) {
       // Handle "message not modified" error gracefully
       if (error.response && error.response.error_code === 400 && 
           error.response.description.includes('message is not modified')) {
         console.log('Ignoring "message not modified" error during refresh');
-        // Message is already up to date, no need to show error
+        await ctx.answerCbQuery('✅ Баланс актуален');
       } else {
         console.error('Refresh balance error:', error);
-        await ctx.reply('❌ Ошибка обновления баланса. Попробуйте позже.');
+        await ctx.answerCbQuery('❌ Ошибка обновления');
       }
+    }
+  }
+
+  // Handle network switching menu
+  async handleSwitchNetwork(ctx) {
+    try {
+      await ctx.answerCbQuery('🌐 Загружаем список сетей...');
+      
+      const chatId = ctx.chat.id.toString();
+      const currentNetwork = await userNetworkService.getUserNetwork(chatId);
+      
+      const message = '🌐 ВЫБОР БЛОКЧЕЙН СЕТИ\n' +
+                     '➖➖➖➖➖➖➖➖➖➖➖\n\n' +
+                     '🔄 Выберите сеть для работы:\n\n' +
+                     `Текущая сеть: ${await userNetworkService.getNetworkInfo(chatId)}\n\n` +
+                     '⚠️ При смене сети будут показаны балансы токенов этой сети';
+      
+      // Get network selector buttons
+      const networkButtons = multiChainService.getNetworkSelectorButtons(currentNetwork);
+      networkButtons.push([Markup.button.callback('🔙 Назад', 'personal_cabinet')]);
+      
+      const keyboard = Markup.inlineKeyboard(networkButtons);
+      
+      await ctx.editMessageText(message, {
+        parse_mode: 'Markdown',
+        ...keyboard
+      });
+      
+    } catch (error) {
+      console.error('Switch network error:', error);
+      await ctx.answerCbQuery('❌ Ошибка загрузки сетей');
+    }
+  }
+
+  // Handle specific network switch
+  async handleNetworkSwitch(ctx, networkId) {
+    try {
+      const chatId = ctx.chat.id.toString();
+      
+      // Check if user can switch to this network
+      const switchCheck = await userNetworkService.canSwitchToNetwork(chatId, networkId);
+      
+      if (!switchCheck.allowed) {
+        await ctx.answerCbQuery(`❌ ${switchCheck.reason}`);
+        return;
+      }
+      
+      const currentNetwork = await userNetworkService.getUserNetwork(chatId);
+      
+      // If already on this network, just go back
+      if (currentNetwork === networkId) {
+        await ctx.answerCbQuery('✅ Уже используется эта сеть');
+        await this.handlePersonalCabinetText(ctx);
+        return;
+      }
+      
+      // Record the switch
+      await userNetworkService.recordNetworkSwitch(chatId, currentNetwork, networkId);
+      
+      // Switch to new network
+      await userNetworkService.setUserNetwork(chatId, networkId);
+      
+      const networkName = multiChainService.getNetworkDisplayName(networkId);
+      const networkEmoji = multiChainService.getNetworkEmoji(networkId);
+      
+      await ctx.answerCbQuery(`${networkEmoji} Переключено на ${networkName}`);
+      
+      // Show updated personal cabinet
+      await this.handlePersonalCabinetText(ctx);
+      
+    } catch (error) {
+      console.error('Network switch error:', error);
+      await ctx.answerCbQuery('❌ Ошибка переключения сети');
     }
   }
 }

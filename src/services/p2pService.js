@@ -422,7 +422,7 @@ class P2PService {
         let trade;
         await session.withTransaction(async () => {
           // Повторная проверка доступности ордера в транзакции
-          const currentSellOrder = await P2POrder.findById(sellOrderId).session(session);
+          const currentSellOrder = await P2POrder.findById(sellOrderId).populate('userId').session(session);
           if (!currentSellOrder || currentSellOrder.status !== 'active' || currentSellOrder.remainingAmount < cesAmount) {
             throw new Error('Ордер больше недоступен или количество CES уменьшилось');
           }
@@ -1297,11 +1297,9 @@ class P2PService {
             const session = await mongoose.startSession();
             
             try {
-              await session.withTransaction(async () => {
-                // Update both orders atomically
-                await P2POrder.findByIdAndUpdate(
-                  buyOrder._id,
-                  {
+        await session.withTransaction(async () => {
+          // Повторная проверка доступности ордера в транзакции
+          const currentSellOrder = await P2POrder.findById(sellOrderId).populate('userId').session(session);
                     $inc: { remainingAmount: -tradeAmount, filledAmount: tradeAmount },
                     $set: { 
                       status: buyOrder.remainingAmount - tradeAmount === 0 ? 'completed' : 'partial',

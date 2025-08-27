@@ -258,6 +258,19 @@ class TelegramBot {
       return messageHandler.handleRefreshBalance(ctx);
     });
     
+    // Network switching handlers
+    this.bot.action('switch_network', (ctx) => {
+      console.log('Received switch_network callback');
+      return messageHandler.handleSwitchNetwork(ctx);
+    });
+    
+    // Handle specific network switch (dynamic callbacks)
+    this.bot.action(/^switch_network_(.+)$/, (ctx) => {
+      const networkId = ctx.match[1];
+      console.log('Received switch_network callback:', networkId);
+      return messageHandler.handleNetworkSwitch(ctx, networkId);
+    });
+    
     this.bot.action('back_to_menu', (ctx) => {
       console.log('Received back_to_menu callback');
       return messageHandler.handleBackToMenu(ctx);
@@ -490,6 +503,58 @@ class TelegramBot {
       const P2POrdersHandler = require('../handlers/P2POrdersHandler');
       const handler = new P2POrdersHandler();
       return handler.handleExtendOrderTime(ctx, orderId);
+    });
+    
+    // Handle order analytics (dynamic callbacks)
+    this.bot.action(/^order_analytics_/, (ctx) => {
+      const orderId = ctx.callbackQuery.data.split('_')[2];
+      console.log('Received order_analytics callback:', orderId);
+      const P2POrdersHandler = require('../handlers/P2POrdersHandler');
+      const handler = new P2POrdersHandler();
+      return handler.handleOrderAnalytics(ctx, orderId);
+    });
+    
+    // Handle order history (dynamic callbacks)
+    this.bot.action(/^order_history_/, (ctx) => {
+      const orderId = ctx.callbackQuery.data.split('_')[2];
+      console.log('Received order_history callback:', orderId);
+      const P2POrdersHandler = require('../handlers/P2POrdersHandler');
+      const handler = new P2POrdersHandler();
+      return handler.handleOrderHistory(ctx, orderId);
+    });
+    
+    // Handle duplicate order (dynamic callbacks)
+    this.bot.action(/^duplicate_order_/, (ctx) => {
+      const orderId = ctx.callbackQuery.data.split('_')[2];
+      console.log('Received duplicate_order callback:', orderId);
+      const P2POrdersHandler = require('../handlers/P2POrdersHandler');
+      const handler = new P2POrdersHandler();
+      return handler.handleDuplicateOrder(ctx, orderId);
+    });
+    
+    // Handle confirm duplicate order (dynamic callbacks)
+    this.bot.action(/^confirm_duplicate_/, (ctx) => {
+      const orderId = ctx.callbackQuery.data.split('_')[2];
+      console.log('Received confirm_duplicate callback:', orderId);
+      const P2POrdersHandler = require('../handlers/P2POrdersHandler');
+      const handler = new P2POrdersHandler();
+      return handler.handleConfirmDuplicateOrder(ctx, orderId);
+    });
+    
+    // Handle share order (dynamic callbacks)
+    this.bot.action(/^share_order_/, (ctx) => {
+      const orderId = ctx.callbackQuery.data.split('_')[2];
+      console.log('Received share_order callback:', orderId);
+      const P2POrdersHandler = require('../handlers/P2POrdersHandler');
+      const handler = new P2POrdersHandler();
+      return handler.handleShareOrder(ctx, orderId);
+    });
+    
+    // Handle edit price (dynamic callbacks)
+    this.bot.action(/^edit_price_/, (ctx) => {
+      const orderId = ctx.callbackQuery.data.split('_')[2];
+      console.log('Received edit_price callback:', orderId);
+      return messageHandler.handleEditOrderPrice(ctx, orderId);
     });
     
     // Handle confirm cancel order (dynamic callbacks)
