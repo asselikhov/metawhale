@@ -1533,20 +1533,18 @@ class MessageHandler {
                             `❌ Отмена возможна только после истечения блокировки.\n\n` +
                             `✅ После получения денег подтвердите платёж.`;
 
-      // 🎯 ИСПРАВЛЕНИЕ: Показываем кнопку отмены только тем, кто имеет право отменить
-      // Определяем, кто является мейкером на основе времени создания ордеров
+      // 🎯 КНОПКИ ОТМЕНЫ: Показываем только тем, кто имеет право отменить
+      // Согласно требованиям - отменять может только покупатель!
       const { P2POrder } = require('../database/models');
       const buyOrder = await P2POrder.findById(orderData.buyOrderId || orderData._id);
       
-      let sellerCanCancel = false;
+      let sellerCanCancel = false; // Продавец НИКОГДА не может отменить
       
       if (buyOrder) {
-        // Если есть связанный buy order, определяем роли
-        // Тейкер (продавец) может отменить только если мейкер продаёт CES
-        // Но в этом случае тейкер - это покупатель, а не продавец
-        // Логика: тейкер (тот кто нажал make_payment) может отменить только если мейкер продаёт CES
-        // В нашем случае orderData - это buy order мейкера, значит мейкер покупает
-        // Следовательно, тейкер (продавец) НЕ может отменить
+        // ✅ СООТВЕТСТВУЕТ ТРЕБОВАНИЯМ:
+        // Мейкер покупает CES → продавец (тейкер) НЕ может отменить
+        // Мейкер продаёт CES → продавец (мейкер) НЕ может отменить
+        // Отменять может только покупатель в обоих случаях!
         sellerCanCancel = false;
       }
       
@@ -1598,7 +1596,9 @@ class MessageHandler {
                           `⚠️ Оплатите точную сумму в указанные сроки.\n` +
                           `После оплаты нажмите "Платёж выполнен".`;
 
-      // 🎯 Мейкер (покупатель) всегда может отменить, когда он покупает CES
+      // 🎯 ПОКУПАТЕЛЬ ВСЕГДА может отменить (согласно требованиям)
+      // Мейкер покупает CES → мейкер (покупатель) может отменить ✅
+      // Мейкер продаёт CES → тейкер (покупатель) может отменить ✅
       const buyerKeyboard = Markup.inlineKeyboard([
         [Markup.button.callback('✅ Платёж выполнен', 'payment_completed')],
         [Markup.button.callback('❌ Отменить сделку', 'cancel_payment')]
@@ -1768,6 +1768,7 @@ class MessageHandler {
                      `Сделка будет завершена после подтверждения получения платежа продавцом.`;
       
       const keyboard = Markup.inlineKeyboard([
+        [Markup.button.callback('🚨 Открыть спор', `initiate_dispute_${tradeId}`)],
         [Markup.button.callback('📞 Обратиться в поддержку', 'contact_support')],
         [Markup.button.callback('🔙 К P2P меню', 'p2p_menu')]
       ]);
@@ -1852,9 +1853,11 @@ class MessageHandler {
                        `Отмена невозможна - только открытие спора.\n\n` +
                        `💡 Варианты действий:\n` +
                        `• Дождитесь завершения сделки\n` +
-                       `• Обратитесь в поддержку при проблемах`;
+                       `• Откройте спор при проблемах\n` +
+                       `• Обратитесь в поддержку`;
         
         const keyboard = Markup.inlineKeyboard([
+          [Markup.button.callback('🚨 Открыть спор', `initiate_dispute_${tradeId}`)],
           [Markup.button.callback('📞 Связаться с поддержкой', 'contact_support')],
           [Markup.button.callback('🔙 К P2P меню', 'p2p_menu')]
         ]);
@@ -1876,7 +1879,7 @@ class MessageHandler {
       let isBuyerMaker = buyOrderTime < sellOrderTime;
       let isUserBuyer = trade.buyerId._id.toString() === user._id.toString();
       
-      // 🎯 ПРАВИЛО 2: Определяем права отмены
+      // 🎯 ПРАВИЛО 2: Определяем права отмены (СООТВЕТСТВУЕТ ТРЕБОВАНИЯМ)
       let canCancel = false;
       let cancelReason = '';
       
@@ -1889,6 +1892,8 @@ class MessageHandler {
         canCancel = isUserBuyer;
         cancelReason = isUserBuyer ? '' : 'Только покупатель (тейкер) может отменить эту сделку.';
       }
+      
+      // ✅ В ОБОИХ СЛУЧАЯХ: отменять может только покупатель (isUserBuyer)
       
       if (!canCancel) {
         const message = `🚫 ОТМЕНА ЗАПРЕЩЕНА\n` +
@@ -1984,49 +1989,231 @@ class MessageHandler {
       const orderData = sessionManager.getSessionData(chatId, 'currentSellOrder');
       const confirmedAmount = sessionManager.getSessionData(chatId, 'confirmedBuyAmount');
       
+      console.log(`🔄 Пользователь ${chatId} продолжает покупку ${confirmedAmount} CES`);
+      
+      if (!orderData || !confirmedAmount) {
+        console.log(`⚠️ Отсутствуют данные сделки для ${chatId}`);
+        return await ctx.reply('❌ Данные сделки не найдены.');
+      }
+      
+      // 🔒 ПРОТИВ RACE CONDITION: Повторная проверка доступности ордера
+      const { P2POrder } = require('../database/models');
+      const currentSellOrder = await P2POrder.findById(orderData.sellOrderId).populate('userId');
+      if (!currentSellOrder || currentSellOrder.status !== 'active' || currentSellOrder.remainingAmount < confirmedAmount) {
+        return await ctx.reply('❌ Ордер больше недоступен или количество CES уменьшилось. Попробуйте снова.');
+      }
+      
+      // 🎯 ПРОВЕРКА ЛИМИТОВ: Проверяем лимиты перед выбором банка
+      if (confirmedAmount < orderData.minAmount || confirmedAmount > orderData.maxAmount) {
+        return await ctx.reply(`❌ Количество должно быть от ${orderData.minAmount} до ${orderData.maxAmount} CES`);
+      }
+      
+      let totalPrice = confirmedAmount * orderData.pricePerToken;
+      if (totalPrice < orderData.minRubles || totalPrice > orderData.maxRubles) {
+        return await ctx.reply(`❌ Сумма должна быть от ${orderData.minRubles} до ${orderData.maxRubles} ₽`);
+      }
+      
+      // 🏦 ВЫБОР БАНКА: Показываем банки мейкера для выбора
+      const paymentMethods = orderData.paymentMethods || [];
+      const activeMethods = paymentMethods.filter(pm => pm.isActive);
+      
+      if (activeMethods.length === 0) {
+        return await ctx.reply('❌ У мейкера нет доступных способов оплаты.');
+      }
+      
+      const bankNames = {
+        'sberbank': 'Сбербанк',
+        'vtb': 'ВТБ',
+        'gazprombank': 'Газпромбанк',
+        'alfabank': 'Альфа-Банк',
+        'rshb': 'Россельхозбанк',
+        'mkb': 'МКБ',
+        'sovcombank': 'Совкомбанк',
+        'tbank': 'Т-Банк',
+        'domrf': 'ДОМ.РФ',
+        'otkritie': 'Открытие',
+        'raiffeisenbank': 'Райффайзенбанк',
+        'rosbank': 'Росбанк'
+      };
+      
+      // 📋 Получаем информацию о мейкере
+      const makerName = currentSellOrder.userId.p2pProfile?.fullName || 'Не указано';
+      const tradingTime = Math.round((Date.now() - new Date(currentSellOrder.createdAt).getTime()) / (1000 * 60));
+      
+      const message = `🏦 ВЫБОР БАНКА\n` +
+                     `➖➖➖➖➖➖➖➖➖➖➖\n` +
+                     `Продавец: ${makerName}\n` +
+                     `Количество: ${confirmedAmount} CES\n` +
+                     `Сумма: ${totalPrice.toFixed(2)} ₽\n` +
+                     `Ордер активен: ${tradingTime} мин.\n\n` +
+                     `Выберите банк для оплаты:\n\n` +
+                     `⏰ У вас есть 5 минут для выбора банка`;
+      
+      // Создаём кнопки банков с эмодзи
+      const bankButtons = activeMethods.map(pm => {
+        const bankEmoji = {
+          'sberbank': '💚',
+          'vtb': '🔵',
+          'gazprombank': '⚫',
+          'alfabank': '🔴',
+          'tbank': '🟡',
+          'default': '🏦'
+        };
+        
+        const emoji = bankEmoji[pm.bank] || bankEmoji.default;
+        const bankName = bankNames[pm.bank] || pm.bank;
+        
+        return [Markup.button.callback(`${emoji} ${bankName}`, `select_buy_bank_${pm.bank}`)];
+      });
+      
+      // Добавляем кнопку "Назад"
+      bankButtons.push([Markup.button.callback('🔙 Назад', 'back_to_buy_amount_input')]);
+      
+      const keyboard = Markup.inlineKeyboard(bankButtons);
+      await ctx.reply(message, keyboard);
+      
+    } catch (error) {
+      console.error('Continue with buy payment error:', error);
+      await ctx.reply('❌ Ошибка выбора банка.');
+    }
+  }
+  
+  async handleSelectBuyBank(ctx, bankCode) {
+    try {
+      const chatId = ctx.chat.id.toString();
+      const sessionManager = require('./SessionManager');
+      const orderData = sessionManager.getSessionData(chatId, 'currentSellOrder');
+      const confirmedAmount = sessionManager.getSessionData(chatId, 'confirmedBuyAmount');
+      
       if (!orderData || !confirmedAmount) {
         return await ctx.reply('❌ Данные сделки не найдены.');
       }
       
-      // Execute buy order (taker wants to buy CES from sell order)
       const p2pService = require('../services/p2pService');
-      const { User } = require('../database/models');
+      const { User, P2POrder } = require('../database/models');
       
-      // Get buyer (current user) and seller (order creator)
+      // Get buyer (current user - taker)
       const buyer = await User.findOne({ chatId });
-      
       if (!buyer) {
         return await ctx.reply('❌ Пользователь не найден.');
       }
       
-      // Clear session
+      // 🔒 ПРОТИВ RACE CONDITION: Повторная проверка доступности ордера
+      const currentSellOrder = await P2POrder.findById(orderData.sellOrderId).populate('userId');
+      if (!currentSellOrder || currentSellOrder.status !== 'active' || currentSellOrder.remainingAmount < confirmedAmount) {
+        return await ctx.reply('❌ Ордер больше недоступен или количество CES уменьшилось. Попробуйте снова.');
+      }
+      
+      // 🚫 ПРОВЕРКА БЕЗОПАСНОСТИ: Нельзя торговать сам с собой
+      if (currentSellOrder.userId.chatId === chatId) {
+        return await ctx.reply('❌ Нельзя покупать у самого себя.');
+      }
+      
+      // Находим выбранный способ оплаты
+      const paymentMethods = orderData.paymentMethods || [];
+      const selectedMethod = paymentMethods.find(pm => pm.bank === bankCode && pm.isActive);
+      
+      if (!selectedMethod) {
+        return await ctx.reply('❌ Выбранный способ оплаты недоступен.');
+      }
+      
+      // 💰 СОЗДАНИЕ СДЕЛКИ: С выбранным банком и БЕЗ двойного блокирования CES
+      const tradeResult = await p2pService.createTradeFromSellOrderWithBank(
+        chatId, // Покупатель (тейкер)
+        orderData.sellOrderId, // ID sell-ордера мейкера
+        confirmedAmount, // Количество CES для покупки
+        orderData.pricePerToken, // Цена за токен
+        selectedMethod // Выбранный способ оплаты
+      );
+      
+      if (!tradeResult.success) {
+        sessionManager.clearUserSession(chatId);
+        return await ctx.reply(`❌ Ошибка создания сделки: ${tradeResult.error}`);
+      }
+      
+      // 🏆 УСПЕШНОЕ СОЗДАНИЕ СДЕЛКИ
+      const { trade, seller, paymentDetails, timeLimit, orderNumber } = tradeResult;
+      
+      // Очищаем сессию и сохраняем данные о сделке
       sessionManager.clearUserSession(chatId);
+      sessionManager.setSessionData(chatId, 'tradeId', trade._id);
+      sessionManager.setSessionData(chatId, 'orderNumber', orderNumber);
       
-      // For now, just show success message - trade execution will be improved
-      // TODO: Implement proper trade execution for sell orders
-      const message = `✅ ЗАПРОС ОТПРАВЛЕН!\n` +
-                     `Количество: ${confirmedAmount} CES\n` +
-                     `Сумма: ${(confirmedAmount * orderData.pricePerToken).toFixed(2)} ₽\n\n` +
-                     `Уведомляем продавца о вашем желании купить CES.\n` +
-                     `Ожидайте ответа.`;
+      const bankNames = {
+        'sberbank': 'Сбербанк',
+        'vtb': 'ВТБ',
+        'gazprombank': 'Газпромбанк',
+        'alfabank': 'Альфа-Банк',
+        'rshb': 'Россельхозбанк',
+        'mkb': 'МКБ',
+        'sovcombank': 'Совкомбанк',
+        'tbank': 'Т-Банк',
+        'domrf': 'ДОМ.РФ',
+        'otkritie': 'Открытие',
+        'raiffeisenbank': 'Райффайзенбанк',
+        'rosbank': 'Росбанк'
+      };
       
-      const keyboard = Markup.inlineKeyboard([
-        [Markup.button.callback('🔙 К P2P меню', 'p2p_menu')]
+      // 📋 ПОЛНЫЕ РЕКВИЗИТЫ ПЛАТЕЖА ДЛЯ КОПИРОВАНИЯ
+      const totalPrice = confirmedAmount * orderData.pricePerToken;
+      const expiryTime = new Date(Date.now() + timeLimit * 60 * 1000);
+      const expiryTimeStr = expiryTime.toLocaleTimeString('ru-RU', {
+        timeZone: 'Europe/Moscow',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+      
+      const buyerMessage = `💳 ОПЛАТА\n` +
+                          `➖➖➖➖➖➖➖➖➖➖➖\n` +
+                          `Ордер: ${orderNumber}\n` +
+                          `Время оплаты: ${timeLimit} мин. (до ${expiryTimeStr})\n` +
+                          `Количество: ${confirmedAmount} CES\n` +
+                          `Сумма: ${totalPrice.toFixed(2)} ₽\n\n` +
+                          `🏦 Данные для оплаты:\n` +
+                          `Банк: ${bankNames[selectedMethod.bank]}\n` +
+                          `Карта/Счёт: ${selectedMethod.cardNumber}\n` +
+                          `Получатель: ${paymentDetails.recipientName}\n\n` +
+                          `⚠️ Оплатите ТОЧНО ${totalPrice.toFixed(2)} ₽ в указанные сроки.\n` +
+                          `После оплаты нажмите "Платёж выполнен".`;
+      
+      const buyerKeyboard = Markup.inlineKeyboard([
+        [Markup.button.callback('✅ Платёж выполнен', 'payment_completed')],
+        [Markup.button.callback('❌ Отменить', 'cancel_payment')]
       ]);
       
-      await ctx.reply(message, keyboard);
+      await ctx.reply(buyerMessage, buyerKeyboard);
       
-      // Return to P2P menu
-      const P2PHandler = require('./P2PHandler');
-      const p2pHandler = new P2PHandler();
-      await p2pHandler.handleP2PMenu(ctx);
+      // 🔔 УВЕДОМЛЯЕМ ПРОДАВЦА О НОВОЙ СДЕЛКЕ
+      const sellerNotification = `💰 НОВАЯ СДЕЛКА\n` +
+                                `➖➖➖➖➖➖➖➖➖➖➖\n` +
+                                `Ордер: ${orderNumber}\n` +
+                                `Покупатель выбрал банк: ${bankNames[selectedMethod.bank]}\n` +
+                                `Количество: ${confirmedAmount} CES\n` +
+                                `Сумма к получению: ${totalPrice.toFixed(2)} ₽\n\n` +
+                                `🔒 Ваши CES заблокированы в эскроу.\n` +
+                                `⏰ Ожидайте поступление средств на указанные реквизиты.\n` +
+                                `После получения денег нажмите "Платёж получен".`;
+      
+      const sellerKeyboard = Markup.inlineKeyboard([
+        [Markup.button.callback('✅ Платёж получен', 'payment_received')],
+        [Markup.button.callback('📞 Поддержка', 'contact_support')]
+        // Кнопка отмены убрана - отменять может только покупатель
+      ]);
+      
+      try {
+        await ctx.telegram.sendMessage(seller.chatId, sellerNotification, sellerKeyboard);
+        console.log(`📤 Уведомление отправлено продавцу ${seller.chatId}`);
+      } catch (notifyError) {
+        console.error('⚠️ Ошибка отправки уведомления продавцу:', notifyError);
+        // Не критично - сделка уже создана
+      }
       
     } catch (error) {
-      console.error('Continue with buy payment error:', error);
+      console.error('Select buy bank error:', error);
       await ctx.reply('❌ Ошибка создания сделки.');
     }
   }
-  
+
   async handleContactSupport(ctx) {
     try {
       const message = `📞 КОНТАКТЫ ПОДДЕРЖКИ\n\n` +

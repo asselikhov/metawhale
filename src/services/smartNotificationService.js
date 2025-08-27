@@ -226,6 +226,7 @@ class SmartNotificationService {
     const { Markup } = require('telegraf');
     const keyboard = Markup.inlineKeyboard([
       [Markup.button.callback('✅ Платёж получен', 'payment_received')],
+      [Markup.button.callback('🚨 Открыть спор', `initiate_dispute_${trade._id}`)],
       [Markup.button.callback('📞 Обратиться в поддержку', 'contact_support')]
     ]);
     

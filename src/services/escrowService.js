@@ -50,6 +50,39 @@ class EscrowService {
     console.log('================================\n');
   }
 
+  // Update escrow trade ID after trade creation
+  async updateEscrowTradeId(userId, tokenType, amount, tradeId) {
+    try {
+      console.log(`🔄 [ESCROW-UPDATE] Updating trade ID for escrow: user ${userId}, ${amount} ${tokenType}, trade ${tradeId}`);
+      
+      // Find the most recent escrow transaction without trade ID for this user and amount
+      const escrowTx = await EscrowTransaction.findOne({
+        userId: userId,
+        tokenType: tokenType,
+        amount: amount,
+        type: 'lock',
+        status: 'completed',
+        tradeId: { $in: [null, undefined] }, // Escrow without trade ID
+      }).sort({ createdAt: -1 }); // Get the most recent one
+      
+      if (!escrowTx) {
+        console.warn(`⚠️ [ESCROW-UPDATE] No matching escrow transaction found for user ${userId}, ${amount} ${tokenType}`);
+        return { success: false, error: 'Escrow transaction not found' };
+      }
+      
+      // Update trade ID
+      escrowTx.tradeId = tradeId;
+      await escrowTx.save();
+      
+      console.log(`✅ [ESCROW-UPDATE] Successfully updated escrow transaction ${escrowTx._id} with trade ID ${tradeId}`);
+      return { success: true, escrowTxId: escrowTx._id };
+      
+    } catch (error) {
+      console.error('Error updating escrow trade ID:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
   // Lock tokens in escrow for a trade (SECURE VERSION)
   async lockTokensInEscrow(userId, tradeId, tokenType, amount) {
     try {

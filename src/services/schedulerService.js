@@ -6,7 +6,8 @@
 const cron = require('node-cron');
 const config = require('../config/configuration');
 const priceService = require('./priceService');
-const { PriceHistory } = require('../database/models');
+const { PriceHistory, P2POrder } = require('../database/models');
+const smartNotificationService = require('./smartNotificationService');
 
 class SchedulerService {
   constructor(bot = null) {
@@ -101,11 +102,12 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
       })} • 🅐🅣🅗 ${athDisplay}
 
 Торгуй CES удобно и безопасно  
-P2P Биржа (https://t.me/rogassistant_bot): Покупка и продажа за ₽`;
+P2P Биржа: https://t.me/rogassistant_bot
+Покупка и продажа за ₽`;
       
-      // Send message to group
+      // Send message to group without parse_mode to avoid Markdown issues
       if (this.bot) {
-        await this.bot.telegram.sendMessage(targetGroupId, message, { parse_mode: 'Markdown' });
+        await this.bot.telegram.sendMessage(targetGroupId, message);
         this.lastMessageSent = now; // Update last message timestamp
         console.log(`✅ Price message sent to group ${targetGroupId}`);
       } else {
@@ -155,10 +157,180 @@ P2P Биржа (https://t.me/rogassistant_bot): Покупка и продажа
     }
   }
 
+  // 🕰️ P2P ORDER TIMEOUT MONITORING
+  
+  /**
+   * Проверяет и отменяет просроченные P2P ордера
+   */
+  async checkExpiredP2POrders() {
+    try {
+      console.log('🔍 [P2P-TIMER] Проверка просроченных P2P ордеров...');
+      
+      const now = new Date();
+      
+      // Находим все активные ордера
+      const activeOrders = await P2POrder.find({
+        status: { $in: ['active', 'partial'] }
+      }).populate('userId');
+      
+      let expiredCount = 0;
+      let warningCount = 0;
+      
+      for (const order of activeOrders) {
+        const timeLimit = order.tradeTimeLimit || 30; // По умолчанию 30 минут
+        const orderCreatedAt = new Date(order.createdAt);
+        const expiresAt = new Date(orderCreatedAt.getTime() + timeLimit * 60 * 1000);
+        const timeRemaining = expiresAt.getTime() - now.getTime();
+        
+        // Проверяем истечение времени
+        if (timeRemaining <= 0) {
+          // Ордер просрочен - отменяем
+          await this.cancelExpiredOrder(order);
+          expiredCount++;
+        } else if (timeRemaining <= 5 * 60 * 1000) { // 5 минут до истечения
+          // Отправляем предупреждение
+          await this.sendOrderExpirationWarning(order, Math.ceil(timeRemaining / 60000));
+          warningCount++;
+        }
+      }
+      
+      if (expiredCount > 0 || warningCount > 0) {
+        console.log(`✅ [P2P-TIMER] Обработано: ${expiredCount} просроченных, ${warningCount} предупреждений`);
+      }
+      
+    } catch (error) {
+      console.error('❌ [P2P-TIMER] Ошибка проверки просроченных ордеров:', error);
+    }
+  }
+  
+  /**
+   * Отменяет просроченный ордер
+   */
+  async cancelExpiredOrder(order) {
+    try {
+      console.log(`⏰ [P2P-TIMER] Отмена просроченного ордера ${order._id} (тип: ${order.type})`);
+      
+      // Обновляем статус ордера
+      order.status = 'expired';
+      order.cancelReason = 'Время ордера истекло';
+      order.canceledAt = new Date();
+      await order.save();
+      
+      // Освобождаем заблокированные средства для sell ордеров
+      if (order.type === 'sell' && order.escrowLocked && order.escrowAmount > 0) {
+        const escrowService = require('./escrowService');
+        await escrowService.releaseTokensFromEscrow(order.userId, null, 'CES', order.escrowAmount);
+        console.log(`💰 [P2P-TIMER] Освобождены заблокированные токены: ${order.escrowAmount} CES`);
+      }
+      
+      // Освобождаем заблокированные рубли для buy ордеров
+      if (order.type === 'buy') {
+        const rubleReserveService = require('./rubleReserveService');
+        await rubleReserveService.releaseReservation(order.userId.toString(), order._id.toString());
+        console.log(`💰 [P2P-TIMER] Освобождены заблокированные рубли для ордера ${order._id}`);
+      }
+      
+      // Отправляем уведомление пользователю
+      if (order.userId && order.userId.chatId && this.bot) {
+        const timeDescription = {
+          10: '10 минут (быстрые сделки)',
+          15: '15 минут (скорые сделки)',
+          30: '30 минут (стандартные сделки)',
+          60: '1 час (длинные сделки)'
+        };
+        
+        const orderType = order.type === 'buy' ? 'покупку' : 'продажу';
+        const timeDesc = timeDescription[order.tradeTimeLimit] || `${order.tradeTimeLimit} минут`;
+        
+        const message = `⏰ ОРДЕР ОТМЕНЕН\n` +
+                       `➖➖➖➖➖➖➖➖➖➖➖\n` +
+                       `Ваш ордер на ${orderType} автоматически отменен из-за истечения времени.\n\n` +
+                       `📊 Детали ордера:\n` +
+                       `• Количество: ${order.amount} CES\n` +
+                       `• Цена: ₽${order.pricePerToken} за CES\n` +
+                       `• Время ордера: ${timeDesc}\n\n` +
+                       `💡 Совет: Вы можете изменить время ордера в настройках P2P профиля.`;
+        
+        await this.bot.telegram.sendMessage(order.userId.chatId, message);
+      }
+      
+    } catch (error) {
+      console.error(`❌ [P2P-TIMER] Ошибка отмены ордера ${order._id}:`, error);
+    }
+  }
+  
+  /**
+   * Отправляет предупреждение о скором истечении ордера
+   */
+  async sendOrderExpirationWarning(order, minutesRemaining) {
+    try {
+      if (!order.userId || !order.userId.chatId || !this.bot) {
+        return;
+      }
+      
+      // Проверяем, не отправляли ли уже предупреждение
+      if (order.warningsent) {
+        return;
+      }
+      
+      const orderType = order.type === 'buy' ? 'покупку' : 'продажу';
+      
+      const message = `⚠️ ПРЕДУПРЕЖДЕНИЕ\n` +
+                     `➖➖➖➖➖➖➖➖➖➖➖\n` +
+                     `Ваш ордер на ${orderType} будет автоматически отменен через ${minutesRemaining} мин.\n\n` +
+                     `📊 Детали ордера:\n` +
+                     `• Количество: ${order.amount} CES\n` +
+                     `• Цена: ₽${order.pricePerToken} за CES\n\n` +
+                     `🔧 Чтобы продлить время, отмените и создайте новый ордер.`;
+      
+      await this.bot.telegram.sendMessage(order.userId.chatId, message);
+      
+      // Помечаем, что предупреждение отправлено
+      order.warningSent = true;
+      await order.save();
+      
+      console.log(`⚠️ [P2P-TIMER] Отправлено предупреждение пользователю ${order.userId.chatId} об ордере ${order._id}`);
+      
+    } catch (error) {
+      console.error(`❌ [P2P-TIMER] Ошибка отправки предупреждения для ордера ${order._id}:`, error);
+    }
+  }
+  
+  /**
+   * Настройка периодической проверки P2P таймеров
+   */
+  setupP2PTimerMonitoring() {
+    try {
+      // Останавливаем существующую задачу если есть
+      if (this.tasks.has('p2pTimerCheck')) {
+        const existingTask = this.tasks.get('p2pTimerCheck');
+        existingTask.stop();
+        console.log('⚠️ Остановлена существующая задача мониторинга P2P таймеров');
+      }
+      
+      // Запускаем проверку каждые 2 минуты
+      const task = cron.schedule('*/2 * * * *', () => {
+        console.log('🕐 Запуск проверки P2P таймеров');
+        setImmediate(() => this.checkExpiredP2POrders());
+      }, {
+        scheduled: true,
+        timezone: config.schedule.timezone
+      });
+      
+      this.tasks.set('p2pTimerCheck', task);
+      
+      console.log('⏰ Настроен мониторинг P2P таймеров (каждые 2 минуты)');
+      
+    } catch (error) {
+      console.error('❌ Ошибка настройки мониторинга P2P таймеров:', error);
+    }
+  }
+  
   // Start all scheduled tasks
   startScheduler() {
     console.log('🔄 Starting scheduler service...');
     this.setupDailyPriceMessage();
+    this.setupP2PTimerMonitoring(); // Добавляем мониторинг P2P таймеров
     console.log('✅ Scheduler service started');
   }
 

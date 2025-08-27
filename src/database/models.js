@@ -273,6 +273,61 @@ const p2pTradeSchema = new mongoose.Schema({
   disputeOpenedAt: Date,
   disputeResolvedAt: Date,
   disputeResolvedBy: String,
+  // 🆕 РАСШИРЕННАЯ СИСТЕМА СПОРОВ
+  disputeInitiatorId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  moderatorId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  disputeStatus: {
+    type: String,
+    enum: ['open', 'investigating', 'awaiting_evidence', 'under_review', 'resolved', 'escalated'],
+    default: 'open'
+  },
+  disputeCategory: {
+    type: String,
+    enum: ['payment_not_received', 'payment_not_made', 'wrong_amount', 'fraud_attempt', 'technical_issue', 'other']
+  },
+  disputePriority: {
+    type: String,
+    enum: ['low', 'medium', 'high', 'urgent'],
+    default: 'medium'
+  },
+  disputeEvidence: {
+    buyerEvidence: [{
+      type: { type: String, enum: ['text', 'image', 'document'] },
+      content: String, // Текст или ссылка на файл
+      description: String,
+      submittedAt: { type: Date, default: Date.now }
+    }],
+    sellerEvidence: [{
+      type: { type: String, enum: ['text', 'image', 'document'] },
+      content: String,
+      description: String,
+      submittedAt: { type: Date, default: Date.now }
+    }],
+    moderatorNotes: [{
+      note: String,
+      timestamp: { type: Date, default: Date.now },
+      moderatorId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
+    }]
+  },
+  disputeResolution: {
+    outcome: { type: String, enum: ['buyer_wins', 'seller_wins', 'compromise', 'no_fault', 'insufficient_evidence'] },
+    compensationAmount: Number,
+    compensationRecipient: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    resolutionNotes: String,
+    appealable: { type: Boolean, default: false },
+    appealDeadline: Date
+  },
+  disputeTracking: {
+    openedAt: Date,
+    firstResponseAt: Date,
+    escalatedAt: Date,
+    resolvedAt: Date,
+    autoEscalationAt: Date, // Автоэскалация через 24 часа
+    participantLastActivity: {
+      buyer: Date,
+      seller: Date
+    }
+  },
   timeTracking: {
     createdAt: { type: Date, default: Date.now },
     escrowLockedAt: Date,
@@ -295,6 +350,68 @@ p2pTradeSchema.index({ buyerId: 1, status: 1 });
 p2pTradeSchema.index({ sellerId: 1, status: 1 });
 p2pTradeSchema.index({ status: 1 });
 p2pTradeSchema.index({ createdAt: -1 });
+// 🆕 ИНДЕКСЫ ДЛЯ СПОРОВ
+p2pTradeSchema.index({ status: 1, disputeStatus: 1 });
+p2pTradeSchema.index({ moderatorId: 1, disputeStatus: 1 });
+p2pTradeSchema.index({ disputeInitiatorId: 1 });
+p2pTradeSchema.index({ 'disputeTracking.openedAt': -1 });
+p2pTradeSchema.index({ disputePriority: 1, 'disputeTracking.openedAt': -1 });
+
+// 🆕 ОТДЕЛЬНАЯ СХЕМА ДЛЯ ЛОГОВ СПОРОВ
+const disputeLogSchema = new mongoose.Schema({
+  tradeId: { type: mongoose.Schema.Types.ObjectId, ref: 'P2PTrade', required: true },
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  moderatorId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  action: {
+    type: String,
+    enum: ['initiated', 'evidence_submitted', 'moderator_assigned', 'status_changed', 'resolved', 'appealed'],
+    required: true
+  },
+  previousState: String,
+  newState: String,
+  description: String,
+  metadata: mongoose.Schema.Types.Mixed,
+  timestamp: { type: Date, default: Date.now }
+});
+
+// 🆕 СХЕМА МОДЕРАТОРОВ
+const moderatorSchema = new mongoose.Schema({
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  isActive: { type: Boolean, default: true },
+  specializations: [{
+    type: String,
+    enum: ['payment_disputes', 'fraud_prevention', 'technical_issues', 'general']
+  }],
+  statistics: {
+    totalDisputes: { type: Number, default: 0 },
+    resolvedDisputes: { type: Number, default: 0 },
+    averageResolutionTime: { type: Number, default: 0 }, // в минутах
+    successRate: { type: Number, default: 0 }, // процент успешных разрешений
+    currentWorkload: { type: Number, default: 0 },
+    lastActiveAt: { type: Date, default: Date.now }
+  },
+  availability: {
+    isOnline: { type: Boolean, default: false },
+    maxConcurrentDisputes: { type: Number, default: 5 },
+    workingHours: {
+      start: { type: String, default: '09:00' },
+      end: { type: String, default: '18:00' },
+      timezone: { type: String, default: 'Europe/Moscow' }
+    }
+  },
+  createdAt: { type: Date, default: Date.now }
+});
+
+// Индексы для логов споров
+disputeLogSchema.index({ tradeId: 1, timestamp: -1 });
+disputeLogSchema.index({ userId: 1, timestamp: -1 });
+disputeLogSchema.index({ moderatorId: 1, timestamp: -1 });
+disputeLogSchema.index({ action: 1, timestamp: -1 });
+
+// Индексы для модераторов
+moderatorSchema.index({ userId: 1 });
+moderatorSchema.index({ isActive: 1, 'availability.isOnline': 1 });
+moderatorSchema.index({ 'statistics.currentWorkload': 1, isActive: 1 });
 
 // Price History Schema
 const priceHistorySchema = new mongoose.Schema({
@@ -357,6 +474,9 @@ const P2PTrade = mongoose.models.P2PTrade || mongoose.model('P2PTrade', p2pTrade
 const PriceHistory = mongoose.models.PriceHistory || mongoose.model('PriceHistory', priceHistorySchema);
 const EscrowTransaction = mongoose.models.EscrowTransaction || mongoose.model('EscrowTransaction', escrowTransactionSchema);
 const RubleReserve = mongoose.models.RubleReserve || mongoose.model('RubleReserve', rubleReserveSchema);
+// 🆕 НОВЫЕ МОДЕЛИ ДЛЯ СПОРОВ
+const DisputeLog = mongoose.models.DisputeLog || mongoose.model('DisputeLog', disputeLogSchema);
+const Moderator = mongoose.models.Moderator || mongoose.model('Moderator', moderatorSchema);
 
 module.exports = {
   connectDatabase,
@@ -369,5 +489,8 @@ module.exports = {
   P2PTrade,
   PriceHistory,
   EscrowTransaction,
-  RubleReserve
+  RubleReserve,
+  // 🆕 НОВЫЕ МОДЕЛИ ДЛЯ СПОРОВ
+  DisputeLog,
+  Moderator
 };

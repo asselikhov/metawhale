@@ -1,10 +1,12 @@
 const { Telegraf } = require('telegraf');
 const MessageHandler = require('../handlers/messageHandler');
 const optimizedHandler = require('../handlers/OptimizedCallbackHandler');
+const AdminDisputeHandler = require('../handlers/AdminDisputeHandler');
 const config = require('../config/configuration');
 
-// Create an instance of MessageHandler
+// Create instances
 const messageHandler = new MessageHandler();
+const adminDisputeHandler = new AdminDisputeHandler();
 
 class TelegramBot {
   constructor() {
@@ -359,6 +361,31 @@ class TelegramBot {
       return messageHandler.handleP2PEditConditions(ctx);
     });
 
+    this.bot.action('p2p_edit_trade_time', (ctx) => {
+      console.log('Received p2p_edit_trade_time callback');
+      return messageHandler.handleP2PEditTradeTime(ctx);
+    });
+
+    this.bot.action('p2p_set_time_10', (ctx) => {
+      console.log('Received p2p_set_time_10 callback');
+      return messageHandler.handleP2PSetTradeTime(ctx, 10);
+    });
+
+    this.bot.action('p2p_set_time_15', (ctx) => {
+      console.log('Received p2p_set_time_15 callback');
+      return messageHandler.handleP2PSetTradeTime(ctx, 15);
+    });
+
+    this.bot.action('p2p_set_time_30', (ctx) => {
+      console.log('Received p2p_set_time_30 callback');
+      return messageHandler.handleP2PSetTradeTime(ctx, 30);
+    });
+
+    this.bot.action('p2p_set_time_60', (ctx) => {
+      console.log('Received p2p_set_time_60 callback');
+      return messageHandler.handleP2PSetTradeTime(ctx, 60);
+    });
+
     this.bot.action('p2p_toggle_use_in_orders', (ctx) => {
       console.log('Received p2p_toggle_use_in_orders callback');
       return messageHandler.handleP2PToggleUseInOrders(ctx);
@@ -436,6 +463,33 @@ class TelegramBot {
       const orderId = ctx.callbackQuery.data.split('_')[2];
       console.log('Received cancel_order callback:', orderId);
       return messageHandler.handleCancelOrder(ctx, orderId);
+    });
+    
+    // Handle quick cancel order (dynamic callbacks)
+    this.bot.action(/^quick_cancel_/, (ctx) => {
+      const orderId = ctx.callbackQuery.data.split('_')[2];
+      console.log('Received quick_cancel callback:', orderId);
+      const P2POrdersHandler = require('../handlers/P2POrdersHandler');
+      const handler = new P2POrdersHandler();
+      return handler.handleQuickCancelOrder(ctx, orderId);
+    });
+    
+    // Handle confirm cancel order (dynamic callbacks)
+    this.bot.action(/^confirm_cancel_/, (ctx) => {
+      const orderId = ctx.callbackQuery.data.split('_')[2];
+      console.log('Received confirm_cancel callback:', orderId);
+      const P2POrdersHandler = require('../handlers/P2POrdersHandler');
+      const handler = new P2POrdersHandler();
+      return handler.handleConfirmCancelOrder(ctx, orderId);
+    });
+    
+    // Handle extend order time (dynamic callbacks)
+    this.bot.action(/^extend_time_/, (ctx) => {
+      const orderId = ctx.callbackQuery.data.split('_')[2];
+      console.log('Received extend_time callback:', orderId);
+      const P2POrdersHandler = require('../handlers/P2POrdersHandler');
+      const handler = new P2POrdersHandler();
+      return handler.handleExtendOrderTime(ctx, orderId);
     });
     
     // Handle confirm cancel order (dynamic callbacks)
@@ -553,6 +607,12 @@ class TelegramBot {
       return messageHandler.handleSelectPayment(ctx, bankCode);
     });
     
+    this.bot.action(/^select_buy_bank_(.+)$/, (ctx) => {
+      const bankCode = ctx.match[1];
+      console.log('Received select_buy_bank callback:', bankCode);
+      return messageHandler.handleSelectBuyBank(ctx, bankCode);
+    });
+    
     this.bot.action('back_to_payment_selection', (ctx) => {
       console.log('Received back_to_payment_selection callback');
       return messageHandler.handleBackToPaymentSelection(ctx);
@@ -595,6 +655,166 @@ class TelegramBot {
       console.log('Received contact_support callback');
       await optimizedHandler.handleInstantCallback(ctx, '📞 Обращаемся...');
       return messageHandler.handleContactSupport(ctx);
+    });
+    
+    // 🚨 DISPUTE SYSTEM CALLBACKS
+    // Handle dispute initiation
+    this.bot.action(/^initiate_dispute_(.+)$/, async (ctx) => {
+      const tradeId = ctx.match[1];
+      console.log('Received initiate_dispute callback:', tradeId);
+      await optimizedHandler.handleInstantCallback(ctx, '🚨 Открываем спор...');
+      const DisputeHandler = require('../handlers/DisputeHandler');
+      const handler = new DisputeHandler();
+      return handler.handleInitiateDispute(ctx, tradeId);
+    });
+    
+    // Handle dispute category selection
+    this.bot.action(/^dispute_category_(.+)_(.+)$/, async (ctx) => {
+      const category = ctx.match[1];
+      const tradeId = ctx.match[2];
+      console.log('Received dispute_category callback:', category, tradeId);
+      await optimizedHandler.handleInstantCallback(ctx, '📝 Обрабатываем...');
+      const DisputeHandler = require('../handlers/DisputeHandler');
+      const handler = new DisputeHandler();
+      return handler.handleCategorySelection(ctx, category, tradeId);
+    });
+    
+    // Handle dispute confirmation
+    this.bot.action(/^confirm_dispute_(.+)_(.+)$/, async (ctx) => {
+      const tradeId = ctx.match[1];
+      const category = ctx.match[2];
+      console.log('Received confirm_dispute callback:', tradeId, category);
+      await optimizedHandler.handleInstantCallback(ctx, '🚀 Создаем спор...');
+      const DisputeHandler = require('../handlers/DisputeHandler');
+      const handler = new DisputeHandler();
+      return handler.confirmDispute(ctx, tradeId, category);
+    });
+    
+    // Handle dispute status check
+    this.bot.action(/^dispute_status_(.+)$/, async (ctx) => {
+      const tradeId = ctx.match[1];
+      console.log('Received dispute_status callback:', tradeId);
+      await optimizedHandler.handleInstantCallback(ctx, '📊 Получаем статус...');
+      const DisputeHandler = require('../handlers/DisputeHandler');
+      const handler = new DisputeHandler();
+      return handler.handleDisputeStatus(ctx, tradeId);
+    });
+    
+    // Handle add evidence
+    this.bot.action(/^add_evidence_(.+)$/, async (ctx) => {
+      const tradeId = ctx.match[1];
+      console.log('Received add_evidence callback:', tradeId);
+      await optimizedHandler.handleInstantCallback(ctx, '📄 Загружаем форму...');
+      const DisputeHandler = require('../handlers/DisputeHandler');
+      const handler = new DisputeHandler();
+      return handler.handleAddEvidence(ctx, tradeId);
+    });
+    
+    // Handle evidence type selection
+    this.bot.action(/^evidence_text_(.+)$/, async (ctx) => {
+      const tradeId = ctx.match[1];
+      console.log('Received evidence_text callback:', tradeId);
+      const chatId = ctx.chat.id.toString();
+      const sessionManager = require('../handlers/SessionManager');
+      sessionManager.setSessionData(chatId, 'awaitingEvidenceText', true);
+      sessionManager.setSessionData(chatId, 'evidenceTradeId', tradeId);
+      
+      await ctx.reply('📝 Введите текстовое доказательство:');
+    });
+    
+    // Handle back to dispute categories
+    this.bot.action(/^dispute_categories_(.+)$/, async (ctx) => {
+      const tradeId = ctx.match[1];
+      console.log('Received dispute_categories callback:', tradeId);
+      const DisputeHandler = require('../handlers/DisputeHandler');
+      const handler = new DisputeHandler();
+      return handler.handleInitiateDispute(ctx, tradeId);
+    });
+    
+    // ⚖️ ADMIN DISPUTE SYSTEM CALLBACKS
+    // Admin moderator dashboard
+    this.bot.action('admin_moderator_dashboard', async (ctx) => {
+      console.log('Received admin_moderator_dashboard callback');
+      await optimizedHandler.handleInstantCallback(ctx, '⚖️ Загружаем панель...');
+      return adminDisputeHandler.showModeratorDashboard(ctx);
+    });
+    
+    // Admin dispute queue with filters and pagination
+    this.bot.action(/^admin_queue_(.+)_(\d+)$/, async (ctx) => {
+      const filter = ctx.match[1];
+      const page = parseInt(ctx.match[2]);
+      console.log('Received admin_queue callback:', filter, page);
+      await optimizedHandler.handleInstantCallback(ctx, '📋 Загружаем очередь...');
+      return adminDisputeHandler.showDisputeQueue(ctx, filter, page);
+    });
+    
+    // Admin dispute queue (default)
+    this.bot.action('admin_dispute_queue', async (ctx) => {
+      console.log('Received admin_dispute_queue callback');
+      await optimizedHandler.handleInstantCallback(ctx, '📋 Загружаем очередь...');
+      return adminDisputeHandler.showDisputeQueue(ctx, 'all', 0);
+    });
+    
+    // Admin urgent disputes
+    this.bot.action('admin_urgent_disputes', async (ctx) => {
+      console.log('Received admin_urgent_disputes callback');
+      await optimizedHandler.handleInstantCallback(ctx, '🔥 Загружаем срочные...');
+      return adminDisputeHandler.showDisputeQueue(ctx, 'urgent', 0);
+    });
+    
+    // Admin dispute details
+    this.bot.action(/^admin_dispute_(.+)$/, async (ctx) => {
+      const disputeId = ctx.match[1];
+      console.log('Received admin_dispute callback:', disputeId);
+      await optimizedHandler.handleInstantCallback(ctx, '🔍 Загружаем детали...');
+      return adminDisputeHandler.showDisputeDetails(ctx, disputeId);
+    });
+    
+    // Admin evidence view
+    this.bot.action(/^admin_evidence_(.+)$/, async (ctx) => {
+      const disputeId = ctx.match[1];
+      console.log('Received admin_evidence callback:', disputeId);
+      await optimizedHandler.handleInstantCallback(ctx, '📄 Загружаем доказательства...');
+      return adminDisputeHandler.showDisputeEvidence(ctx, disputeId);
+    });
+    
+    // Admin resolution interface
+    this.bot.action(/^admin_resolve_(.+)$/, async (ctx) => {
+      const disputeId = ctx.match[1];
+      console.log('Received admin_resolve callback:', disputeId);
+      await optimizedHandler.handleInstantCallback(ctx, '⚖️ Загружаем решения...');
+      return adminDisputeHandler.showResolutionInterface(ctx, disputeId);
+    });
+    
+    // Admin resolution confirmation
+    this.bot.action(/^admin_resolution_(.+)_(.+)$/, async (ctx) => {
+      const resolution = ctx.match[1];
+      const disputeId = ctx.match[2];
+      console.log('Received admin_resolution callback:', resolution, disputeId);
+      await optimizedHandler.handleInstantCallback(ctx, '📋 Подготавливаем решение...');
+      return adminDisputeHandler.confirmResolution(ctx, resolution, disputeId);
+    });
+    
+    // Admin execute resolution
+    this.bot.action(/^admin_execute_(.+)_(.+)$/, async (ctx) => {
+      const resolution = ctx.match[1];
+      const disputeId = ctx.match[2];
+      console.log('Received admin_execute callback:', resolution, disputeId);
+      await optimizedHandler.handleInstantCallback(ctx, '⚖️ Выполняем решение...');
+      return adminDisputeHandler.executeResolution(ctx, resolution, disputeId);
+    });
+    
+    // Admin dispute statistics
+    this.bot.action('admin_dispute_stats', async (ctx) => {
+      console.log('Received admin_dispute_stats callback');
+      await optimizedHandler.handleInstantCallback(ctx, '📊 Загружаем статистику...');
+      return adminDisputeHandler.showModeratorStatistics(ctx);
+    });
+    
+    // Admin moderator settings (placeholder)
+    this.bot.action('admin_moderator_settings', async (ctx) => {
+      console.log('Received admin_moderator_settings callback');
+      await ctx.reply('⚙️ Настройки модератора будут добавлены в следующем обновлении.');
     });
     
     // Handle real-time price refresh for buy orders

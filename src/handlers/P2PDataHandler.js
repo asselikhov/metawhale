@@ -6,6 +6,7 @@
 const { Markup } = require('telegraf');
 const { User } = require('../database/models');
 const sessionManager = require('./SessionManager');
+const antiFraudService = require('../services/antiFraudService');
 
 class P2PDataHandler {
   // Handle edit data menu
@@ -21,6 +22,7 @@ class P2PDataHandler {
         [Markup.button.callback('💳 Способы оплаты', 'p2p_edit_payment_methods')],
         [Markup.button.callback('📞 Контакт', 'p2p_edit_contact')],
         [Markup.button.callback('⚙️ Условия мейкера', 'p2p_edit_conditions')],
+        [Markup.button.callback('⏰ Время сделки', 'p2p_edit_trade_time')],
         [Markup.button.callback('🔙 Назад', 'p2p_my_data')]
       ]);
       
@@ -274,6 +276,83 @@ class P2PDataHandler {
     } catch (error) {
       console.error('Edit conditions error:', error);
       await ctx.reply('❌ Ошибка редактирования условий.');
+    }
+  }
+
+  // Handle trade time editing
+  async handleP2PEditTradeTime(ctx) {
+    try {
+      const chatId = ctx.chat.id.toString();
+      const user = await User.findOne({ chatId });
+      
+      if (!user) {
+        return await ctx.reply('❌ Пользователь не найден.');
+      }
+      
+      // Initialize profile if not exists
+      if (!user.p2pProfile) {
+        user.p2pProfile = {};
+      }
+      
+      const currentTime = user.p2pProfile.tradeTimeLimit || 30;
+      
+      const message = '⏰ ВРЕМЯ СДЕЛКИ\n' +
+                     '➖➖➖➖➖➖➖➖➖➖➖\n' +
+                     `Текущая настройка: ${currentTime} мин.\n\n` +
+                     'Выберите время для оплаты в сделках:\n\n' +
+                     '🟢 Короткие сделки: 10-15 мин.\n' +
+                     '🟠 Стандартные: 30 мин.\n' +
+                     '🟡 Длинные: 60 мин.';
+      
+      const keyboard = Markup.inlineKeyboard([
+        [Markup.button.callback(`${currentTime === 10 ? '✅' : '⚫'} 10 мин.`, 'p2p_set_time_10')],
+        [Markup.button.callback(`${currentTime === 15 ? '✅' : '⚫'} 15 мин.`, 'p2p_set_time_15')],
+        [Markup.button.callback(`${currentTime === 30 ? '✅' : '⚫'} 30 мин. (рекомендуемо)`, 'p2p_set_time_30')],
+        [Markup.button.callback(`${currentTime === 60 ? '✅' : '⚫'} 60 мин.`, 'p2p_set_time_60')],
+        [Markup.button.callback('🔙 Назад', 'p2p_edit_data')]
+      ]);
+      
+      await ctx.reply(message, keyboard);
+      
+    } catch (error) {
+      console.error('Edit trade time error:', error);
+      await ctx.reply('❌ Ошибка редактирования времени сделки.');
+    }
+  }
+
+  // Handle setting specific trade time
+  async handleP2PSetTradeTime(ctx, timeMinutes) {
+    try {
+      const chatId = ctx.chat.id.toString();
+      const user = await User.findOne({ chatId });
+      
+      if (!user) {
+        return await ctx.reply('❌ Пользователь не найден.');
+      }
+      
+      // Initialize profile if not exists
+      if (!user.p2pProfile) {
+        user.p2pProfile = {};
+      }
+      
+      user.p2pProfile.tradeTimeLimit = timeMinutes;
+      await user.save();
+      
+      const timeDescription = {
+        10: 'быстрые сделки',
+        15: 'скорые сделки',
+        30: 'стандартные сделки',
+        60: 'длинные сделки'
+      };
+      
+      await ctx.reply(`✅ Время сделки установлено: ${timeMinutes} мин.\n📝 Тип: ${timeDescription[timeMinutes] || 'обычные сделки'}`);
+      
+      // Refresh the trade time menu
+      setTimeout(() => this.handleP2PEditTradeTime(ctx), 1500);
+      
+    } catch (error) {
+      console.error('Set trade time error:', error);
+      await ctx.reply('❌ Ошибка сохранения времени.');
     }
   }
 
@@ -557,6 +636,149 @@ class P2PDataHandler {
       
     } catch (error) {
       console.error('Check profile completion error:', error);
+    }
+  }
+
+  /**
+   * 🔒 Метод улучшенной валидации банковских реквизитов
+   */
+  async validateBankDetailsWithSecurity(user) {
+    if (!user.p2pProfile || !user.p2pProfile.paymentMethods || user.p2pProfile.paymentMethods.length === 0) {
+      return {
+        valid: false,
+        issues: ['Не настроены способы оплаты']
+      };
+    }
+    
+    // Преобразуем в формат, понятный antiFraudService
+    const bankDetails = {};
+    user.p2pProfile.paymentMethods.forEach((method, index) => {
+      if (method.type === 'bank_card' && method.isActive) {
+        bankDetails[`card_${index}`] = {
+          cardNumber: method.cardNumber,
+          cardHolder: method.cardHolder,
+          bankName: method.bankName
+        };
+      }
+    });
+    
+    // Используем antiFraudService для валидации
+    const validation = antiFraudService.validateBankDetails(bankDetails);
+    
+    if (!validation.valid) {
+      return {
+        valid: false,
+        issues: validation.issues.map(issue => `${issue.bank}: ${issue.issue}`)
+      };
+    }
+    
+    // Дополнительные проверки безопасности
+    const securityIssues = [];
+    
+    // Проверяем, что есть хотя бы один активный способ оплаты
+    const activeMethods = user.p2pProfile.paymentMethods.filter(method => method.isActive);
+    if (activeMethods.length === 0) {
+      securityIssues.push('Нет активных способов оплаты');
+    }
+    
+    // Проверяем, что все обязательные поля заполнены
+    activeMethods.forEach((method, index) => {
+      if (method.type === 'bank_card') {
+        if (!method.cardNumber || method.cardNumber.length < 16) {
+          securityIssues.push(`Карта ${index + 1}: Некорректный номер`);
+        }
+        if (!method.cardHolder || method.cardHolder.length < 2) {
+          securityIssues.push(`Карта ${index + 1}: Некорректное имя владельца`);
+        }
+        if (!method.bankName || method.bankName.length < 2) {
+          securityIssues.push(`Карта ${index + 1}: Не указан банк`);
+        }
+      }
+    });
+    
+    return {
+      valid: securityIssues.length === 0,
+      issues: securityIssues
+    };
+  }
+
+  /**
+   * Обновленная валидация P2P профиля с улучшенной безопасностью (заменяет существующий метод)
+   */
+  async validateUserForP2POperationsEnhanced(chatId) {
+    try {
+      const user = await User.findOne({ chatId });
+      
+      if (!user) {
+        return {
+          valid: false,
+          message: '❌ Пользователь не найден.',
+          keyboard: [[
+            { text: '🏠 Меню', callback_data: 'main_menu' }
+          ]]
+        };
+      }
+      
+      if (!user.p2pProfile) {
+        return {
+          valid: false,
+          message: '⚠️ Необходимо заполнить P2P профиль.',
+          keyboard: [[
+            { text: '📋 Мои данные', callback_data: 'p2p_my_data' },
+            { text: '🔙 Назад', callback_data: 'p2p_menu' }
+          ]]
+        };
+      }
+      
+      // Проверяем основные поля профиля
+      const profile = user.p2pProfile;
+      const missingFields = [];
+      
+      if (!profile.fullName || profile.fullName.length < 2) {
+        missingFields.push('ФИО');
+      }
+      
+      if (!profile.contactInfo || profile.contactInfo.length < 5) {
+        missingFields.push('Контакт');
+      }
+      
+      // Проверяем банковские реквизиты с улучшенной безопасностью
+      const bankValidation = await this.validateBankDetailsWithSecurity(user);
+      
+      if (!bankValidation.valid) {
+        missingFields.push('Банковские реквизиты');
+      }
+      
+      if (missingFields.length > 0) {
+        let message = '⚠️ Необходимо заполнить следующие поля:\n\n';
+        message += missingFields.map(field => `• ${field}`).join('\n');
+        
+        if (!bankValidation.valid && bankValidation.issues) {
+          message += '\n\n🔒 Проблемы с банковскими данными:\n';
+          message += bankValidation.issues.map(issue => `• ${issue}`).join('\n');
+        }
+        
+        return {
+          valid: false,
+          message,
+          keyboard: [[
+            { text: '✏️ Редактировать', callback_data: 'p2p_edit_data' },
+            { text: '🔙 Назад', callback_data: 'p2p_menu' }
+          ]]
+        };
+      }
+      
+      return {
+        valid: true,
+        user: user
+      };
+      
+    } catch (error) {
+      console.error('Ошибка валидации P2P профиля:', error);
+      return {
+        valid: false,
+        message: '❌ Ошибка проверки профиля.'
+      };
     }
   }
 

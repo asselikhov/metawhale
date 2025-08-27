@@ -137,15 +137,15 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
       })} • 🅐🅣🅗 ${athDisplay}
 
 Торгуй CES удобно и безопасно  
-P2P Биржа (https://t.me/rogassistant_bot): Покупка и продажа за ₽`;
+P2P Биржа: https://t.me/rogassistant_bot
+Покупка и продажа за ₽`;
       
-      // Edit the original message instead of sending new one
+      // Edit the original message without parse_mode to avoid Markdown issues
       await ctx.telegram.editMessageText(
         sentMessage.chat.id,
         sentMessage.message_id,
         null,
-        message,
-        { parse_mode: 'Markdown' }
+        message
       );
       
     } catch (error) {
@@ -195,6 +195,32 @@ P2P Биржа (https://t.me/rogassistant_bot): Покупка и продажа
         if (handled) {
           return; // Text was processed by P2P data handler
         }
+      }
+      
+      // 🚨 Check if DisputeHandler can process this text input
+      try {
+        const DisputeHandler = require('./DisputeHandler');
+        const disputeHandler = new DisputeHandler();
+        const disputeHandled = await disputeHandler.processTextInput(ctx, text);
+        if (disputeHandled) {
+          return; // Text was processed by dispute handler
+        }
+      } catch (disputeError) {
+        console.error('Dispute handler error:', disputeError);
+        // Continue with normal processing if dispute handler fails
+      }
+      
+      // ⚖️ Check if AdminDisputeHandler can process this text input
+      try {
+        const AdminDisputeHandler = require('./AdminDisputeHandler');
+        const adminDisputeHandler = new AdminDisputeHandler();
+        const adminHandled = await adminDisputeHandler.processTextInput(ctx, text);
+        if (adminHandled) {
+          return; // Text was processed by admin dispute handler
+        }
+      } catch (adminDisputeError) {
+        console.error('Admin dispute handler error:', adminDisputeError);
+        // Continue with normal processing if admin dispute handler fails
       }
       
       switch (userState) {

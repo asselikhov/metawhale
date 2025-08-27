@@ -10,6 +10,7 @@ const priceService = require('./priceService');
 const escrowService = require('./escrowService');
 const smartNotificationService = require('./smartNotificationService');
 const reputationService = require('./reputationService');
+const antiFraudService = require('./antiFraudService');
 const PrecisionUtil = require('../utils/PrecisionUtil');
 const config = require('../config/configuration');
 
@@ -100,6 +101,28 @@ class P2PService {
         throw new Error(`Недостаточно рублей. Доступно: ₽${availableRubleBalance.toFixed(2)}, требуется: ₽${totalValue.toFixed(2)}`);
       }
       
+      // 🔍 ANTI-FRAUD: Проверка безопасности перед созданием ордера
+      console.log(`🔍 [SECURITY] Проверка безопасности buy ордера для ${chatId}`);
+      const securityCheck = await antiFraudService.checkOrderSecurity(chatId, {
+        type: 'buy',
+        amount: amount,
+        pricePerToken: pricePerToken,
+        totalValue: totalValue
+      });
+      
+      if (!securityCheck.allowed) {
+        console.log(`❌ [SECURITY] Ордер заблокирован: ${securityCheck.reason}`);
+        throw new Error(`🔒 Ордер заблокирован системой безопасности. ${securityCheck.reason}`);
+      }
+      
+      if (securityCheck.riskLevel === 'MEDIUM') {
+        console.log(`⚠️ [SECURITY] Предупреждение: ${securityCheck.reason}`);
+      }
+      
+      // Получаем персональные настройки времени сделки пользователя
+      const userTradeTimeLimit = user.p2pProfile?.tradeTimeLimit || this.defaultTradeTimeout;
+      console.log(`Время сделки для пользователя ${user.chatId}: ${userTradeTimeLimit} мин.`);
+      
       // Создаём новый ордер на покупку
       console.log(`Создание нового ордера на покупку`);
       const buyOrder = new P2POrder({
@@ -112,6 +135,7 @@ class P2PService {
         minTradeAmount: minTradeAmount,
         maxTradeAmount: maxTradeAmount || amount,
         paymentMethods: ['bank_transfer'], // Мейкер всегда использует банковский перевод
+        tradeTimeLimit: userTradeTimeLimit, // Персональные настройки времени
         status: 'active'
       });
       
@@ -138,6 +162,378 @@ class P2PService {
     } catch (error) {
       console.error('Ошибка создания ордера на покупку:', error);
       throw error;
+    }
+  }
+
+  /**
+   * Тейкер (покупатель) выбирает ордер мейкера на продажу и создаёт сделку
+   * @param {string} takerChatId - Telegram ID тейкера (покупателя CES)
+   * @param {string} sellOrderId - ID ордера мейкера (продавца)
+   * @param {number} cesAmount - Количество CES для покупки
+   * @param {number} pricePerToken - Цена за токен
+   * @returns {Promise<{success: boolean, trade?: object, seller?: object, paymentDetails?: object, timeLimit?: number, orderNumber?: string, error?: string}>}
+   */
+  async createTradeFromSellOrder(takerChatId, sellOrderId, cesAmount, pricePerToken) {
+    try {
+      console.log(`🔄 Тейкер ${takerChatId} создаёт сделку из sell-ордера ${sellOrderId} на ${cesAmount} CES`);
+      
+      // 🔍 Получаем sell-ордер мейкера
+      const sellOrder = await P2POrder.findById(sellOrderId).populate('userId');
+      if (!sellOrder || sellOrder.status !== 'active') {
+        return { success: false, error: 'Ордер не найден или неактивен' };
+      }
+      
+      if (!sellOrder.userId) {
+        return { success: false, error: 'Данные продавца в ордере не найдены' };
+      }
+      
+      // 👤 Получаем тейкера (покупателя)
+      const buyer = await User.findOne({ chatId: takerChatId });
+      if (!buyer) {
+        return { success: false, error: 'Покупатель не найден' };
+      }
+      
+      // ❌ Проверяем, что это не свой ордер
+      if (sellOrder.userId._id.toString() === buyer._id.toString()) {
+        return { success: false, error: 'Нельзя торговать со своим ордером' };
+      }
+      
+      // 📊 Проверяем лимиты
+      if (cesAmount < sellOrder.minTradeAmount || cesAmount > sellOrder.maxTradeAmount) {
+        return { 
+          success: false, 
+          error: `Количество должно быть от ${sellOrder.minTradeAmount} до ${sellOrder.maxTradeAmount} CES` 
+        };
+      }
+      
+      // 💰 Проверяем доступность количества в ордере
+      if (cesAmount > sellOrder.remainingAmount) {
+        return { 
+          success: false, 
+          error: `Недостаточно CES в ордере. Доступно: ${sellOrder.remainingAmount} CES` 
+        };
+      }
+      
+      // 🛡️ Проверяем профиль покупателя
+      if (!buyer.p2pProfile || !buyer.p2pProfile.isProfileComplete) {
+        return { success: false, error: 'Заполните профиль P2P для создания сделок' };
+      }
+      
+      // 🔐 RACE CONDITION PROTECTION: Атомарная проверка и блокировка
+      const mongoose = require('mongoose');
+      const session = await mongoose.startSession();
+      
+      try {
+        let trade;
+        await session.withTransaction(async () => {
+          // Повторная проверка доступности ордера в транзакции
+          const currentSellOrder = await P2POrder.findById(sellOrderId).session(session);
+          if (!currentSellOrder || currentSellOrder.status !== 'active' || currentSellOrder.remainingAmount < cesAmount) {
+            throw new Error('Ордер больше недоступен или количество CES уменьшилось');
+          }
+          
+          // 💸 Рассчитываем стоимость
+          const totalPrice = cesAmount * pricePerToken;
+          
+          // 📋 Получаем реквизиты продавца для оплаты
+          const seller = currentSellOrder.userId;
+          if (!seller.p2pProfile || !seller.p2pProfile.paymentMethods || seller.p2pProfile.paymentMethods.length === 0) {
+            throw new Error('У продавца не настроены реквизиты для получения оплаты');
+          }
+          
+          const activePaymentMethod = seller.p2pProfile.paymentMethods.find(pm => pm.isActive);
+          if (!activePaymentMethod) {
+            throw new Error('У продавца нет активных способов оплаты');
+          }
+          
+          // 📦 Блокируем CES продавца в эскроу
+          const escrowResult = await escrowService.lockTokensInEscrow(
+            seller._id, 
+            null, // tradeId будет установлен после создания сделки
+            'CES', 
+            cesAmount
+          );
+          
+          if (!escrowResult.success) {
+            throw new Error(`Ошибка блокировки CES в эскроу: ${escrowResult.error}`);
+          }
+          
+          // 💳 Создаём временный buy-ордер для тейкера
+          const tempBuyOrder = new P2POrder({
+            userId: buyer._id,
+            type: 'buy',
+            amount: cesAmount,
+            pricePerToken: pricePerToken,
+            totalValue: totalPrice,
+            status: 'locked',
+            filledAmount: cesAmount,
+            remainingAmount: 0,
+            escrowLocked: false, // Покупатель не блокирует средства в эскроу
+            minTradeAmount: cesAmount,
+            maxTradeAmount: cesAmount,
+            paymentMethods: ['bank_transfer'],
+            tradeTimeLimit: currentSellOrder.tradeTimeLimit || 30
+          });
+          
+          await tempBuyOrder.save({ session });
+          
+          // 🎯 Определяем комиссии: Мейкер (продавец) платит 1%, тейкер (покупатель) не платит
+          const sellerCommission = PrecisionUtil.calculateCommission(cesAmount, this.commissionRate, 4);
+          const buyerCommission = 0;
+          
+          // 📝 Создаём сделку
+          trade = new P2PTrade({
+            buyOrderId: tempBuyOrder._id,
+            sellOrderId: currentSellOrder._id,
+            buyerId: buyer._id, // Тейкер (покупатель)
+            sellerId: seller._id, // Мейкер (продавец)
+            amount: cesAmount,
+            pricePerToken: pricePerToken,
+            totalValue: totalPrice,
+            buyerCommission: buyerCommission, // Тейкер не платит комиссию
+            sellerCommission: sellerCommission, // Мейкер платит 1%
+            commission: sellerCommission,
+            status: 'escrow_locked',
+            escrowStatus: 'locked',
+            paymentMethod: 'bank_transfer',
+            paymentDetails: {
+              bankName: this.getBankDisplayName(activePaymentMethod.bank),
+              cardNumber: activePaymentMethod.cardNumber,
+              recipientName: seller.p2pProfile.fullName,
+              amount: totalPrice
+            },
+            timeTracking: {
+              createdAt: new Date(),
+              escrowLockedAt: new Date(),
+              expiresAt: new Date(Date.now() + (currentSellOrder.tradeTimeLimit || 30) * 60 * 1000)
+            }
+          });
+          
+          await trade.save({ session });
+          
+          // 📊 Обновляем количество в sell-ордере
+          currentSellOrder.remainingAmount -= cesAmount;
+          currentSellOrder.filledAmount = (currentSellOrder.filledAmount || 0) + cesAmount;
+          
+          if (currentSellOrder.remainingAmount <= 0) {
+            currentSellOrder.status = 'filled';
+          } else {
+            currentSellOrder.status = 'partial';
+          }
+          
+          await currentSellOrder.save({ session });
+          
+          // 🔗 Обновляем trade ID в эскроу
+          await escrowService.updateEscrowTradeId(seller._id, 'CES', cesAmount, trade._id);
+        });
+        
+        await session.endSession();
+        
+        // 📨 Уведомляем продавца о новой сделке
+        const orderNumber = `CES${Date.now().toString().slice(-8)}`;
+        const seller = sellOrder.userId;
+        
+        try {
+          const botInstance = require('../bot/telegramBot');
+          const bot = botInstance.getInstance();
+          
+          const sellerMessage = `💰 НОВАЯ СДЕЛКА\n` +
+                               `➖➖➖➖➖➖➖➖➖➖➖\n` +
+                               `Ордер: ${orderNumber}\n` +
+                               `Покупатель: ${buyer.p2pProfile?.fullName || buyer.firstName || 'Пользователь'}\n` +
+                               `Количество: ${cesAmount} CES\n` +
+                               `Сумма: ${(cesAmount * pricePerToken).toFixed(2)} ₽\n\n` +
+                               `🔒 Ваши CES заморожены в эскроу.\n` +
+                               `Ожидайте платёж от покупателя.\n\n` +
+                               `⏰ Время на оплату: ${sellOrder.tradeTimeLimit || 30} мин.`;
+          
+          await bot.telegram.sendMessage(seller.chatId, sellerMessage);
+          console.log(`✅ Уведомление отправлено продавцу ${seller.chatId}`);
+        } catch (notifyError) {
+          console.error('⚠️ Ошибка уведомления продавца:', notifyError);
+        }
+        
+        console.log(`✅ Сделка успешно создана: ${trade._id}`);
+        return {
+          success: true,
+          trade: trade,
+          seller: seller,
+          paymentDetails: trade.paymentDetails,
+          timeLimit: sellOrder.tradeTimeLimit || 30,
+          orderNumber: orderNumber
+        };
+        
+      } catch (transactionError) {
+        await session.endSession();
+        console.error('❌ Ошибка транзакции создания сделки:', transactionError);
+        return { success: false, error: transactionError.message };
+      }
+      
+    } catch (error) {
+      console.error('❌ Ошибка создания сделки из sell-ордера:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * 💰 СОЗДАНИЕ СДЕЛКИ ИЗ SELL-ОРДЕРА С ВЫБРАННЫМ БАНКОМ (БЕЗ ПОВТОРНОГО БЛОКИРОВАНИЯ)
+   * Тейкер (покупатель) выбирает банк и создаёт сделку из sell-ордера мейкера
+   * @param {string} takerChatId - Telegram ID тейкера (покупателя CES)
+   * @param {string} sellOrderId - ID ордера мейкера (продавца)
+   * @param {number} cesAmount - Количество CES для покупки
+   * @param {number} pricePerToken - Цена за токен
+   * @param {object} selectedPaymentMethod - Выбранный способ оплаты
+   * @returns {Promise<{success: boolean, trade?: object, seller?: object, paymentDetails?: object, timeLimit?: number, orderNumber?: string, error?: string}>}
+   */
+  async createTradeFromSellOrderWithBank(takerChatId, sellOrderId, cesAmount, pricePerToken, selectedPaymentMethod) {
+    try {
+      console.log(`🔄 Тейкер ${takerChatId} создаёт сделку из sell-ордера ${sellOrderId} на ${cesAmount} CES с банком ${selectedPaymentMethod.bank}`);
+      
+      // 🧑‍💼 ПОЛУЧАЕМ ПОЛЬЗОВАТЕЛЕЙ
+      const { User } = require('../database/models');
+      const buyer = await User.findOne({ chatId: takerChatId });
+      if (!buyer) {
+        return { success: false, error: 'Покупатель не найден' };
+      }
+      
+      // 📋 ПОЛУЧАЕМ SELL-ОРДЕР И ПРОДАВЦА
+      const sellOrder = await P2POrder.findById(sellOrderId).populate('userId');
+      if (!sellOrder || sellOrder.type !== 'sell') {
+        return { success: false, error: 'Sell-ордер не найден' };
+      }
+      
+      if (sellOrder.remainingAmount < cesAmount) {
+        return { 
+          success: false, 
+          error: `Недостаточно CES в ордере. Доступно: ${sellOrder.remainingAmount} CES` 
+        };
+      }
+      
+      // 🛡️ ПРОВЕРЯЕМ ПРОФИЛЬ ПОКУПАТЕЛЯ
+      if (!buyer.p2pProfile || !buyer.p2pProfile.isProfileComplete) {
+        return { success: false, error: 'Заполните профиль P2P для создания сделок' };
+      }
+      
+      // 🔐 RACE CONDITION PROTECTION: Атомарная проверка БЕЗ блокирования
+      const mongoose = require('mongoose');
+      const session = await mongoose.startSession();
+      
+      try {
+        let trade;
+        await session.withTransaction(async () => {
+          // Повторная проверка доступности ордера в транзакции
+          const currentSellOrder = await P2POrder.findById(sellOrderId).session(session);
+          if (!currentSellOrder || currentSellOrder.status !== 'active' || currentSellOrder.remainingAmount < cesAmount) {
+            throw new Error('Ордер больше недоступен или количество CES уменьшилось');
+          }
+          
+          // 💸 Рассчитываем стоимость
+          const totalPrice = cesAmount * pricePerToken;
+          
+          // 📋 Получаем продавца и его реквизиты
+          const seller = currentSellOrder.userId;
+          if (!seller.p2pProfile || !seller.p2pProfile.paymentMethods || seller.p2pProfile.paymentMethods.length === 0) {
+            throw new Error('У продавца не настроены реквизиты для получения оплаты');
+          }
+          
+          // Проверяем, что выбранный способ оплаты доступен
+          const activePaymentMethod = seller.p2pProfile.paymentMethods.find(
+            pm => pm.bank === selectedPaymentMethod.bank && pm.isActive
+          );
+          
+          if (!activePaymentMethod) {
+            throw new Error('Выбранный способ оплаты больше не доступен');
+          }
+          
+          // ⚠️ ВАЖНО: НЕ БЛОКИРУЕМ CES - они уже заблокированы при создании sell-ордера!
+          
+          // 📝 Создаём временный buy-ордер для тейкера
+          const tempBuyOrder = new P2POrder({
+            userId: buyer._id,
+            type: 'buy',
+            amount: cesAmount,
+            pricePerToken: pricePerToken,
+            totalValue: totalPrice,
+            status: 'locked',
+            filledAmount: cesAmount,
+            remainingAmount: 0,
+            escrowLocked: false, // Покупатель не блокирует средства в эскроу
+            minTradeAmount: cesAmount,
+            maxTradeAmount: cesAmount,
+            paymentMethods: ['bank_transfer'],
+            tradeTimeLimit: currentSellOrder.tradeTimeLimit || 30
+          });
+          
+          await tempBuyOrder.save({ session });
+          
+          // 🎯 Определяем комиссии: Мейкер (продавец) платит 1%, тейкер (покупатель) не платит
+          const buyerCommission = 0;
+          const sellerCommission = cesAmount * 0.01; // 1% комиссия с мейкера
+          
+          // 📝 Создаём сделку
+          trade = new P2PTrade({
+            buyOrderId: tempBuyOrder._id,
+            sellOrderId: currentSellOrder._id,
+            buyerId: buyer._id, // Тейкер (покупатель)
+            sellerId: seller._id, // Мейкер (продавец)
+            amount: cesAmount,
+            pricePerToken: pricePerToken,
+            totalValue: totalPrice,
+            buyerCommission: buyerCommission, // Тейкер не платит комиссию
+            sellerCommission: sellerCommission, // Мейкер платит 1%
+            commission: sellerCommission,
+            status: 'escrow_locked',
+            escrowStatus: 'locked',
+            paymentMethod: 'bank_transfer',
+            paymentDetails: {
+              bankName: this.getBankDisplayName(activePaymentMethod.bank),
+              cardNumber: activePaymentMethod.cardNumber,
+              recipientName: seller.p2pProfile.fullName,
+              amount: totalPrice
+            },
+            timeTracking: {
+              createdAt: new Date(),
+              escrowLockedAt: new Date(),
+              expiresAt: new Date(Date.now() + (currentSellOrder.tradeTimeLimit || 30) * 60 * 1000)
+            }
+          });
+          
+          await trade.save({ session });
+          
+          // 📊 Обновляем количество в sell-ордере
+          currentSellOrder.remainingAmount -= cesAmount;
+          currentSellOrder.filledAmount += cesAmount;
+          
+          if (currentSellOrder.remainingAmount <= 0) {
+            currentSellOrder.status = 'filled';
+          }
+          
+          await currentSellOrder.save({ session });
+        });
+        
+        // 🏆 Генерируем номер ордера
+        const orderNumber = `CES${Date.now().toString().slice(-8)}`;
+        
+        return {
+          success: true,
+          trade: trade,
+          seller: sellOrder.userId,
+          paymentDetails: {
+            bankName: this.getBankDisplayName(selectedPaymentMethod.bank),
+            cardNumber: selectedPaymentMethod.cardNumber,
+            recipientName: sellOrder.userId.p2pProfile.fullName
+          },
+          timeLimit: sellOrder.tradeTimeLimit || 30,
+          orderNumber: orderNumber
+        };
+        
+      } finally {
+        await session.endSession();
+      }
+      
+    } catch (error) {
+      console.error('❌ Ошибка создания сделки из sell-ордера с банком:', error);
+      return { success: false, error: error.message };
     }
   }
 
@@ -695,12 +1091,34 @@ class P2PService {
       
       console.log(`✅ Escrow validation passed: Total will be ${totalRequired.toFixed(4)} CES`);
       
+      // 🔍 ANTI-FRAUD: Проверка безопасности перед созданием ордера
+      console.log(`🔍 [SECURITY] Проверка безопасности sell ордера для ${chatId}`);
+      const securityCheck = await antiFraudService.checkOrderSecurity(chatId, {
+        type: 'sell',
+        amount: amount,
+        pricePerToken: pricePerToken,
+        totalValue: totalValue
+      });
+      
+      if (!securityCheck.allowed) {
+        console.log(`❌ [SECURITY] Ордер заблокирован: ${securityCheck.reason}`);
+        throw new Error(`🔒 Ордер заблокирован системой безопасности. ${securityCheck.reason}`);
+      }
+      
+      if (securityCheck.riskLevel === 'MEDIUM') {
+        console.log(`⚠️ [SECURITY] Предупреждение: ${securityCheck.reason}`);
+      }
+      
       const totalValue = amount * pricePerToken;
       console.log(`Total order value: ₽${totalValue.toFixed(2)}`);
       
       // Lock tokens in escrow before creating order
       console.log(`Locking ${amount} CES in escrow`);
       await escrowService.lockTokensInEscrow(user._id, null, 'CES', amount);
+      
+      // Получаем персональные настройки времени сделки пользователя
+      const userTradeTimeLimit = user.p2pProfile?.tradeTimeLimit || this.defaultTradeTimeout;
+      console.log(`Время сделки для пользователя ${user.chatId}: ${userTradeTimeLimit} мин.`);
       
       // Create new sell order
       console.log(`Creating new sell order`);
@@ -715,7 +1133,7 @@ class P2PService {
         escrowLocked: true,
         escrowAmount: amount,
         paymentMethods: paymentMethods,
-        tradeTimeLimit: this.defaultTradeTimeout,
+        tradeTimeLimit: userTradeTimeLimit, // Персональные настройки времени
         minTradeAmount: minTradeAmount,
         maxTradeAmount: maxTradeAmount || amount
       });
