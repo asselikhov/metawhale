@@ -210,9 +210,9 @@ P2P Биржа: https://t.me/rogassistant_bot
     try {
       console.log(`⏰ [P2P-TIMER] Отмена просроченного ордера ${order._id} (тип: ${order.type})`);
       
-      // Обновляем статус ордера
-      order.status = 'expired';
-      order.cancelReason = 'Время ордера истекло';
+      // Обновляем статус ордера (используем 'cancelled' для обратной совместимости)
+      order.status = 'cancelled';
+      order.cancelReason = 'Время ордера истекло (автоотмена)';
       order.canceledAt = new Date();
       await order.save();
       

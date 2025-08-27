@@ -206,7 +206,7 @@ const p2pOrderSchema = new mongoose.Schema({
   amount: { type: Number, required: true }, // Amount of CES tokens
   pricePerToken: { type: Number, required: true }, // Price per CES token in rubles
   totalValue: { type: Number, required: true }, // Total value in rubles
-  status: { type: String, enum: ['active', 'partial', 'completed', 'cancelled', 'locked'], default: 'active' },
+  status: { type: String, enum: ['active', 'partial', 'completed', 'cancelled', 'locked', 'expired'], default: 'active' },
   filledAmount: { type: Number, default: 0 },
   remainingAmount: { type: Number, required: true },
   escrowLocked: { type: Boolean, default: false }, // Whether tokens are locked in escrow
@@ -433,7 +433,7 @@ const escrowTransactionSchema = new mongoose.Schema({
   type: { type: String, enum: ['lock', 'release', 'refund', 'manual_intervention_required', 'timeout_intervention_required'], required: true },
   tokenType: { type: String, enum: ['CES', 'POL'], required: true },
   amount: { type: Number, required: true },
-  status: { type: String, enum: ['pending', 'completed', 'failed'], default: 'pending' },
+  status: { type: String, enum: ['pending', 'completed', 'failed', 'cancelled'], default: 'pending' },
   txHash: String,
   smartContractEscrowId: String, // ID эскроу в смарт-контракте
   reason: String,

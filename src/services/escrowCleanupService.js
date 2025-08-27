@@ -104,9 +104,9 @@ class EscrowCleanupService {
               const user = await User.findById(escrowTx.userId);
               if (!user) {
                 console.log(`⚠️ User not found for orphaned escrow ${escrowTx._id}, marking as resolved`); 
-                // Mark the escrow transaction as resolved since user no longer exists
-                escrowTx.status = 'cancelled';
-                escrowTx.reason = 'Automatic cleanup: user account deleted';
+                // Mark the escrow transaction as failed since user no longer exists
+                escrowTx.status = 'failed';
+                escrowTx.reason = 'Automatic cleanup: user account deleted or orphaned escrow';
                 await escrowTx.save();
                 fixedCount++;
                 continue;
