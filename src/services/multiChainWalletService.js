@@ -88,7 +88,7 @@ class MultiChainWalletService {
       console.log(`📊 Formatted balances for ${chatId}:`, formattedBalances);
 
       const totalValue = this.calculateTotalValue(balances, prices);
-      console.log(`💎 Total wallet value for ${chatId}: $${totalValue}`);
+      console.log(`💎 Total wallet value for ${chatId}: $${totalValue.usd} • ₽${totalValue.rub}`);
 
       return {
         hasWallet: true,

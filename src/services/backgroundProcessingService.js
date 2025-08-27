@@ -103,6 +103,7 @@ class BackgroundProcessingService extends EventEmitter {
     
     return this.queueTask(taskId, async () => {
       const multiChainWalletService = require('./multiChainWalletService');
+      const { User } = require('../database/models');
       
       console.log(`💼 [BACKGROUND] Loading wallet data for ${chatId}`);
       
@@ -113,14 +114,31 @@ class BackgroundProcessingService extends EventEmitter {
         return { hasWallet: false };
       }
 
-      // Return the formatted multi-chain wallet data
+      // Transform multi-chain data to legacy format for OptimizedCallbackHandler
+      const cesData = walletInfo.balances?.CES || { balance: 0, usdValue: "0.00", rubValue: "0.00" };
+      const polData = walletInfo.balances?.POL || { balance: 0, usdValue: "0.00", rubValue: "0.00" };
+      
+      // Get escrow balances from database
+      const user = await User.findOne({ chatId });
+      const escrowCESBalance = user?.escrowCESBalance || 0;
+      const escrowPOLBalance = user?.escrowPOLBalance || 0;
+
+      // Return data in legacy format
       return {
         hasWallet: true,
         currentNetwork: walletInfo.currentNetwork,
         networkInfo: walletInfo.networkInfo,
-        balances: walletInfo.balances,
-        totalValue: walletInfo.totalValue,
-        address: walletInfo.address
+        address: walletInfo.address,
+        // Legacy format fields for OptimizedCallbackHandler
+        cesBalance: cesData.balance,
+        polBalance: polData.balance,
+        cesTotalUsd: cesData.usdValue,
+        cesTotalRub: cesData.rubValue,
+        polTotalUsd: polData.usdValue,
+        polTotalRub: polData.rubValue,
+        escrowCESBalance: escrowCESBalance,
+        escrowPOLBalance: escrowPOLBalance,
+        totalValue: walletInfo.totalValue
       };
     }, { priority: 1 });
   }

@@ -184,7 +184,7 @@ class BaseCommandHandler {
         volumeDisplay = ` • 🅥 $ ${priceService.formatNumber(priceData.volume24h)}`;
       }
       
-      // Message format
+      // Message format - all tokens now show P2P promotion
       let message;
       if (tokenSymbol === 'CES') {
         // Special format for CES with P2P promotion
@@ -196,13 +196,14 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}%${volumeDisplay}${
 Торгуй CES удобно и безопасно  
 <a href="https://t.me/rogassistant_bot">P2P Биржа</a>: Покупка и продажа за ₽`;
       } else {
-        // Standard format for other tokens
+        // Standard format for ALL other tokens with P2P promotion using token name
         message = `➖➖➖➖➖➖➖➖➖➖➖➖➖➖➖
 ${tokenConfig.emoji} Цена токена ${tokenSymbol}: $ ${priceData.price.toFixed(tokenConfig.priceDecimals)} | ₽ ${priceData.priceRub.toFixed(2)}
 ➖➖➖➖➖➖➖➖➖➖➖➖➖➖➖
 ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}%${volumeDisplay}${athDisplay}
 
-${tokenConfig.description}`;
+Торгуй ${tokenSymbol} удобно и безопасно  
+<a href="https://t.me/rogassistant_bot">P2P Биржа</a>: Покупка и продажа за ₽`;
       }
       
       // Edit the original message

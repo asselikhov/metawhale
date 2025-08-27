@@ -20,6 +20,12 @@ class MultiChainService {
         ],
         explorer: 'https://polygonscan.com',
         tokens: {
+          POL: {
+            name: 'Polygon',
+            symbol: 'POL',
+            address: 'native',
+            decimals: 18
+          },
           CES: {
             name: 'CES Token',
             symbol: 'CES',
