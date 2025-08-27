@@ -79,22 +79,22 @@ class BaseCommandHandler {
     }
   }
 
-  // Handle ces command and button with immediate response
-  async handlePrice(ctx) {
+  // Handle price command for any token
+  async handlePrice(ctx, tokenSymbol = 'CES') {
     try {
-      console.log('💰 handlePrice called');
+      console.log(`💰 handlePrice called for ${tokenSymbol}`);
       
       // Send immediate acknowledgment
-      const sentMessage = await ctx.reply('⏳ Получаем актуальную цену...');
-      console.log('💰 Price command acknowledgment sent');
+      const sentMessage = await ctx.reply(`⏳ Получаем актуальную цену ${tokenSymbol}...`);
+      console.log(`💰 Price command acknowledgment sent for ${tokenSymbol}`);
       
       // Process price data in background and update the message
-      this.processPriceData(ctx, sentMessage);
+      this.processPriceData(ctx, sentMessage, tokenSymbol);
       
     } catch (error) {
-      console.error('Error sending price to user:', error);
+      console.error(`Error sending ${tokenSymbol} price to user:`, error);
       try {
-        await ctx.reply('❌ Не удается получить цену CES в данный момент. Попробуйте позже.');
+        await ctx.reply(`❌ Не удается получить цену ${tokenSymbol} в данный момент. Попробуйте позже.`);
       } catch (replyError) {
         console.error('Failed to send error message:', replyError);
       }
@@ -102,15 +102,60 @@ class BaseCommandHandler {
   }
 
   // Process price data in background
-  async processPriceData(ctx, sentMessage) {
+  async processPriceData(ctx, sentMessage, tokenSymbol = 'CES') {
     try {
-      const priceData = await priceService.getCESPrice();
+      let priceData;
       
-      // Save data to database (only when calling /ces and if database is available)
-      if (isDatabaseConnected() && !priceData.cached) {
+      // Get price data based on token symbol
+      switch (tokenSymbol.toUpperCase()) {
+        case 'CES':
+          priceData = await priceService.getCESPrice();
+          break;
+        case 'POL':
+          priceData = await priceService.getPOLPrice();
+          break;
+        case 'TRX':
+          priceData = await priceService.getTRXPrice();
+          break;
+        case 'BNB':
+          priceData = await priceService.getBNBPrice();
+          break;
+        case 'SOL':
+          priceData = await priceService.getSOLPrice();
+          break;
+        case 'ETH':
+          priceData = await priceService.getETHPrice();
+          break;
+        case 'ARB':
+          priceData = await priceService.getARBPrice();
+          break;
+        case 'AVAX':
+          priceData = await priceService.getAVAXPrice();
+          break;
+        case 'USDT':
+          priceData = await priceService.getUSDTPrice();
+          break;
+        case 'USDC':
+          priceData = await priceService.getUSDCPrice();
+          break;
+        case 'BUSD':
+          priceData = await priceService.getBUSDPrice();
+          break;
+        case 'TON':
+          priceData = await priceService.getTONPrice();
+          break;
+        case 'NOT':
+          priceData = await priceService.getNOTPrice();
+          break;
+        default:
+          throw new Error(`Unsupported token: ${tokenSymbol}`);
+      }
+      
+      // Save data to database (only for CES and if database is available)
+      if (isDatabaseConnected() && !priceData.cached && tokenSymbol === 'CES') {
         try {
           await new PriceHistory(priceData).save();
-          console.log(`💾 Price data saved: $${priceData.price.toFixed(2)} | ATH: $${priceData.ath.toFixed(2)}`);
+          console.log(`💾 Price data saved: $${priceData.price.toFixed(2)} | ATH: $${priceData.ath ? priceData.ath.toFixed(2) : 'N/A'}`);
         } catch (dbError) {
           console.error('Database error during price saving:', dbError);
         }
@@ -120,26 +165,47 @@ class BaseCommandHandler {
       const changeEmoji = priceData.change24h >= 0 ? '🔺' : '🔻';
       const changeSign = priceData.change24h >= 0 ? '+' : '';
       
-      // Check if current price is ATH
-      const isNewATH = priceData.price >= priceData.ath;
-      const athDisplay = isNewATH ? `🏆 $ ${priceData.ath.toFixed(2)}` : `$ ${priceData.ath.toFixed(2)}`;
+      // Token-specific display configuration
+      const tokenConfig = this.getTokenDisplayConfig(tokenSymbol);
+      
+      // Check if current price is ATH (mainly for CES)
+      let athDisplay = '';
+      if (priceData.ath) {
+        const isNewATH = priceData.price >= priceData.ath;
+        athDisplay = ` • 🅐🅣🅗 ${isNewATH ? '🏆' : ''} $ ${priceData.ath.toFixed(2)}`;
+      }
       
       // Source indicator (only for database)
       const sourceEmoji = priceData.source === 'database' ? '🗄️' : '';
       
-      // Message format with P2P promotional content (same as scheduled message)
-      const message = `➖➖➖➖➖➖➖➖➖➖➖➖➖➖➖
-💰 Цена токена CES: $ ${priceData.price.toFixed(2)} | ₽ ${priceData.priceRub.toFixed(2)}
+      // Format volume if available
+      let volumeDisplay = '';
+      if (priceData.volume24h) {
+        volumeDisplay = ` • 🅥 $ ${priceService.formatNumber(priceData.volume24h)}`;
+      }
+      
+      // Message format
+      let message;
+      if (tokenSymbol === 'CES') {
+        // Special format for CES with P2P promotion
+        message = `➖➖➖➖➖➖➖➖➖➖➖➖➖➖➖
+${tokenConfig.emoji} Цена токена ${tokenSymbol}: $ ${priceData.price.toFixed(tokenConfig.priceDecimals)} | ₽ ${priceData.priceRub.toFixed(2)}
 ➖➖➖➖➖➖➖➖➖➖➖➖➖➖➖
-${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${priceService.formatNumber(priceData.volume24h).replace(/(\d+\.\d{2})K/, (match) => {
-        const num = parseFloat(match.replace('K', ''));
-        return num.toFixed(1) + 'K';
-      })} • 🅐🅣🅗 ${athDisplay}
+${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}%${volumeDisplay}${athDisplay}
 
 Торгуй CES удобно и безопасно  
 <a href="https://t.me/rogassistant_bot">P2P Биржа</a>: Покупка и продажа за ₽`;
+      } else {
+        // Standard format for other tokens
+        message = `➖➖➖➖➖➖➖➖➖➖➖➖➖➖➖
+${tokenConfig.emoji} Цена токена ${tokenSymbol}: $ ${priceData.price.toFixed(tokenConfig.priceDecimals)} | ₽ ${priceData.priceRub.toFixed(2)}
+➖➖➖➖➖➖➖➖➖➖➖➖➖➖➖
+${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}%${volumeDisplay}${athDisplay}
+
+${tokenConfig.description}`;
+      }
       
-      // Edit the original message with parse_mode HTML to support links
+      // Edit the original message
       await ctx.telegram.editMessageText(
         sentMessage.chat.id,
         sentMessage.message_id,
@@ -149,20 +215,20 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
       );
       
     } catch (error) {
-      console.error('Error processing price data:', error);
+      console.error(`Error processing ${tokenSymbol} price data:`, error);
       // Update the message with error
       try {
         await ctx.telegram.editMessageText(
           sentMessage.chat.id,
           sentMessage.message_id,
           null,
-          '❌ Не удается получить цену CES в данный момент. Попробуйте позже.'
+          `❌ Не удается получить цену ${tokenSymbol} в данный момент. Попробуйте позже.`
         );
       } catch (editError) {
         console.error('Error editing message:', editError);
         // If editing fails, send a new message
         try {
-          await ctx.reply('❌ Не удается получить цену CES в данный момент. Попробуйте позже.');
+          await ctx.reply(`❌ Не удается получить цену ${tokenSymbol} в данный момент. Попробуйте позже.`);
         } catch (replyError) {
           console.error('Failed to send error message:', replyError);
         }
@@ -523,6 +589,83 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
       console.error('Back to menu error:', error);
       await ctx.reply('❌ Ошибка возврата в главное меню.');
     }
+  }
+
+  // Get token display configuration
+  getTokenDisplayConfig(tokenSymbol) {
+    const configs = {
+      CES: {
+        emoji: '💰',
+        priceDecimals: 2,
+        description: 'Торгуй CES удобно и безопасно на P2P бирже!'
+      },
+      POL: {
+        emoji: '🟣',
+        priceDecimals: 4,
+        description: 'Polygon экосистема • Низкие комиссии • Быстрые транзакции'
+      },
+      TRX: {
+        emoji: '🔴',
+        priceDecimals: 4,
+        description: 'TRON блокчейн • Бесплатные транзакции • Высокая пропускная способность'
+      },
+      BNB: {
+        emoji: '🟡',
+        priceDecimals: 2,
+        description: 'Binance Smart Chain • DeFi экосистема • Низкие комиссии'
+      },
+      SOL: {
+        emoji: '🟢',
+        priceDecimals: 2,
+        description: 'Solana блокчейн • Молниеносные транзакции • NFT и DeFi'
+      },
+      ETH: {
+        emoji: '🔵',
+        priceDecimals: 2,
+        description: 'Ethereum • Пионер смарт-контрактов • DeFi и NFT экосистема'
+      },
+      ARB: {
+        emoji: '🔵',
+        priceDecimals: 4,
+        description: 'Arbitrum One • Layer 2 Ethereum • Масштабирование без потерь'
+      },
+      AVAX: {
+        emoji: '🔶',
+        priceDecimals: 2,
+        description: 'Avalanche • Быстрая и масштабируемая платформа'
+      },
+      USDT: {
+        emoji: '💵',
+        priceDecimals: 4,
+        description: 'Tether USD • Стабильная монета • 1:1 к USD'
+      },
+      USDC: {
+        emoji: '💵',
+        priceDecimals: 4,
+        description: 'USD Coin • Централизованная стабильная монета'
+      },
+      BUSD: {
+        emoji: '🟡',
+        priceDecimals: 4,
+        description: 'Binance USD • Стабильная монета Binance'
+      },
+      TON: {
+        emoji: '💎',
+        priceDecimals: 2,
+        description: 'TON Network • Быстрый и масштабируемый блокчейн'
+      },
+      NOT: {
+        emoji: '💎',
+        priceDecimals: 6,
+        description: 'Notcoin • Мем-коин на TON • Коммюнити проект'
+      }
+    };
+    
+    return configs[tokenSymbol.toUpperCase()] || {
+      emoji: '💰',
+      priceDecimals: 4,
+      description: 'Криптовалюта'
+    };
   }
 }
 

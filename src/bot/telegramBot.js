@@ -170,7 +170,68 @@ class TelegramBot {
     
     this.bot.command('ces', (ctx) => {
       console.log('📥 Received /ces command from user:', ctx.from.username);
-      return messageHandler.handlePrice(ctx);
+      return messageHandler.handlePrice(ctx, 'CES');
+    });
+    
+    // Price commands for all supported tokens
+    this.bot.command('pol', (ctx) => {
+      console.log('📥 Received /pol command from user:', ctx.from.username);
+      return messageHandler.handlePrice(ctx, 'POL');
+    });
+    
+    this.bot.command('trx', (ctx) => {
+      console.log('📥 Received /trx command from user:', ctx.from.username);
+      return messageHandler.handlePrice(ctx, 'TRX');
+    });
+    
+    this.bot.command('bnb', (ctx) => {
+      console.log('📥 Received /bnb command from user:', ctx.from.username);
+      return messageHandler.handlePrice(ctx, 'BNB');
+    });
+    
+    this.bot.command('sol', (ctx) => {
+      console.log('📥 Received /sol command from user:', ctx.from.username);
+      return messageHandler.handlePrice(ctx, 'SOL');
+    });
+    
+    this.bot.command('eth', (ctx) => {
+      console.log('📥 Received /eth command from user:', ctx.from.username);
+      return messageHandler.handlePrice(ctx, 'ETH');
+    });
+    
+    this.bot.command('arb', (ctx) => {
+      console.log('📥 Received /arb command from user:', ctx.from.username);
+      return messageHandler.handlePrice(ctx, 'ARB');
+    });
+    
+    this.bot.command('avax', (ctx) => {
+      console.log('📥 Received /avax command from user:', ctx.from.username);
+      return messageHandler.handlePrice(ctx, 'AVAX');
+    });
+    
+    this.bot.command('usdt', (ctx) => {
+      console.log('📥 Received /usdt command from user:', ctx.from.username);
+      return messageHandler.handlePrice(ctx, 'USDT');
+    });
+    
+    this.bot.command('usdc', (ctx) => {
+      console.log('📥 Received /usdc command from user:', ctx.from.username);
+      return messageHandler.handlePrice(ctx, 'USDC');
+    });
+    
+    this.bot.command('busd', (ctx) => {
+      console.log('📥 Received /busd command from user:', ctx.from.username);
+      return messageHandler.handlePrice(ctx, 'BUSD');
+    });
+    
+    this.bot.command('ton', (ctx) => {
+      console.log('📥 Received /ton command from user:', ctx.from.username);
+      return messageHandler.handlePrice(ctx, 'TON');
+    });
+    
+    this.bot.command('not', (ctx) => {
+      console.log('📥 Received /not command from user:', ctx.from.username);
+      return messageHandler.handlePrice(ctx, 'NOT');
     });
     
     this.bot.command('fees', (ctx) => {

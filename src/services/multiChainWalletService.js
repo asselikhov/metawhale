@@ -56,9 +56,17 @@ class MultiChainWalletService {
   async getMultiChainWalletInfo(chatId) {
     try {
       const currentNetwork = await userNetworkService.getUserNetwork(chatId);
+      console.log(`💼 Getting wallet info for user ${chatId} in network ${currentNetwork}`);
+      
       const walletInfo = await userNetworkService.getUserWalletForNetwork(chatId, currentNetwork);
+      console.log(`🔍 Wallet info result for ${chatId}:`, {
+        hasWallet: walletInfo.hasWallet,
+        network: walletInfo.network,
+        address: walletInfo.address ? `${walletInfo.address.slice(0, 10)}...` : 'none'
+      });
 
       if (!walletInfo.hasWallet) {
+        console.log(`⚠️ User ${chatId} has no wallet in network ${currentNetwork} - returning no wallet info`);
         return {
           hasWallet: false,
           currentNetwork,
@@ -66,12 +74,21 @@ class MultiChainWalletService {
         };
       }
 
+      console.log(`💼 Getting balances for user ${chatId} in network ${currentNetwork} with address ${walletInfo.address}`);
+
       // Get balances for current network
       const balances = await this.getNetworkBalances(walletInfo.address, currentNetwork);
+      console.log(`💰 Raw balances for ${chatId}:`, balances);
+      
       const prices = await this.getTokenPrices(currentNetwork);
+      console.log(`💱 Token prices for ${currentNetwork}:`, prices);
 
       // Format balance information
       const formattedBalances = this.formatBalances(currentNetwork, balances, prices);
+      console.log(`📊 Formatted balances for ${chatId}:`, formattedBalances);
+
+      const totalValue = this.calculateTotalValue(balances, prices);
+      console.log(`💎 Total wallet value for ${chatId}: $${totalValue}`);
 
       return {
         hasWallet: true,
@@ -80,10 +97,10 @@ class MultiChainWalletService {
         networkInfo: walletInfo.networkName,
         networkEmoji: walletInfo.networkEmoji,
         balances: formattedBalances,
-        totalValue: this.calculateTotalValue(balances, prices)
+        totalValue: totalValue
       };
     } catch (error) {
-      console.error('Error getting multi-chain wallet info:', error);
+      console.error(`❌ Error getting multi-chain wallet info for ${chatId}:`, error);
       throw error;
     }
   }
@@ -135,6 +152,12 @@ class MultiChainWalletService {
           balances.AVAX = await this.getEVMNativeBalance(address, networkId);
           balances.USDT = await this.getEVMTokenBalance(address, networkId, 'USDT');
           balances.USDC = await this.getEVMTokenBalance(address, networkId, 'USDC');
+          break;
+          
+        case 'ton':
+          balances.TON = await this.getTonNativeBalance(address);
+          balances.USDT = await this.getTonTokenBalance(address, 'USDT');
+          balances.NOT = await this.getTonTokenBalance(address, 'NOT');
           break;
       }
 
@@ -278,6 +301,30 @@ class MultiChainWalletService {
     }
   }
 
+  // Get TON native balance
+  async getTonNativeBalance(address) {
+    try {
+      // For now, return 0 as we need TON SDK integration
+      console.warn('⚠️ TON balance fetching not yet implemented');
+      return 0;
+    } catch (error) {
+      console.error('Error getting TON balance:', error);
+      return 0;
+    }
+  }
+
+  // Get TON token balance
+  async getTonTokenBalance(address, tokenSymbol) {
+    try {
+      // For now, return 0 as we need TON SDK integration
+      console.warn('⚠️ TON token balance fetching not yet implemented');
+      return 0;
+    } catch (error) {
+      console.error(`Error getting TON ${tokenSymbol} balance:`, error);
+      return 0;
+    }
+  }
+
   // Get token prices for network
   async getTokenPrices(networkId) {
     try {
@@ -321,6 +368,12 @@ class MultiChainWalletService {
               break;
             case 'BUSD':
               priceData = await priceService.getBUSDPrice();
+              break;
+            case 'TON':
+              priceData = await priceService.getTONPrice();
+              break;
+            case 'NOT':
+              priceData = await priceService.getNOTPrice();
               break;
             default:
               priceData = { price: 0, priceRub: 0 };

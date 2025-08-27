@@ -704,6 +704,104 @@ class PriceService {
     }
   }
 
+  // Get TON token price
+  async getTONPrice() {
+    try {
+      console.log('🔍 Getting TON price from CoinGecko...');
+      
+      const response = await axios.get(
+        `${config.apis.coinGecko.baseUrl}/simple/price`,
+        {
+          headers: {
+            'X-CG-Demo-API-Key': config.apis.coinGecko.apiKey,
+            'Accept': 'application/json'
+          },
+          params: {
+            ids: 'the-open-network',
+            vs_currencies: 'usd',
+            include_24hr_change: true,
+            include_market_cap: true,
+            include_24hr_vol: true
+          },
+          timeout: 8000
+        }
+      );
+      
+      if (response.data?.['the-open-network']) {
+        const data = response.data['the-open-network'];
+        const usdToRubRate = await this.getUSDToRUBRate();
+        return {
+          price: data.usd,
+          priceRub: data.usd * usdToRubRate,
+          change24h: data.usd_24h_change || 0,
+          marketCap: data.usd_market_cap || 0,
+          volume24h: data.usd_24h_vol || 0,
+          source: 'coingecko'
+        };
+      }
+      
+      throw new Error('Failed to get TON data from CoinGecko');
+    } catch (error) {
+      console.error('Error getting TON price:', error.message);
+      const usdToRubRate = await this.getUSDToRUBRate();
+      return {
+        price: 2.5,
+        priceRub: 2.5 * usdToRubRate,
+        change24h: 0,
+        source: 'fallback'
+      };
+    }
+  }
+
+  // Get NOT token price
+  async getNOTPrice() {
+    try {
+      console.log('🔍 Getting NOT price from CoinGecko...');
+      
+      const response = await axios.get(
+        `${config.apis.coinGecko.baseUrl}/simple/price`,
+        {
+          headers: {
+            'X-CG-Demo-API-Key': config.apis.coinGecko.apiKey,
+            'Accept': 'application/json'
+          },
+          params: {
+            ids: 'notcoin',
+            vs_currencies: 'usd',
+            include_24hr_change: true,
+            include_market_cap: true,
+            include_24hr_vol: true
+          },
+          timeout: 8000
+        }
+      );
+      
+      if (response.data?.notcoin) {
+        const data = response.data.notcoin;
+        const usdToRubRate = await this.getUSDToRUBRate();
+        return {
+          price: data.usd,
+          priceRub: data.usd * usdToRubRate,
+          change24h: data.usd_24h_change || 0,
+          marketCap: data.usd_market_cap || 0,
+          volume24h: data.usd_24h_vol || 0,
+          source: 'coingecko'
+        };
+      }
+      
+      throw new Error('Failed to get NOT data from CoinGecko');
+    } catch (error) {
+      console.error('Error getting NOT price:', error.message);
+      const usdToRubRate = await this.getUSDToRUBRate();
+      return {
+        price: 0.007,
+        priceRub: 0.007 * usdToRubRate,
+        change24h: 0,
+        source: 'fallback'
+      };
+    }
+  }
+
   // Main function to get CES price
   async getCESPrice() {
     try {

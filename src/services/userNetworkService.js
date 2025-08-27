@@ -68,8 +68,21 @@ class UserNetworkService {
         throw new Error(`Invalid network: ${currentNetwork}`);
       }
 
-      // For now, use the same wallet address for all networks
-      // In future, this could be extended to support different addresses per network
+      // Check if wallet actually exists in the specified network
+      const hasActualWallet = await this.checkWalletExistsInNetwork(user.walletAddress, currentNetwork);
+      
+      if (!hasActualWallet) {
+        console.log(`⚠️ User ${chatId} has no wallet in network ${currentNetwork} - wallet exists only in networks where it was created`);
+        return { 
+          hasWallet: false,
+          address: user.walletAddress,
+          network: currentNetwork,
+          networkName: networkConfig.name,
+          networkEmoji: multiChainService.getNetworkEmoji(currentNetwork)
+        };
+      }
+
+      console.log(`✅ User ${chatId} has confirmed wallet in network ${currentNetwork}`);
       return {
         hasWallet: true,
         address: user.walletAddress,
@@ -80,6 +93,50 @@ class UserNetworkService {
     } catch (error) {
       console.error('Error getting user wallet for network:', error);
       return { hasWallet: false };
+    }
+  }
+
+  // Check if wallet actually exists in the specified network
+  async checkWalletExistsInNetwork(address, networkId) {
+    try {
+      // For simplicity, we'll check if the address has any activity/balance in the network
+      // This is a basic implementation - in production you might want more sophisticated checks
+      
+      switch (networkId) {
+        case 'polygon':
+          // For Polygon, if user has walletAddress in database, assume wallet exists
+          // This is because wallets are created in Polygon by default
+          // We don't check balance because wallet can exist with zero balance
+          const { User } = require('../database/models');
+          const user = await User.findOne({ walletAddress: address });
+          
+          if (user) {
+            console.log(`✅ Wallet ${address} exists in Polygon (found in database)`);
+            return true;
+          }
+          
+          console.log(`❌ Wallet ${address} not found in database for Polygon`);
+          return false;
+          
+        case 'tron':
+        case 'bsc':
+        case 'solana':
+        case 'arbitrum':
+        case 'avalanche':
+        case 'ton':
+          // For other networks, currently assume no wallets exist
+          // This prevents showing fake balances for non-existent wallets
+          console.log(`⚠️ Network ${networkId} not supported for wallet existence check`);
+          return false;
+          
+        default:
+          console.log(`❌ Unknown network ${networkId}`);
+          return false;
+      }
+    } catch (error) {
+      console.error(`❌ Error checking wallet existence in ${networkId}:`, error);
+      // On error, be conservative and assume wallet doesn't exist
+      return false;
     }
   }
 

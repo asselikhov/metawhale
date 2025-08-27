@@ -675,7 +675,8 @@ class P2PHandler {
       bsc: ['USDT', 'BUSD', 'USDC'], // Stable coins - BNB too expensive for small trades
       solana: ['USDT', 'USDC'], // Stable coins - SOL too expensive 
       arbitrum: ['USDT', 'USDC'], // Stable coins - ETH too expensive
-      avalanche: ['USDT', 'USDC'] // Stable coins - AVAX too expensive
+      avalanche: ['USDT', 'USDC'], // Stable coins - AVAX too expensive
+      ton: ['USDT', 'NOT'] // USDT stable, NOT native token - TON too expensive for small trades
     };
     
     return tradableTokens[networkId]?.includes(tokenSymbol) || false;

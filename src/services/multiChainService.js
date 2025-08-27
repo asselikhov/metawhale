@@ -228,6 +228,42 @@ class MultiChainService {
           maxGasPrice: '1000', // nAVAX
           defaultGasLimit: 100000
         }
+      },
+      ton: {
+        name: 'TON Network',
+        symbol: 'TON',
+        chainId: 'mainnet',
+        nativeToken: 'TON',
+        rpcUrls: [
+          'https://toncenter.com/api/v2/',
+          'https://mainnet.tonapi.io/v2/',
+          'https://tonapi.io/v2/'
+        ],
+        explorer: 'https://tonscan.org',
+        tokens: {
+          TON: {
+            name: 'Toncoin',
+            symbol: 'TON',
+            address: 'native',
+            decimals: 9
+          },
+          USDT: {
+            name: 'Tether USD (TON)',
+            symbol: 'USDT',
+            address: 'EQCxE6mUtQJKFnGfaROTKOt1lZbDiiX1kCixRv7Nw2Id_sDs',
+            decimals: 6
+          },
+          NOT: {
+            name: 'Notcoin',
+            symbol: 'NOT',
+            address: 'EQAvlWFDxGF2lXm67y4yzC17wYKD9A0guwPkMs1gOsM__NOT',
+            decimals: 9
+          }
+        },
+        gasSettings: {
+          defaultFee: 10000000, // 0.01 TON in nanotons
+          maxFee: 100000000 // 0.1 TON in nanotons
+        }
       }
     };
 
@@ -273,7 +309,8 @@ class MultiChainService {
       bsc: '🟡',
       solana: '🟢',
       arbitrum: '🔵',
-      avalanche: '🔶'
+      avalanche: '🔶',
+      ton: '💎'
     };
     return emojis[networkId] || '🔗';
   }
@@ -336,6 +373,8 @@ class MultiChainService {
         return /^T[A-Za-z1-9]{33}$/.test(address);
       case 'solana':
         return /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(address);
+      case 'ton':
+        return /^[A-Za-z0-9\-_]{48}$/.test(address) || /^EQ[A-Za-z0-9\-_]{46}$/.test(address);
       default:
         return false;
     }
@@ -374,6 +413,11 @@ class MultiChainService {
         AVAX: 0.001,
         USDT: 0.01,
         USDC: 0.01
+      },
+      ton: {
+        TON: 0.01,
+        USDT: 1,
+        NOT: 1000
       }
     };
     
@@ -419,6 +463,11 @@ class MultiChainService {
           gasLimit: tokenSymbol === 'AVAX' ? 21000 : 65000,
           estimatedFee: tokenSymbol === 'AVAX' ? 0.001 : 0.002,
           feeToken: 'AVAX'
+        };
+      case 'ton':
+        return {
+          estimatedFee: tokenSymbol === 'TON' ? 0.01 : 0.02,
+          feeToken: 'TON'
         };
       default:
         return { estimatedFee: 0 };

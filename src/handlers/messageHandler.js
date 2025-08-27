@@ -48,8 +48,8 @@ class MessageHandler {
     return this.baseHandler.handleStart(ctx);
   }
 
-  async handlePrice(ctx) {
-    return this.baseHandler.handlePrice(ctx);
+  async handlePrice(ctx, tokenSymbol = 'CES') {
+    return this.baseHandler.handlePrice(ctx, tokenSymbol);
   }
 
   async handleFees(ctx) {
