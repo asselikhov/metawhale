@@ -4,11 +4,16 @@
  */
 
 const { ethers } = require('ethers');
-let TronWeb;
+let TronWeb = null;
 try {
   TronWeb = require('tronweb');
+  // Проверяем, что TronWeb является конструктором
+  if (typeof TronWeb !== 'function') {
+    console.warn('⚠️ TronWeb loaded but not a constructor, checking .default');
+    TronWeb = TronWeb.default || null;
+  }
 } catch (error) {
-  console.warn('⚠️ TronWeb not installed. TRON functionality will be limited.');
+  console.warn('⚠️ TronWeb not installed or failed to load:', error.message);
   TronWeb = null;
 }
 const multiChainService = require('./multiChainService');
@@ -31,13 +36,19 @@ class MultiChainWalletService {
         return;
       }
       
+      if (typeof TronWeb !== 'function') {
+        console.warn('⚠️ TronWeb is not a constructor function');
+        return;
+      }
+      
       this.tronWeb = new TronWeb({
         fullHost: 'https://api.trongrid.io',
         headers: { 'TRON-PRO-API-KEY': process.env.TRON_API_KEY || '' }
       });
-      console.log('✅ TronWeb initialized');
+      console.log('✅ TronWeb initialized successfully');
     } catch (error) {
-      console.error('❌ Failed to initialize TronWeb:', error);
+      console.error('❌ Failed to initialize TronWeb:', error.message);
+      this.tronWeb = null;
     }
   }
 

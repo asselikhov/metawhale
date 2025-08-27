@@ -1300,27 +1300,32 @@ class P2PService {
         await session.withTransaction(async () => {
           // Повторная проверка доступности ордера в транзакции
           const currentSellOrder = await P2POrder.findById(sellOrderId).populate('userId').session(session);
-                    $inc: { remainingAmount: -tradeAmount, filledAmount: tradeAmount },
-                    $set: { 
-                      status: buyOrder.remainingAmount - tradeAmount === 0 ? 'completed' : 'partial',
-                      updatedAt: new Date()
-                    }
-                  },
-                  { session }
-                );
-                
-                await P2POrder.findByIdAndUpdate(
-                  sellOrder._id,
-                  {
-                    $inc: { remainingAmount: -tradeAmount, filledAmount: tradeAmount },
-                    $set: { 
-                      status: sellOrder.remainingAmount - tradeAmount === 0 ? 'completed' : 'partial',
-                      updatedAt: new Date()
-                    }
-                  },
-                  { session }
-                );
-              });
+          
+          // Обновляем оба ордера атомарно
+          await P2POrder.findByIdAndUpdate(
+            buyOrder._id,
+            {
+              $inc: { remainingAmount: -tradeAmount, filledAmount: tradeAmount },
+              $set: { 
+                status: buyOrder.remainingAmount - tradeAmount === 0 ? 'completed' : 'partial',
+                updatedAt: new Date()
+              }
+            },
+            { session }
+          );
+          
+          await P2POrder.findByIdAndUpdate(
+            sellOrder._id,
+            {
+              $inc: { remainingAmount: -tradeAmount, filledAmount: tradeAmount },
+              $set: { 
+                status: sellOrder.remainingAmount - tradeAmount === 0 ? 'completed' : 'partial',
+                updatedAt: new Date()
+              }
+            },
+            { session }
+          );
+        });
             } catch (updateError) {
               console.error('❌ Failed to update orders atomically:', updateError);
               // The trade execution already happened, but order states may be inconsistent
