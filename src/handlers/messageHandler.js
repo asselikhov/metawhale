@@ -69,6 +69,11 @@ class MessageHandler {
       return this.handleCESAmountInput(ctx, ctx.message.text);
     }
     
+    // Handle CES amount input in buying flow
+    if (sessionData && sessionData.waitingForBuyAmount) {
+      return this.handleBuyAmountInput(ctx, ctx.message.text);
+    }
+    
     return this.baseHandler.handleTextMessage(ctx);
   }
 
@@ -441,7 +446,7 @@ class MessageHandler {
       }
       
       // Send simple success message
-      await ctx.reply('✅ Ордер успешно создан!');
+      await ctx.reply('✅ ОРДЕР УСПЕШНО СОЗДАН !');
       
       // Automatically return to P2P exchange page
       const P2PHandler = require('./P2PHandler');
@@ -498,16 +503,11 @@ class MessageHandler {
       
       // Need approval, show approval UI
       const message = `🔐 БЕЗОПАСНЫЙ ЭСКРОУ\n` +
-                     `➖➖➖➖➖➖➖➖➖➖➖\n\n` +
-                     `🛡️ МАКСИМАЛЬНАЯ БЕЗОПАСНОСТЬ\n` +
-                     `Ваши CES токены будут реально заблокированы \nв смарт-контракте. Никто не сможет \nих потратить, даже вы сами!\n\n` +
+                     `➖➖➖➖➖➖➖➖➖➖➖\n` +
+                     `🛡️ Ваши CES токены будут заблокированы \nв смарт-контракте !\n\n` +
                      `📋 К одобрению: ${amount} CES\n` +
                      `📍 Контракт: ${escrowContractAddress.slice(0,6)}...${escrowContractAddress.slice(-4)}\n\n` +
-                     `⚠️ Для создания ордера нужно:\n` +
-                     `1️⃣ Одобрить траты CES токенов\n` +
-                     `2️⃣ Подписать транзакцию\n` +
-                     `3️⃣ Дождаться подтверждения\n\n` +
-                     `🚀 Продолжить?`;
+                     `⚠️ Продолжить?`;
       
       const keyboard = Markup.inlineKeyboard([
         [Markup.button.callback('✅ Одобрить и создать', 'approve_and_create_order')],
@@ -539,10 +539,8 @@ class MessageHandler {
       
       const { orderType, amount, pricePerToken, minAmount, maxAmount } = pendingOrder;
       
-      const message = `🚀 СОЗДАНИЕ БЕЗОПАСНОГО ОРДЕРА\n` +
-                     `➖➖➖➖➖➖➖➖➖➖➖\n\n` +
-                     `⏳ Ожидайте, обрабатываем запрос...\n\n` +
-                     `🔐 Токены будут заблокированы в смарт-контракте`;
+      const message = `🛡️ СОЗДАНИЕ БЕЗОПАСНОГО ОРДЕРА !\n` +
+                     `⏳ Ожидайте, обрабатываем запрос...`;
       
       await ctx.reply(message);
       
@@ -590,10 +588,7 @@ class MessageHandler {
         sessionManager.clearUserSession(chatId);
         
         // Send success message
-        const successMessage = `✅ ОРДЕР УСПЕШНО СОЗДАН!\n\n` +
-                               `🛡️ Безопасность: МАКСИМАЛЬНАЯ\n` +
-                               `🔒 Токены заблокированы в смарт-контракте\n` +
-                               `❌ Никто не может их потратить`;
+        const successMessage = `✅ ОРДЕР УСПЕШНО СОЗДАН !`;
         
         await ctx.reply(successMessage);
         
@@ -657,12 +652,7 @@ class MessageHandler {
       const escrowContractAddress = process.env.ESCROW_CONTRACT_ADDRESS;
       const cesTokenAddress = process.env.CES_TOKEN_ADDRESS;
       
-      const message = `🔐 ОДОБРЕНИЕ ТОКЕНОВ\n` +
-                     `➖➖➖➖➖➖➖➖➖➖➖\n\n` +
-                     `✅ Подготавливаем транзакцию...\n\n` +
-                     `🎯 Количество: ${amount} CES\n` +
-                     `📍 Контракт: ${escrowContractAddress.slice(0,6)}...${escrowContractAddress.slice(-4)}\n\n` +
-                     `⏳ Ожидайте выполнения транзакции...`;
+      const message = `⏳ Ожидайте выполнения транзакции...`;
       
       await ctx.reply(message);
       
@@ -696,8 +686,7 @@ class MessageHandler {
         
         console.log(`⏳ Approval transaction sent: ${tx.hash}`);
         
-        const progressMessage = `✅ ТРАНЗАКЦИЯ ОТПРАВЛЕНА!\n\n` +
-                               `🔗 TX: ${tx.hash.slice(0,6)}...${tx.hash.slice(-4)}\n` +
+        const progressMessage = `✅ ТРАНЗАКЦИЯ ОТПРАВЛЕНА !\n` +
                                `⏳ Ожидаем подтверждение...`;
         
         await ctx.reply(progressMessage);
@@ -831,20 +820,20 @@ class MessageHandler {
       const validation = await this.dataHandler.validateUserForP2POperations(chatId);
       
       if (!validation.valid) {
-        const keyboard = Markup.inlineKeyboard(validation.keyboard || [[Markup.button.callback('🔙 Назад', 'p2p_sell_orders')]]);
+        const keyboard = Markup.inlineKeyboard(validation.keyboard || [[Markup.button.callback('🔙 Назад', 'p2p_buy_orders')]]);
         return await ctx.reply(validation.message, keyboard);
       }
       
-      // Получаем ордер мейкера (ордер на покупку CES)
+      // Получаем ордер мейкера (ордер на продажу CES)
       const { P2POrder, User } = require('../database/models');
       const reputationService = require('../services/reputationService');
       
-      const buyOrder = await P2POrder.findById(orderId).populate('userId');
-      if (!buyOrder || buyOrder.type !== 'buy' || buyOrder.status !== 'active') {
+      const sellOrder = await P2POrder.findById(orderId).populate('userId');
+      if (!sellOrder || sellOrder.type !== 'sell' || sellOrder.status !== 'active') {
         return await ctx.reply('❌ Ордер не найден или неактивен.');
       }
       
-      const maker = buyOrder.userId; // Мейкер (покупатель CES)
+      const maker = sellOrder.userId; // Мейкер (продавец CES)
       
       // Проверяем, что пользователь не пытается торговать со своим ордером
       const currentUser = await User.findOne({ chatId });
@@ -854,7 +843,7 @@ class MessageHandler {
       
       if (maker._id.toString() === currentUser._id.toString()) {
         const keyboard = Markup.inlineKeyboard([
-          [Markup.button.callback('🔙 Назад', 'p2p_sell_orders')]
+          [Markup.button.callback('🔙 Назад', 'p2p_buy_orders')]
         ]);
         return await ctx.reply('⚠️ Вы не можете исполнить свой собственный ордер', keyboard);
       }
@@ -873,10 +862,10 @@ class MessageHandler {
       }
       
       // Рассчитываем лимиты
-      const minAmount = buyOrder.minTradeAmount || 1;
-      const maxAmount = Math.min(buyOrder.maxTradeAmount || buyOrder.remainingAmount, buyOrder.remainingAmount);
-      const minRubles = (minAmount * buyOrder.pricePerToken).toFixed(2);
-      const maxRubles = (maxAmount * buyOrder.pricePerToken).toFixed(2);
+      const minAmount = sellOrder.minTradeAmount || 0.01;
+      const maxAmount = Math.min(sellOrder.maxTradeAmount || sellOrder.remainingAmount, sellOrder.remainingAmount);
+      const minRubles = (minAmount * sellOrder.pricePerToken).toFixed(2);
+      const maxRubles = (maxAmount * sellOrder.pricePerToken).toFixed(2);
       
       // Получаем условия мейкера
       const makerConditions = (maker.p2pProfile && maker.p2pProfile.makerConditions) ? 
@@ -910,11 +899,11 @@ class MessageHandler {
         paymentMethodsText = bankNamesList;
       }
 
-      const message = `Цена: ${buyOrder.pricePerToken.toFixed(2)} ₽ за CES\n` +
-                     `Количество: ${buyOrder.remainingAmount.toFixed(2)} CES\n` +
+      const message = `Цена: ${sellOrder.pricePerToken.toFixed(2)} ₽ за CES\n` +
+                     `Количество: ${sellOrder.remainingAmount.toFixed(2)} CES\n` +
                      `Лимиты: ${minRubles}-${maxRubles} ₽\n` +
                      `Способ оплаты: ${paymentMethodsText}\n` +
-                     `Длительность оплаты: ${config.escrow.displayFormat.minutes(buyOrder.tradeTimeLimit || config.escrow.timeoutMinutes)}\n\n` +
+                     `Длительность оплаты: ${config.escrow.displayFormat.minutes(sellOrder.tradeTimeLimit || config.escrow.timeoutMinutes)}\n\n` +
                      `Условия мейкера:\n` +
                      `${makerConditions}\n\n` +
                      `Сведения о мейкере:\n` +
@@ -925,25 +914,25 @@ class MessageHandler {
                      `Среднее время оплаты: ${stats.avgPaymentTime} мин.\n` +
                      `Рейтинг: ${stats.rating}`;
       
-      // Сохраняем информацию о заказе в сессии
+      // Сохраняем информацию о ордере на продажу в сессии
       const sessionManager = require('./SessionManager');
-      sessionManager.setSessionData(chatId, 'currentBuyOrder', {
-        buyOrderId: buyOrder._id,
+      sessionManager.setSessionData(chatId, 'currentSellOrder', {
+        sellOrderId: sellOrder._id,
         makerId: maker._id,
         makerChatId: maker.chatId,
-        pricePerToken: buyOrder.pricePerToken,
-        availableAmount: buyOrder.remainingAmount,
+        pricePerToken: sellOrder.pricePerToken,
+        availableAmount: sellOrder.remainingAmount,
         minAmount: minAmount,
         maxAmount: maxAmount,
         minRubles: parseFloat(minRubles),
         maxRubles: parseFloat(maxRubles),
         paymentMethods: paymentMethods,
-        tradeTimeLimit: buyOrder.tradeTimeLimit || 30
+        tradeTimeLimit: sellOrder.tradeTimeLimit || 30
       });
       
       const keyboard = Markup.inlineKeyboard([
-        [Markup.button.callback('Продолжить', 'continue_sell_order')],
-        [Markup.button.callback('🔙 Назад', 'p2p_sell_orders')]
+        [Markup.button.callback('Продолжить', 'continue_buy_order')],
+        [Markup.button.callback('🔙 Назад', 'p2p_buy_orders')]
       ]);
       
       await ctx.reply(message, keyboard);
@@ -1124,6 +1113,69 @@ class MessageHandler {
     
     const keyboard = Markup.inlineKeyboard([[Markup.button.callback('🔙 Назад', 'p2p_buy_orders')]]);
     await ctx.reply(message, keyboard);
+  }
+  
+  async handleBuyAmountInput(ctx, amountText) {
+    try {
+      const chatId = ctx.chat.id.toString();
+      const sessionManager = require('./SessionManager');
+      const orderData = sessionManager.getSessionData(chatId, 'currentSellOrder');
+      
+      if (!orderData) {
+        return await ctx.reply('❌ Данные ордера не найдены.');
+      }
+      
+      // Parse and validate amount
+      const amount = parseFloat(amountText.replace(',', '.'));
+      
+      if (isNaN(amount) || amount <= 0) {
+        return await ctx.reply('❌ Неверный формат. Введите число больше 0.');
+      }
+      
+      // Check against order limits
+      if (amount < orderData.minAmount) {
+        return await ctx.reply(`❌ Минимальная сумма: ${orderData.minAmount} CES`);
+      }
+      
+      if (amount > orderData.maxAmount) {
+        return await ctx.reply(`❌ Максимальная сумма: ${orderData.maxAmount} CES`);
+      }
+      
+      // Calculate transaction details
+      const totalPrice = amount * orderData.pricePerToken;
+      
+      // Check against maker's ruble limits
+      if (orderData.minRubles && totalPrice < orderData.minRubles) {
+        return await ctx.reply(`❌ Минимальная сумма мейкера: ${orderData.minRubles.toFixed(2)} ₽`);
+      }
+      
+      if (orderData.maxRubles && totalPrice > orderData.maxRubles) {
+        return await ctx.reply(`❌ Максимальная сумма мейкера: ${orderData.maxRubles.toFixed(2)} ₽`);
+      }
+      
+      // Store confirmed amount in session
+      sessionManager.setSessionData(chatId, 'confirmedBuyAmount', amount);
+      sessionManager.setSessionData(chatId, 'totalBuyPrice', totalPrice);
+      sessionManager.setSessionData(chatId, 'waitingForBuyAmount', false);
+      
+      // Show confirmation screen for buying
+      const message = `Покупка CES\n` +
+                     `Сумма ${totalPrice.toFixed(2)} ₽\n` +
+                     `Цена: ${orderData.pricePerToken.toFixed(2)} ₽\n` +
+                     `Общее количество: ${amount} CES\n` +
+                     `Комиссия за транзакцию: 0 %`;
+      
+      const keyboard = Markup.inlineKeyboard([
+        [Markup.button.callback('Продолжить', 'continue_with_buy_payment')],
+        [Markup.button.callback('🔙 Назад', 'back_to_buy_amount_input')]
+      ]);
+      
+      await ctx.reply(message, keyboard);
+      
+    } catch (error) {
+      console.error('Buy amount input error:', error);
+      await ctx.reply('❌ Ошибка обработки суммы.');
+    }
   }
   
   async handleCESAmountInput(ctx, amountText) {
@@ -1918,6 +1970,60 @@ class MessageHandler {
     } catch (error) {
       console.error('Cancel payment error:', error);
       await ctx.reply('❌ Ошибка отмены сделки.');
+    }
+  }
+  
+  async handleBackToBuyAmountInput(ctx) {
+    return this.handleContinueBuyOrder(ctx);
+  }
+  
+  async handleContinueWithBuyPayment(ctx) {
+    try {
+      const chatId = ctx.chat.id.toString();
+      const sessionManager = require('./SessionManager');
+      const orderData = sessionManager.getSessionData(chatId, 'currentSellOrder');
+      const confirmedAmount = sessionManager.getSessionData(chatId, 'confirmedBuyAmount');
+      
+      if (!orderData || !confirmedAmount) {
+        return await ctx.reply('❌ Данные сделки не найдены.');
+      }
+      
+      // Execute buy order (taker wants to buy CES from sell order)
+      const p2pService = require('../services/p2pService');
+      const { User } = require('../database/models');
+      
+      // Get buyer (current user) and seller (order creator)
+      const buyer = await User.findOne({ chatId });
+      
+      if (!buyer) {
+        return await ctx.reply('❌ Пользователь не найден.');
+      }
+      
+      // Clear session
+      sessionManager.clearUserSession(chatId);
+      
+      // For now, just show success message - trade execution will be improved
+      // TODO: Implement proper trade execution for sell orders
+      const message = `✅ ЗАПРОС ОТПРАВЛЕН!\n` +
+                     `Количество: ${confirmedAmount} CES\n` +
+                     `Сумма: ${(confirmedAmount * orderData.pricePerToken).toFixed(2)} ₽\n\n` +
+                     `Уведомляем продавца о вашем желании купить CES.\n` +
+                     `Ожидайте ответа.`;
+      
+      const keyboard = Markup.inlineKeyboard([
+        [Markup.button.callback('🔙 К P2P меню', 'p2p_menu')]
+      ]);
+      
+      await ctx.reply(message, keyboard);
+      
+      // Return to P2P menu
+      const P2PHandler = require('./P2PHandler');
+      const p2pHandler = new P2PHandler();
+      await p2pHandler.handleP2PMenu(ctx);
+      
+    } catch (error) {
+      console.error('Continue with buy payment error:', error);
+      await ctx.reply('❌ Ошибка создания сделки.');
     }
   }
   

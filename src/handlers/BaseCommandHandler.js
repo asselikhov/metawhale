@@ -136,8 +136,8 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
         return num.toFixed(1) + 'K';
       })} • 🅐🅣🅗 ${athDisplay}
 
-⚡️ Торгуй CES удобно и безопасно  
-💱 [P2P Биржа](https://t.me/rogassistant_bot): Покупка и продажа за ₽`;
+Торгуй CES удобно и безопасно  
+P2P Биржа (https://t.me/rogassistant_bot): Покупка и продажа за ₽`;
       
       // Edit the original message instead of sending new one
       await ctx.telegram.editMessageText(

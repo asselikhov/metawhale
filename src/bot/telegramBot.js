@@ -526,6 +526,17 @@ class TelegramBot {
       return messageHandler.handleConfirmSellAmount(ctx);
     });
     
+    // New handlers for buy CES flow
+    this.bot.action('continue_with_buy_payment', (ctx) => {
+      console.log('Received continue_with_buy_payment callback');
+      return messageHandler.handleContinueWithBuyPayment(ctx);
+    });
+    
+    this.bot.action('back_to_buy_amount_input', (ctx) => {
+      console.log('Received back_to_buy_amount_input callback');
+      return messageHandler.handleBackToBuyAmountInput(ctx);
+    });
+    
     this.bot.action('back_to_amount_input', (ctx) => {
       console.log('Received back_to_amount_input callback');
       return messageHandler.handleBackToAmountInput(ctx);

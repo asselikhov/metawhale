@@ -100,8 +100,8 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
         return num.toFixed(1) + 'K';
       })} • 🅐🅣🅗 ${athDisplay}
 
-⚡️ Торгуй CES удобно и безопасно  
-💱 [P2P Биржа](https://t.me/rogassistant_bot): Покупка и продажа за ₽`;
+Торгуй CES удобно и безопасно  
+P2P Биржа (https://t.me/rogassistant_bot): Покупка и продажа за ₽`;
       
       // Send message to group
       if (this.bot) {
