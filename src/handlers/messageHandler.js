@@ -210,6 +210,14 @@ class MessageHandler {
     return this.dataHandler.handleP2PEditConditions(ctx);
   }
 
+  async handleP2PEditTradeTime(ctx) {
+    return this.dataHandler.handleP2PEditTradeTime(ctx);
+  }
+
+  async handleP2PSetTradeTime(ctx, timeMinutes) {
+    return this.dataHandler.handleP2PSetTradeTime(ctx, timeMinutes);
+  }
+
   async handleP2PToggleUseInOrders(ctx) {
     return this.dataHandler.handleP2PToggleUseInOrders(ctx);
   }
