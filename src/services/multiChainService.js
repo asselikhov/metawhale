@@ -176,7 +176,7 @@ class MultiChainService {
           USDC: {
             name: 'USD Coin (Arbitrum)',
             symbol: 'USDC',
-            address: '0xA0b86a33E6417c4c4f8A95f1d85ba8e83ec5e8FA',
+            address: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831',
             decimals: 6
           },
           ARB: {

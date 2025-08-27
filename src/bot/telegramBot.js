@@ -303,6 +303,26 @@ class TelegramBot {
       return messageHandler.handleP2PSellCES(ctx);
     });
     
+    // Token selection handlers for P2P trading
+    this.bot.action(/^p2p_select_token_(.+)$/, (ctx) => {
+      const tokenSymbol = ctx.match[1].toUpperCase();
+      console.log('Received p2p_select_token callback:', tokenSymbol);
+      return messageHandler.handleP2PTokenSelect(ctx, tokenSymbol);
+    });
+    
+    // Dynamic buy/sell handlers for any token
+    this.bot.action(/^p2p_buy_(.+)$/, (ctx) => {
+      const tokenSymbol = ctx.match[1].toUpperCase();
+      console.log('Received p2p_buy callback for token:', tokenSymbol);
+      return messageHandler.handleP2PBuyToken(ctx, tokenSymbol);
+    });
+    
+    this.bot.action(/^p2p_sell_(.+)$/, (ctx) => {
+      const tokenSymbol = ctx.match[1].toUpperCase();
+      console.log('Received p2p_sell callback for token:', tokenSymbol);
+      return messageHandler.handleP2PSellToken(ctx, tokenSymbol);
+    });
+    
     this.bot.action('p2p_market_orders', (ctx) => {
       console.log('Received p2p_market_orders callback');
       return messageHandler.handleP2PMarketOrders(ctx);

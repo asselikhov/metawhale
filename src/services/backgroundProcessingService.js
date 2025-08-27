@@ -102,48 +102,25 @@ class BackgroundProcessingService extends EventEmitter {
     const taskId = `wallet_${chatId}_${Date.now()}`;
     
     return this.queueTask(taskId, async () => {
-      const walletService = require('./walletService');
-      const priceService = require('./priceService');
+      const multiChainWalletService = require('./multiChainWalletService');
       
       console.log(`💼 [BACKGROUND] Loading wallet data for ${chatId}`);
       
-      // Get wallet info and prices in parallel
-      const [walletInfo, cesData, polData] = await Promise.all([
-        walletService.getUserWallet(chatId),
-        priceService.getCESPrice(),
-        priceService.getPOLPrice()
-      ]);
+      // Get multi-chain wallet info
+      const walletInfo = await multiChainWalletService.getMultiChainWalletInfo(chatId);
 
       if (!walletInfo || !walletInfo.hasWallet) {
         return { hasWallet: false };
       }
 
-      const cesTokenPrice = cesData ? cesData.price : 0;
-      const cesTokenPriceRub = cesData ? cesData.priceRub : 0;
-      const polTokenPrice = polData ? polData.price : 0.45;
-      const polTokenPriceRub = polData ? polData.priceRub : 45.0;
-
-      // Calculate total value of tokens on wallet
-      const cesTotalUsd = (walletInfo.cesBalance * cesTokenPrice).toFixed(2);
-      const cesTotalRub = (walletInfo.cesBalance * cesTokenPriceRub).toFixed(2);
-      const polTotalUsd = (walletInfo.polBalance * polTokenPrice).toFixed(2);
-      const polTotalRub = (walletInfo.polBalance * polTokenPriceRub).toFixed(2);
-
+      // Return the formatted multi-chain wallet data
       return {
         hasWallet: true,
-        address: walletInfo.address,
-        cesBalance: walletInfo.cesBalance,
-        polBalance: walletInfo.polBalance,
-        escrowCESBalance: walletInfo.escrowCESBalance || 0,
-        escrowPOLBalance: walletInfo.escrowPOLBalance || 0,
-        cesTokenPrice,
-        cesTokenPriceRub,
-        polTokenPrice,
-        polTokenPriceRub,
-        cesTotalUsd,
-        cesTotalRub,
-        polTotalUsd,
-        polTotalRub
+        currentNetwork: walletInfo.currentNetwork,
+        networkInfo: walletInfo.networkInfo,
+        balances: walletInfo.balances,
+        totalValue: walletInfo.totalValue,
+        address: walletInfo.address
       };
     }, { priority: 1 });
   }

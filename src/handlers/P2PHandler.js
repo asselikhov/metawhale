@@ -51,31 +51,58 @@ class P2PHandler {
         }
       }
       
-      // Prepare message text in the new format with user name
+      // Get user's current network and available tokens
+      const userNetworkService = require('../services/userNetworkService');
+      const multiChainService = require('../services/multiChainService');
+      
+      const currentNetwork = await userNetworkService.getUserNetwork(chatId);
+      const networkTokens = multiChainService.getNetworkTokens(currentNetwork);
+      const networkInfo = await userNetworkService.getNetworkInfo(chatId);
+      
+      // Prepare message text with network info
       const message = `🔄 P2P БИРЖА\n` +
                      `➖➖➖➖➖➖➖➖➖➖➖\n` +
                      `${userName}\n` +
+                     `🌐 Текущая сеть: ${networkInfo}\n\n` +
                      `Исполненные ордера за 30 дней: ${stats.ordersLast30Days} шт.\n` +
                      `Процент исполнения за 30 дней: ${stats.completionRateLast30Days}%\n` +
                      `Среднее время перевода: ${stats.avgTransferTime} мин.\n` +
                      `Среднее время оплаты: ${stats.avgPaymentTime} мин.\n` +
-                     `Рейтинг: ${stats.rating}`;
+                     `Рейтинг: ${stats.rating}\n\n` +
+                     `💰 Выберите токен для торговли:`;
       
-      // Keyboard with buttons
-      const keyboard = Markup.inlineKeyboard([
-        [Markup.button.callback('📈 Купить CES', 'p2p_buy_ces'), Markup.button.callback('📉 Продать CES', 'p2p_sell_ces')],
+      // Generate buttons for available tokens in current network
+      const tokenButtons = [];
+      const networkEmoji = multiChainService.getNetworkEmoji(currentNetwork);
+      
+      // Create buttons for each available token
+      for (const [tokenSymbol, tokenInfo] of Object.entries(networkTokens)) {
+        // Skip certain tokens that shouldn't be traded (like native tokens that are too expensive)
+        if (this.shouldShowTokenForTrading(currentNetwork, tokenSymbol)) {
+          tokenButtons.push([
+            Markup.button.callback(
+              `${networkEmoji} ${tokenSymbol} - ${tokenInfo.name}`, 
+              `p2p_select_token_${tokenSymbol.toLowerCase()}`
+            )
+          ]);
+        }
+      }
+      
+      // Add management buttons
+      const managementButtons = [
         [Markup.button.callback('📊 Рынок', 'p2p_market_orders'), Markup.button.callback('📋 Мои ордера', 'p2p_my_orders')],
         [Markup.button.callback('🏆 Топ', 'p2p_top_traders'), Markup.button.callback('🧮 Аналитика', 'p2p_analytics')],
         [Markup.button.callback('📑 Мои данные', 'p2p_my_data')]
-      ]);
+      ];
       
-      console.log(`📤 Sending P2P menu text with buttons to user ${chatId}`);
-      console.log(`📝 Message: ${message}`);
-      console.log(`⌨ Keyboard: ${JSON.stringify(keyboard)}`);
+      // Combine token buttons with management buttons
+      const keyboard = Markup.inlineKeyboard([...tokenButtons, ...managementButtons]);
+      
+      console.log(`📤 Sending P2P menu with ${tokenButtons.length} tokens for ${currentNetwork} network to user ${chatId}`);
       
       // Send text with buttons in one message
       await ctx.reply(message, keyboard);
-      console.log(`✅ Text with buttons sent successfully to user ${chatId}`);
+      console.log(`✅ P2P menu with token selection sent successfully to user ${chatId}`);
       
     } catch (error) {
       console.error('P2P menu error:', error);
@@ -635,6 +662,213 @@ class P2PHandler {
     } catch (error) {
       console.error('Error refreshing price:', error);
       await ctx.answerCbQuery('❌ Ошибка обновления цены');
+    }
+  }
+
+  // Helper method to determine if a token should be shown for P2P trading
+  shouldShowTokenForTrading(networkId, tokenSymbol) {
+    // Define which tokens are suitable for P2P trading per network
+    const tradableTokens = {
+      polygon: ['CES', 'USDT'], // CES is main token, USDT is stable
+      tron: ['TRX', 'USDT'], // TRX is native, USDT is stable
+      bsc: ['USDT', 'BUSD', 'USDC'], // Stable coins - BNB too expensive for small trades
+      solana: ['USDT', 'USDC'], // Stable coins - SOL too expensive 
+      arbitrum: ['USDT', 'USDC'], // Stable coins - ETH too expensive
+      avalanche: ['USDT', 'USDC'] // Stable coins - AVAX too expensive
+    };
+    
+    return tradableTokens[networkId]?.includes(tokenSymbol) || false;
+  }
+
+  // Handle token selection for P2P trading
+  async handleP2PTokenSelect(ctx, tokenSymbol) {
+    try {
+      const chatId = ctx.chat.id.toString();
+      console.log(`💰 User ${chatId} selected token ${tokenSymbol} for P2P trading`);
+      
+      // Get user's current network for context
+      const userNetworkService = require('../services/userNetworkService');
+      const multiChainService = require('../services/multiChainService');
+      
+      const currentNetwork = await userNetworkService.getUserNetwork(chatId);
+      const networkEmoji = multiChainService.getNetworkEmoji(currentNetwork);
+      const tokenConfig = multiChainService.getTokenConfig(currentNetwork, tokenSymbol);
+      
+      if (!tokenConfig) {
+        return await ctx.reply('❌ Выбранный токен недоступен в текущей сети.');
+      }
+      
+      // Show buy/sell options for selected token
+      const message = `💰 ТОРГОВЛЯ ${tokenSymbol}\n` +
+                     `➖➖➖➖➖➖➖➖➖➖➖\n` +
+                     `${networkEmoji} Сеть: ${multiChainService.getNetworkDisplayName(currentNetwork)}\n` +
+                     `🪙 Токен: ${tokenConfig.name} (${tokenSymbol})\n\n` +
+                     `Выберите действие:`;
+      
+      const keyboard = Markup.inlineKeyboard([
+        [Markup.button.callback(`📈 Купить ${tokenSymbol}`, `p2p_buy_${tokenSymbol.toLowerCase()}`)],
+        [Markup.button.callback(`📉 Продать ${tokenSymbol}`, `p2p_sell_${tokenSymbol.toLowerCase()}`)],
+        [Markup.button.callback('🔙 Назад к выбору токенов', 'p2p_menu')]
+      ]);
+      
+      await ctx.reply(message, keyboard);
+      
+    } catch (error) {
+      console.error('P2P token selection error:', error);
+      await ctx.reply('❌ Ошибка выбора токена. Попробуйте позже.');
+    }
+  }
+
+  // Handle P2P Buy Token (generic for any token)
+  async handleP2PBuyToken(ctx, tokenSymbol) {
+    try {
+      const chatId = ctx.chat.id.toString();
+      console.log(`📈 User ${chatId} wants to buy ${tokenSymbol}`);
+      
+      // Validate user profile completion before allowing order creation
+      const P2PDataHandler = require('./P2PDataHandler');
+      const dataHandler = new P2PDataHandler();
+      const validation = await dataHandler.validateUserForP2POperations(chatId);
+      
+      if (!validation.valid) {
+        const keyboard = Markup.inlineKeyboard(validation.keyboard || [[Markup.button.callback('🔙 Назад', 'p2p_menu')]]);
+        return await ctx.reply(validation.message, keyboard);
+      }
+      
+      // Get user's current network and token info
+      const userNetworkService = require('../services/userNetworkService');
+      const multiChainService = require('../services/multiChainService');
+      
+      const currentNetwork = await userNetworkService.getUserNetwork(chatId);
+      const networkEmoji = multiChainService.getNetworkEmoji(currentNetwork);
+      const tokenConfig = multiChainService.getTokenConfig(currentNetwork, tokenSymbol);
+      
+      if (!tokenConfig) {
+        return await ctx.reply('❌ Выбранный токен недоступен в текущей сети.');
+      }
+      
+      // Send initial message with loading price
+      const initialMessage = `📈 ПОКУПКА ${tokenSymbol} ТОКЕНОВ\n` +
+                            `➖➖➖➖➖➖➖➖➖➖➖\n` +
+                            `${networkEmoji} Сеть: ${multiChainService.getNetworkDisplayName(currentNetwork)}\n` +
+                            `🪙 Токен: ${tokenConfig.name} (${tokenSymbol})\n` +
+                            `⏳ Загружаем актуальную цену...\n\n` +
+                            `⚠️ Введите [кол-во, ${tokenSymbol}] [цена_за_токен, ₽] [мин_сумма, ₽] [макс_сумма, ₽]\n` +
+                            `💡 Пример: 10 245 1000 2450\n\n` +
+                            `Информация:\n` +
+                            `• Минимальная сумма: 10 ₽\n` +
+                            `• Комиссия платформы: 1% (только с мейкеров)`;
+      
+      const keyboard = Markup.inlineKeyboard([
+        [Markup.button.callback('🔄 Обновить цену', `refresh_price_buy_${tokenSymbol.toLowerCase()}`)],
+        [Markup.button.callback('🔙 Назад к выбору токенов', 'p2p_menu')]
+      ]);
+      
+      const sentMessage = await ctx.reply(initialMessage, keyboard);
+      
+      // Store state to handle next user message with token context
+      console.log(`🔄 Setting P2P buy order session for ${chatId} with token ${tokenSymbol}`);
+      sessionManager.setP2POrderState(chatId, 'buy', tokenSymbol);
+      
+      // Start real-time price updates for the specific token
+      this.startRealTimePriceUpdates(ctx, sentMessage, 'buy', null, tokenSymbol);
+      
+    } catch (error) {
+      console.error(`P2P Buy ${tokenSymbol} error:`, error);
+      await ctx.reply('❌ Ошибка загрузки данных для покупки.');
+    }
+  }
+
+  // Handle P2P Sell Token (generic for any token)
+  async handleP2PSellToken(ctx, tokenSymbol) {
+    try {
+      const chatId = ctx.chat.id.toString();
+      console.log(`📉 User ${chatId} wants to sell ${tokenSymbol}`);
+      
+      // Validate user profile completion before allowing order creation
+      const P2PDataHandler = require('./P2PDataHandler');
+      const dataHandler = new P2PDataHandler();
+      const validation = await dataHandler.validateUserForP2POperations(chatId);
+      
+      if (!validation.valid) {
+        const keyboard = Markup.inlineKeyboard(validation.keyboard || [[Markup.button.callback('🔙 Назад', 'p2p_menu')]]);
+        return await ctx.reply(validation.message, keyboard);
+      }
+      
+      // Get user's current network and token info
+      const userNetworkService = require('../services/userNetworkService');
+      const multiChainService = require('../services/multiChainService');
+      const multiChainWalletService = require('../services/multiChainWalletService');
+      
+      const currentNetwork = await userNetworkService.getUserNetwork(chatId);
+      const networkEmoji = multiChainService.getNetworkEmoji(currentNetwork);
+      const tokenConfig = multiChainService.getTokenConfig(currentNetwork, tokenSymbol);
+      
+      if (!tokenConfig) {
+        return await ctx.reply('❌ Выбранный токен недоступен в текущей сети.');
+      }
+      
+      // Get user's token balance
+      let tokenBalance = 0;
+      try {
+        const walletInfo = await multiChainWalletService.getMultiChainWalletInfo(chatId);
+        const networkBalances = walletInfo.networks[currentNetwork];
+        if (networkBalances && networkBalances.tokens && networkBalances.tokens[tokenSymbol]) {
+          tokenBalance = networkBalances.tokens[tokenSymbol].balance || 0;
+        }
+      } catch (balanceError) {
+        console.error(`Error getting ${tokenSymbol} balance:`, balanceError);
+      }
+      
+      if (tokenBalance < 0.001) {
+        const message = `📉 ПРОДАЖА ${tokenSymbol} ТОКЕНОВ\n` +
+                       `➖➖➖➖➖➖➖➖➖➖➖\n` +
+                       `${networkEmoji} Сеть: ${multiChainService.getNetworkDisplayName(currentNetwork)}\n` +
+                       `🪙 Токен: ${tokenConfig.name} (${tokenSymbol})\n` +
+                       `⚠️ Недостаточно ${tokenSymbol} для продажи\n` +
+                       `Баланс: ${tokenBalance.toFixed(6)} ${tokenSymbol}\n\n` +
+                       `Информация:\n` +
+                       `• Минимальная сумма: 0.001 ${tokenSymbol}\n` +
+                       `• Комиссия платформы: 1%\n\n` +
+                       `💡 Пополните баланс ${tokenSymbol}`;
+        
+        const keyboard = Markup.inlineKeyboard([
+          [Markup.button.callback('🔙 Назад к выбору токенов', 'p2p_menu')]
+        ]);
+        
+        return await ctx.reply(message, keyboard);
+      }
+      
+      // Send initial message with loading price
+      const initialMessage = `📉 ПРОДАЖА ${tokenSymbol} ТОКЕНОВ\n` +
+                            `➖➖➖➖➖➖➖➖➖➖➖\n` +
+                            `${networkEmoji} Сеть: ${multiChainService.getNetworkDisplayName(currentNetwork)}\n` +
+                            `🪙 Токен: ${tokenConfig.name} (${tokenSymbol})\n` +
+                            `⏳ Загружаем актуальную цену...\n` +
+                            `Баланс: ${tokenBalance.toFixed(6)} ${tokenSymbol}\n\n` +
+                            `⚠️ Введите [кол-во, ${tokenSymbol}] [цена_за_токен, ₽] [мин_сумма, ₽] [макс_сумма, ₽]\n` +
+                            `💡 Пример: 50 253.5 1000 12675\n\n` +
+                            `Информация:\n` +
+                            `• Минимальная сумма: 10 ₽\n` +
+                            `• Комиссия платформы: 1%`;
+      
+      const keyboard = Markup.inlineKeyboard([
+        [Markup.button.callback('🔄 Обновить цену', `refresh_price_sell_${tokenSymbol.toLowerCase()}`)],
+        [Markup.button.callback('🔙 Назад к выбору токенов', 'p2p_menu')]
+      ]);
+      
+      const sentMessage = await ctx.reply(initialMessage, keyboard);
+      
+      // Store state to handle next user message with token context
+      console.log(`🔄 Setting P2P sell order session for ${chatId} with token ${tokenSymbol}`);
+      sessionManager.setP2POrderState(chatId, 'sell', tokenSymbol);
+      
+      // Start real-time price updates for the specific token
+      this.startRealTimePriceUpdates(ctx, sentMessage, 'sell', { tokenSymbol, balance: tokenBalance }, tokenSymbol);
+      
+    } catch (error) {
+      console.error(`P2P Sell ${tokenSymbol} error:`, error);
+      await ctx.reply('❌ Ошибка загрузки данных для продажи.');
     }
   }
 }

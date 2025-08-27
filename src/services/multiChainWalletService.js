@@ -100,8 +100,9 @@ class MultiChainWalletService {
 
       switch (networkId) {
         case 'polygon':
-          balances.POL = await this.getPolygonNativeBalance(address);
-          balances.CES = await this.getPolygonTokenBalance(address, 'CES');
+          // Используем существующие методы walletService для Polygon
+          balances.POL = await walletService.getPOLBalance(address);
+          balances.CES = await walletService.getCESBalance(address);
           balances.USDT = await this.getPolygonTokenBalance(address, 'USDT');
           break;
         

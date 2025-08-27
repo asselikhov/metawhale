@@ -190,6 +190,19 @@ class MessageHandler {
     return this.p2pHandler.handlePriceRefresh(ctx, orderType);
   }
 
+  // Handle P2P token selection and multi-token trading
+  async handleP2PTokenSelect(ctx, tokenSymbol) {
+    return this.p2pHandler.handleP2PTokenSelect(ctx, tokenSymbol);
+  }
+
+  async handleP2PBuyToken(ctx, tokenSymbol) {
+    return this.p2pHandler.handleP2PBuyToken(ctx, tokenSymbol);
+  }
+
+  async handleP2PSellToken(ctx, tokenSymbol) {
+    return this.p2pHandler.handleP2PSellToken(ctx, tokenSymbol);
+  }
+
   // Delegate P2P data operations
   async handleP2PEditData(ctx) {
     return this.dataHandler.handleP2PEditData(ctx);

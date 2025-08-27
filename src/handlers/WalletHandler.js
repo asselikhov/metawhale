@@ -158,6 +158,18 @@ class WalletHandler {
       await ctx.answerCbQuery('🔨 Создаем кошелек...');
       
       const chatId = ctx.chat.id.toString();
+      
+      // Get user's currently selected network
+      const selectedNetwork = await userNetworkService.getUserNetwork(chatId);
+      const networkConfig = multiChainService.getNetworkConfig(selectedNetwork);
+      const networkName = multiChainService.getNetworkDisplayName(selectedNetwork);
+      const networkEmoji = multiChainService.getNetworkEmoji(selectedNetwork);
+      
+      console.log(`🔨 Creating wallet for user ${chatId} on network: ${selectedNetwork}`);
+      
+      // Create wallet for the selected network
+      // Note: For now, we create a universal wallet that works across EVM chains
+      // For non-EVM chains like Solana or Tron, we might need different wallet generation
       const walletResult = await walletService.createUserWallet(chatId);
       
       const keyboard = Markup.inlineKeyboard([
@@ -165,13 +177,18 @@ class WalletHandler {
         [Markup.button.callback('🏠 Главное меню', 'back_to_menu')]
       ]);
       
+      let networkInfo = '';
+      if (selectedNetwork === 'tron' || selectedNetwork === 'solana') {
+        networkInfo = `\n\n⚠️ Обратите внимание: Для ${networkName} может потребоваться специальный кошелек. Используйте общий кошелек для EVM-совместимых сетей.`;
+      }
+      
       await ctx.reply(
         `Кошелек успешно создан!\n\n` +
         `Адрес: \`${walletResult.address}\`\n` +
-        `Сеть: Polygon\n\n` +
+        `${networkEmoji} Сеть: ${networkName}\n\n` +
         `Важно: Сохраните приватный ключ в безопасном месте:\n` +
         `\`${walletResult.privateKey}\`\n\n` +
-        `Предупреждение: Никому не сообщайте ваш приватный ключ!`,
+        `Предупреждение: Никому не сообщайте ваш приватный ключ!${networkInfo}`,
         keyboard
       );
       

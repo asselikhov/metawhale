@@ -316,6 +316,32 @@ class PriceService {
     }
   }
 
+  // Main function to get POL price
+  async getPOLPrice() {
+    try {
+      console.log('🔍 Getting POL price from CoinGecko...');
+      
+      const coinGeckoData = await this.getPOLPriceFromCoinGecko();
+      if (coinGeckoData) {
+        console.log(`✅ POL price from CoinGecko: $${coinGeckoData.price.toFixed(4)}`);
+        return coinGeckoData;
+      }
+      
+      throw new Error('Failed to get POL data from CoinGecko');
+    } catch (error) {
+      console.error('Error getting POL price:', error.message);
+      
+      // Return fallback price as last resort
+      console.log('⚠️ Using fallback POL price values');
+      return {
+        price: 0.45,
+        priceRub: 45.0,
+        change24h: 0,
+        source: 'fallback'
+      };
+    }
+  }
+
   // Main function to get USDT price
   async getUSDTPrice() {
     try {
