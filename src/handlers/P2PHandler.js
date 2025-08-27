@@ -59,7 +59,7 @@ class P2PHandler {
       const networkTokens = multiChainService.getNetworkTokens(currentNetwork);
       const networkInfo = await userNetworkService.getNetworkInfo(chatId);
       
-      // Prepare message text with network info
+      // Prepare message text with network info and token selection prompt
       const message = `🔄 P2P БИРЖА\n` +
                      `➖➖➖➖➖➖➖➖➖➖➖\n` +
                      `${userName}\n` +
@@ -69,7 +69,8 @@ class P2PHandler {
                      `Среднее время перевода: ${stats.avgTransferTime} мин.\n` +
                      `Среднее время оплаты: ${stats.avgPaymentTime} мин.\n` +
                      `Рейтинг: ${stats.rating}\n\n` +
-                     `💰 Выберите токен для торговли:`;
+                     `💰 КАКУЮ МОНЕТУ ВЫ ХОТИТЕ ТОРГОВАТЬ?\n` +
+                     `Выберите токен для торговли в сети ${networkInfo}:`;
       
       // Generate buttons for available tokens in current network
       const tokenButtons = [];

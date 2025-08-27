@@ -441,8 +441,30 @@ class WalletHandler {
       
       await ctx.answerCbQuery(`${networkEmoji} Переключено на ${networkName}`);
       
-      // Show updated personal cabinet
-      await this.handlePersonalCabinetText(ctx);
+      // Check if user has a wallet after switching
+      const walletInfo = await multiChainWalletService.getMultiChainWalletInfo(chatId);
+      
+      if (!walletInfo.hasWallet) {
+        // User doesn't have a wallet, suggest creating one
+        const message = `🌐 СЕТЬ ПЕРЕКЛЮЧЕНА\n` +
+                       `➖➖➖➖➖➖➖➖➖➖➖\n` +
+                       `${networkEmoji} Активная сеть: ${networkName}\n\n` +
+                       `⚠️ У вас нет кошелька для этой сети\n\n` +
+                       `💡 Создайте кошелек для работы с токенами в сети ${networkName}:\n` +
+                       `• Хранение токенов\n` +
+                       `• P2P торговля\n` +
+                       `• Переводы`;
+        
+        const keyboard = Markup.inlineKeyboard([
+          [Markup.button.callback('➕ Создать кошелек', 'create_wallet')],
+          [Markup.button.callback('🔙 Назад к кабинету', 'personal_cabinet')]
+        ]);
+        
+        await ctx.reply(message, keyboard);
+      } else {
+        // User has a wallet, show updated personal cabinet
+        await this.handlePersonalCabinetText(ctx);
+      }
       
     } catch (error) {
       console.error('Network switch error:', error);
