@@ -49,16 +49,65 @@ class WalletHandler {
         // Add current network info
         message += `🌐 Текущая сеть: ${walletInfo.networkInfo}\n\n`;
         
-        // Add balances for current network
+        // Получаем выбранную валюту пользователя
+        const fiatCurrencyService = require('../services/fiatCurrencyService');
+        const userCurrency = await fiatCurrencyService.getUserCurrency(chatId);
+        
+        // Add balances for current network with user's preferred currency
         if (walletInfo.balances) {
           for (const [tokenSymbol, tokenInfo] of Object.entries(walletInfo.balances)) {
-            message += tokenInfo.displayText + '\n';
+            // Конвертируем стоимость в выбранную валюту пользователя
+            let displayText = tokenInfo.displayText;
+            
+            if (userCurrency !== 'RUB' && userCurrency !== 'USD') {
+              // Если пользователь выбрал валюту, отличную от RUB и USD, показываем стоимость в этой валюте
+              try {
+                const usdAmount = parseFloat(tokenInfo.usdValue);
+                if (usdAmount > 0) {
+                  const convertedAmount = await fiatCurrencyService.convertAmount(usdAmount, 'USD', userCurrency);
+                  const formattedAmount = fiatCurrencyService.formatAmount(convertedAmount, userCurrency);
+                  
+                  // Заменяем отображение стоимости на выбранную валюту
+                  displayText = displayText.replace(
+                    /• \$[\d.,]+ • ₽[\d.,]+/,
+                    `• ${formattedAmount}`
+                  );
+                }
+              } catch (convertError) {
+                console.error('Error converting currency:', convertError);
+                // Если конвертация не удалась, оставляем оригинальное отображение
+              }
+            } else if (userCurrency === 'USD') {
+              // Если пользователь выбрал USD, показываем только стоимость в USD
+              displayText = displayText.replace(
+                /• \$[\d.,]+ • ₽[\d.,]+/,
+                `• \$${tokenInfo.usdValue}`
+              );
+            }
+            
+            message += displayText + '\n';
           }
         }
         
-        // Add total value if available
+        // Add total value if available, converted to user's preferred currency
         if (walletInfo.totalValue) {
-          message += `\n💰 Общая стоимость: $${walletInfo.totalValue.usd} • ₽${walletInfo.totalValue.rub}`;
+          try {
+            const totalUsd = parseFloat(walletInfo.totalValue.usd);
+            if (userCurrency === 'USD') {
+              message += `\n💰 Общая стоимость: \$${walletInfo.totalValue.usd}`;
+            } else if (userCurrency === 'RUB') {
+              message += `\n💰 Общая стоимость: \$${walletInfo.totalValue.usd} • ₽${walletInfo.totalValue.rub}`;
+            } else {
+              // Конвертируем в выбранную валюту пользователя
+              const convertedAmount = await fiatCurrencyService.convertAmount(totalUsd, 'USD', userCurrency);
+              const formattedAmount = fiatCurrencyService.formatAmount(convertedAmount, userCurrency);
+              message += `\n💰 Общая стоимость: ${formattedAmount}`;
+            }
+          } catch (convertError) {
+            console.error('Error converting total value:', convertError);
+            // Если конвертация не удалась, показываем оригинальное отображение
+            message += `\n💰 Общая стоимость: \$${walletInfo.totalValue.usd} • ₽${walletInfo.totalValue.rub}`;
+          }
         }
       
         const keyboard = Markup.inlineKeyboard([

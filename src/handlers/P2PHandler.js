@@ -34,25 +34,6 @@ class P2PHandler {
         return await ctx.reply(message, keyboard);
       }
       
-      // Get user reputation data
-      const reputationService = require('../services/reputationService');
-      const { User } = require('../database/models');
-      const user = await User.findOne({ chatId });
-      
-      // Get standardized user statistics
-      const stats = await reputationService.getStandardizedUserStats(user._id);
-      
-      // Get user's full name from P2P profile or fallback to Telegram name
-      let userName = 'Пользователь';
-      if (user && user.p2pProfile && user.p2pProfile.fullName) {
-        userName = user.p2pProfile.fullName;
-      } else if (user && user.firstName) {
-        userName = user.firstName;
-        if (user.lastName) {
-          userName += ` ${user.lastName}`;
-        }
-      }
-      
       // Get user's current network and available tokens
       const userNetworkService = require('../services/userNetworkService');
       const multiChainService = require('../services/multiChainService');
@@ -61,18 +42,8 @@ class P2PHandler {
       const networkTokens = multiChainService.getNetworkTokens(currentNetwork);
       const networkInfo = await userNetworkService.getNetworkInfo(chatId);
       
-      // Prepare message text with network info and token selection prompt
-      const message = `🔄 ${await LocalizationHelper.getText(chatId, 'p2p_exchange')}\n` +
-                     `➖➖➖➖➖➖➖➖➖➖➖\n` +
-                     `${userName}\n` +
-                     `🌐 ${await LocalizationHelper.getText(chatId, 'current_network')} ${networkInfo}\n\n` +
-                     `${await LocalizationHelper.getText(chatId, 'orders_last_30_days')}: ${stats.ordersLast30Days} ${await LocalizationHelper.getText(chatId, 'pieces')}\n` +
-                     `${await LocalizationHelper.getText(chatId, 'completion_rate_30_days')}: ${stats.completionRateLast30Days}%\n` +
-                     `${await LocalizationHelper.getText(chatId, 'avg_transfer_time')}: ${stats.avgTransferTime} ${await LocalizationHelper.getText(chatId, 'minutes')}\n` +
-                     `${await LocalizationHelper.getText(chatId, 'avg_payment_time')}: ${stats.avgPaymentTime} ${await LocalizationHelper.getText(chatId, 'minutes')}\n` +
-                     `${await LocalizationHelper.getText(chatId, 'rating')}: ${stats.rating}\n\n` +
-                     `💰 ${await LocalizationHelper.getText(chatId, 'which_token_trade')}\n` +
-                     `${await LocalizationHelper.getText(chatId, 'select_token_for_network')} ${networkInfo}:`;
+      // Prepare message text with token selection prompt
+      const message = `💰 Какую монеты вы хотите торговать?`;
       
       // Generate buttons for available tokens in current network
       const tokenButtons = [];
@@ -91,21 +62,14 @@ class P2PHandler {
         }
       }
       
-      // Add management buttons
-      const managementButtons = [
-        [Markup.button.callback('📊 Рынок', 'p2p_market_orders'), Markup.button.callback('📋 Мои ордера', 'p2p_my_orders')],
-        [Markup.button.callback('🏆 Топ', 'p2p_top_traders'), Markup.button.callback('🧮 Аналитика', 'p2p_analytics')],
-        [Markup.button.callback('📑 Мои данные', 'p2p_my_data')]
-      ];
+      // Combine token buttons
+      const keyboard = Markup.inlineKeyboard([...tokenButtons]);
       
-      // Combine token buttons with management buttons
-      const keyboard = Markup.inlineKeyboard([...tokenButtons, ...managementButtons]);
-      
-      console.log(`📤 Sending P2P menu with ${tokenButtons.length} tokens for ${currentNetwork} network to user ${chatId}`);
+      console.log(`📤 Sending P2P token selection menu with ${tokenButtons.length} tokens for ${currentNetwork} network to user ${chatId}`);
       
       // Send text with buttons in one message
       await ctx.reply(message, keyboard);
-      console.log(`✅ P2P menu with token selection sent successfully to user ${chatId}`);
+      console.log(`✅ P2P token selection menu sent successfully to user ${chatId}`);
       
     } catch (error) {
       console.error('P2P menu error:', error);
@@ -719,7 +683,7 @@ class P2PHandler {
           balanceText = `Баланс: ${walletInfo.cesBalance.toFixed(4)} ${tokenSymbol}\n`;
         }
         
-        message = `📉 ПРОДАЖА ${tokenSymbol} ТОКЕНОВ\n` +
+        message = `.DataGridViewColumn ПРОДАЖА ${tokenSymbol} ТОКЕНОВ\n` +
                  `➖➖➖➖➖➖➖➖➖➖➖\n` +
                  `${currency.flag} Валюта: ${currency.nameRu} (${currency.code})\n` +
                  `Текущая рыночная цена: ${fiatCurrencyService.formatAmount(convertedPrice, currencyCode)} / ${tokenSymbol} 🟢\n` +
@@ -784,22 +748,26 @@ class P2PHandler {
       const currentNetwork = await userNetworkService.getUserNetwork(chatId);
       const networkEmoji = multiChainService.getNetworkEmoji(currentNetwork);
       const tokenConfig = multiChainService.getTokenConfig(currentNetwork, tokenSymbol);
+      const networkInfo = await userNetworkService.getNetworkInfo(chatId);
       
       if (!tokenConfig) {
         return await ctx.reply('❌ Выбранный токен недоступен в текущей сети.');
       }
       
-      // Show buy/sell options for selected token
-      const message = `💰 ТОРГОВЛЯ ${tokenSymbol}\n` +
+      // Show P2P exchange interface with the specific format
+      const message = `🔄 P2P БИРЖА\n` +
                      `➖➖➖➖➖➖➖➖➖➖➖\n` +
-                     `${networkEmoji} Сеть: ${multiChainService.getNetworkDisplayName(currentNetwork)}\n` +
-                     `🪙 Токен: ${tokenConfig.name} (${tokenSymbol})\n\n` +
-                     `Выберите действие:`;
+                     `👤 ЛИЧНЫЙ КАБИНИТЕТ\n` +
+                     `🌐 Текущая сеть: ${networkInfo}\n` +
+                     `💰 Монета для торговли: ${tokenSymbol}\n\n` +
+                     `Комиссия мейкера 1%, тейкера 0%`;
       
       const keyboard = Markup.inlineKeyboard([
         [Markup.button.callback(`📈 Купить ${tokenSymbol}`, `p2p_buy_${tokenSymbol.toLowerCase()}`)],
         [Markup.button.callback(`📉 Продать ${tokenSymbol}`, `p2p_sell_${tokenSymbol.toLowerCase()}`)],
-        [Markup.button.callback('🔙 Назад к выбору токенов', 'p2p_menu')]
+        [Markup.button.callback('📊 Рынок', 'p2p_market_orders'), Markup.button.callback('📋 Мои ордера', 'p2p_my_orders')],
+        [Markup.button.callback('🏆 Топ', 'p2p_top_traders'), Markup.button.callback('📊 Аналитика', 'p2p_analytics')],
+        [Markup.button.callback('📑 Мои данные', 'p2p_my_data')]
       ]);
       
       await ctx.reply(message, keyboard);
@@ -947,7 +915,7 @@ class P2PHandler {
         }
         
         if (!hasBalance) {
-          const message = `📉 ПРОДАЖА ${tokenSymbol} ТОКЕНОВ\n` +
+          const message = `.DataGridViewColumn ПРОДАЖА ${tokenSymbol} ТОКЕНОВ\n` +
                          `➖➖➖➖➖➖➖➖➖➖➖\n` +
                          `${currency.flag} Валюта: ${currency.nameRu}\n` +
                          `⚠️ Недостаточно ${tokenSymbol} для продажи\n` +

@@ -40,13 +40,28 @@ class BaseCommandHandler {
       let user = null;
       if (isDatabaseConnected()) {
         try {
+          // Определяем язык пользователя из настроек Telegram при первом запуске
+          let userLanguage = 'ru'; // язык по умолчанию
+          
+          // Если в контексте есть информация о языке пользователя, используем её
+          if (ctx.from && ctx.from.language_code) {
+            const supportedLanguages = languageService.getSupportedLanguages();
+            const userLangCode = ctx.from.language_code.split('-')[0]; // Берем только код языка без региона
+            
+            // Проверяем, поддерживается ли язык
+            if (supportedLanguages.some(lang => lang.code === userLangCode)) {
+              userLanguage = userLangCode;
+            }
+          }
+          
           user = await User.findOneAndUpdate(
             { chatId },
             {
               username: ctx.from.username,
               firstName: ctx.from.first_name,
               lastName: ctx.from.last_name,
-              isActive: true
+              isActive: true,
+              language: userLanguage // Сохраняем определенный язык пользователя
             },
             { upsert: true, new: true }
           );
