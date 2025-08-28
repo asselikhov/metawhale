@@ -74,7 +74,8 @@ class OptimizedCallbackHandler {
                         '💡 Создайте кошелек для хранения токенов CES и POL';
 
           keyboard = Markup.inlineKeyboard([
-            [Markup.button.callback('➕ Создать кошелек', 'create_wallet')]
+            [Markup.button.callback('➕ Создать кошелек', 'create_wallet')],
+            [Markup.button.callback('🔙 Назад', 'back_to_menu')]
           ]);
         }
 

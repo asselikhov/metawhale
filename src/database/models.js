@@ -283,13 +283,25 @@ const transactionSchema = new mongoose.Schema({
   completedAt: Date
 });
 
-// P2P Order Schema (for buying/selling CES with rubles)
+// P2P Order Schema (for buying/selling CES with multiple fiat currencies)
 const p2pOrderSchema = new mongoose.Schema({
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   type: { type: String, enum: ['buy', 'sell'], required: true },
   amount: { type: Number, required: true }, // Amount of CES tokens
-  pricePerToken: { type: Number, required: true }, // Price per CES token in rubles
-  totalValue: { type: Number, required: true }, // Total value in rubles
+  
+  // 🆕 МУЛЬТИВАЛЮТНЫЕ ПОЛЯ
+  currency: { 
+    type: String, 
+    enum: ['USD', 'RUB', 'EUR', 'CNY', 'INR', 'NGN', 'VND', 'KRW', 'JPY', 'BRL'],
+    default: 'RUB' // Обратная совместимость
+  },
+  pricePerToken: { type: Number, required: true }, // Price per CES token in selected currency
+  totalValue: { type: Number, required: true }, // Total value in selected currency
+  
+  // Дополнительные поля для унификации и аналитики
+  pricePerTokenInUSD: { type: Number }, // Price per token in USD for unified calculations
+  totalValueInUSD: { type: Number }, // Total value in USD
+  exchangeRateAtCreation: { type: Number }, // Exchange rate at order creation time
   status: { type: String, enum: ['active', 'partial', 'completed', 'cancelled', 'locked', 'expired'], default: 'active' },
   filledAmount: { type: Number, default: 0 },
   remainingAmount: { type: Number, required: true },
@@ -310,16 +322,33 @@ p2pOrderSchema.index({ userId: 1, status: 1 });
 p2pOrderSchema.index({ type: 1, status: 1 });
 p2pOrderSchema.index({ pricePerToken: 1 });
 p2pOrderSchema.index({ createdAt: -1 });
+// 🆕 Новые индексы для мультивалютности
+p2pOrderSchema.index({ currency: 1, type: 1, status: 1 });
+p2pOrderSchema.index({ currency: 1, pricePerToken: 1 });
+p2pOrderSchema.index({ currency: 1, pricePerTokenInUSD: 1 });
+p2pOrderSchema.index({ totalValueInUSD: 1 });
 
-// P2P Trade Schema (for completed trades in rubles with escrow)
+// P2P Trade Schema (for completed trades with multiple fiat currencies and escrow)
 const p2pTradeSchema = new mongoose.Schema({
   buyOrderId: { type: mongoose.Schema.Types.ObjectId, ref: 'P2POrder', required: true },
   sellOrderId: { type: mongoose.Schema.Types.ObjectId, ref: 'P2POrder', required: true },
   buyerId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true }, // Мейкер (создатель ордера на покупку)
   sellerId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true }, // Тейкер (продавец CES)
   amount: { type: Number, required: true }, // CES amount traded
-  pricePerToken: { type: Number, required: true }, // Price per CES token in rubles
-  totalValue: { type: Number, required: true }, // Total value in rubles
+  
+  // 🆕 МУЛЬТИВАЛЮТНЫЕ ПОЛЯ
+  currency: { 
+    type: String, 
+    enum: ['USD', 'RUB', 'EUR', 'CNY', 'INR', 'NGN', 'VND', 'KRW', 'JPY', 'BRL'],
+    default: 'RUB' // Обратная совместимость
+  },
+  pricePerToken: { type: Number, required: true }, // Price per CES token in trade currency
+  totalValue: { type: Number, required: true }, // Total value in trade currency
+  
+  // USD эквиваленты для унификации
+  pricePerTokenInUSD: { type: Number }, // Price per token in USD
+  totalValueInUSD: { type: Number }, // Total value in USD
+  exchangeRateAtTrade: { type: Number }, // Exchange rate at trade execution time
   buyerCommission: { type: Number, default: 0 }, // 1% commission from buyer in CES
   sellerCommission: { type: Number, default: 0 }, // No commission from seller
   commission: { type: Number, required: true }, // Total commission in CES (for backward compatibility)
@@ -440,6 +469,10 @@ p2pTradeSchema.index({ moderatorId: 1, disputeStatus: 1 });
 p2pTradeSchema.index({ disputeInitiatorId: 1 });
 p2pTradeSchema.index({ 'disputeTracking.openedAt': -1 });
 p2pTradeSchema.index({ disputePriority: 1, 'disputeTracking.openedAt': -1 });
+// 🆕 Новые индексы для мультивалютности
+p2pTradeSchema.index({ currency: 1, status: 1 });
+p2pTradeSchema.index({ currency: 1, createdAt: -1 });
+p2pTradeSchema.index({ totalValueInUSD: 1 });
 
 // 🆕 ОТДЕЛЬНАЯ СХЕМА ДЛЯ ЛОГОВ СПОРОВ
 const disputeLogSchema = new mongoose.Schema({
@@ -525,7 +558,46 @@ const escrowTransactionSchema = new mongoose.Schema({
   completedAt: Date
 });
 
-// Ruble Reserve Schema (for maker's reserved rubles)
+// 🆕 EXCHANGE RATE SCHEMA (для кэширования курсов валют)
+const exchangeRateSchema = new mongoose.Schema({
+  baseCurrency: { type: String, default: 'USD' },
+  targetCurrency: { 
+    type: String, 
+    enum: ['USD', 'RUB', 'EUR', 'CNY', 'INR', 'NGN', 'VND', 'KRW', 'JPY', 'BRL'],
+    required: true 
+  },
+  rate: { type: Number, required: true },
+  source: { type: String, enum: ['api', 'manual', 'fallback'], default: 'api' },
+  lastUpdated: { type: Date, default: Date.now },
+  isActive: { type: Boolean, default: true },
+  metadata: {
+    apiSource: String, // Источник API (exchangerate-api, fixer, etc.)
+    confidence: { type: Number, min: 0, max: 1, default: 1 }, // Уверенность в курсе
+    volatility: Number // Волатильность за последние 24ч
+  }
+});
+
+// Fiat Reserve Schema (заменяет RubleReserve для поддержки всех валют)
+const fiatReserveSchema = new mongoose.Schema({
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  orderId: { type: mongoose.Schema.Types.ObjectId, ref: 'P2POrder' },
+  tradeId: { type: mongoose.Schema.Types.ObjectId, ref: 'P2PTrade' },
+  amount: { type: Number, required: true }, // Amount in local currency
+  currency: { 
+    type: String, 
+    enum: ['USD', 'RUB', 'EUR', 'CNY', 'INR', 'NGN', 'VND', 'KRW', 'JPY', 'BRL'],
+    required: true 
+  },
+  amountInUSD: { type: Number, required: true }, // USD equivalent for analytics
+  exchangeRate: { type: Number, required: true }, // Exchange rate at reservation time
+  type: { type: String, enum: ['order_reserve', 'trade_reserve'], required: true },
+  status: { type: String, enum: ['reserved', 'used', 'released'], default: 'reserved' },
+  reason: String,
+  createdAt: { type: Date, default: Date.now },
+  releasedAt: Date
+});
+
+// Ruble Reserve Schema (DEPRECATED - оставляем для обратной совместимости)
 const rubleReserveSchema = new mongoose.Schema({
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   orderId: { type: mongoose.Schema.Types.ObjectId, ref: 'P2POrder' },
@@ -535,7 +607,10 @@ const rubleReserveSchema = new mongoose.Schema({
   status: { type: String, enum: ['reserved', 'used', 'released'], default: 'reserved' },
   reason: String,
   createdAt: { type: Date, default: Date.now },
-  releasedAt: Date
+  releasedAt: Date,
+  // 🆕 Маркировка для миграции
+  isMigrated: { type: Boolean, default: false },
+  migratedToFiatReserveId: { type: mongoose.Schema.Types.ObjectId, ref: 'FiatReserve' }
 });
 
 // Add indexes for faster queries
@@ -543,11 +618,25 @@ escrowTransactionSchema.index({ userId: 1, type: 1 });
 escrowTransactionSchema.index({ tradeId: 1 });
 escrowTransactionSchema.index({ createdAt: -1 });
 
-// Add indexes for ruble reserves
+// 🆕 Индексы для Exchange Rates
+exchangeRateSchema.index({ targetCurrency: 1, isActive: 1 });
+exchangeRateSchema.index({ baseCurrency: 1, targetCurrency: 1 }, { unique: true });
+exchangeRateSchema.index({ lastUpdated: -1 });
+exchangeRateSchema.index({ source: 1, isActive: 1 });
+
+// 🆕 Индексы для Fiat Reserves
+fiatReserveSchema.index({ userId: 1, currency: 1, status: 1 });
+fiatReserveSchema.index({ orderId: 1 });
+fiatReserveSchema.index({ tradeId: 1 });
+fiatReserveSchema.index({ currency: 1, status: 1 });
+fiatReserveSchema.index({ createdAt: -1 });
+
+// Индексы для Ruble Reserves (legacy)
 rubleReserveSchema.index({ userId: 1, status: 1 });
 rubleReserveSchema.index({ orderId: 1 });
 rubleReserveSchema.index({ tradeId: 1 });
 rubleReserveSchema.index({ createdAt: -1 });
+rubleReserveSchema.index({ isMigrated: 1 }); // 🆕 Для миграции
 
 // Models
 const User = mongoose.models.User || mongoose.model('User', userSchema);
@@ -557,6 +646,8 @@ const P2POrder = mongoose.models.P2POrder || mongoose.model('P2POrder', p2pOrder
 const P2PTrade = mongoose.models.P2PTrade || mongoose.model('P2PTrade', p2pTradeSchema);
 const PriceHistory = mongoose.models.PriceHistory || mongoose.model('PriceHistory', priceHistorySchema);
 const EscrowTransaction = mongoose.models.EscrowTransaction || mongoose.model('EscrowTransaction', escrowTransactionSchema);
+const ExchangeRate = mongoose.models.ExchangeRate || mongoose.model('ExchangeRate', exchangeRateSchema);
+const FiatReserve = mongoose.models.FiatReserve || mongoose.model('FiatReserve', fiatReserveSchema);
 const RubleReserve = mongoose.models.RubleReserve || mongoose.model('RubleReserve', rubleReserveSchema);
 // 🆕 НОВЫЕ МОДЕЛИ ДЛЯ СПОРОВ
 const DisputeLog = mongoose.models.DisputeLog || mongoose.model('DisputeLog', disputeLogSchema);
@@ -573,7 +664,10 @@ module.exports = {
   P2PTrade,
   PriceHistory,
   EscrowTransaction,
-  RubleReserve,
+  // 🆕 НОВЫЕ МОДЕЛИ ДЛЯ МУЛЬТИВАЛЮТНОСТИ
+  ExchangeRate,
+  FiatReserve,
+  RubleReserve, // Legacy support
   // 🆕 НОВЫЕ МОДЕЛИ ДЛЯ СПОРОВ
   DisputeLog,
   Moderator

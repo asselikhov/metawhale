@@ -58,9 +58,9 @@ class BaseCommandHandler {
       const welcomeMessage = 'Добро пожаловать в Rustling Grass 🌾 assistant !';
       console.log(`💬 Welcome message: ${welcomeMessage}`);
       
-      // Main menu with regular keyboard buttons (3 buttons in 1 row)
+      // Main menu with regular keyboard buttons (4 buttons in 1 row)
       const mainMenu = Markup.keyboard([
-        ['👤 ЛК', '🔄 P2P', '💠 Matrix']
+        ['👤 ЛК', '🔄 P2P', '💠 Matrix', '⚙️']
       ]).resize();
       
       console.log(`📤 Sending welcome message to user ${chatId}`);
@@ -342,6 +342,12 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}%${volumeDisplay}${
         return await ctx.reply('⚠️ Этот раздел находится в разработке.\n\n🔔 Следите за обновлениями — запуск уже скоро!');
       }
       
+      // Handle settings button
+      if (text.includes('⚙️') || text.includes('Настройки')) {
+        console.log(`⚙️ Handling Settings request from ${chatId}`);
+        return await this.handleSettingsMenu(ctx);
+      }
+      
       // Check if message looks like a transfer command (address amount)
       const transferPattern = /^0x[a-fA-F0-9]{40}\s+\d+\.?\d*$/;
       if (transferPattern.test(text.trim())) {
@@ -582,13 +588,99 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}%${volumeDisplay}${
   async handleBackToMenu(ctx) {
     try {
       const mainMenu = Markup.keyboard([
-        ['👤 ЛК', '🔄 P2P', '💠 Matrix']
+        ['👤 ЛК', '🔄 P2P', '💠 Matrix', '⚙️']
       ]).resize();
       
       await ctx.reply('🌾 Главное меню', mainMenu);
     } catch (error) {
       console.error('Back to menu error:', error);
       await ctx.reply('❌ Ошибка возврата в главное меню.');
+    }
+  }
+
+  // Handle settings menu
+  async handleSettingsMenu(ctx) {
+    try {
+      const languageService = require('../services/languageService');
+      
+      const message = '⚙️ Настройки';
+      const keyboard = Markup.inlineKeyboard([
+        [Markup.button.callback('🌍 Выберите язык', 'select_language')],
+        [Markup.button.callback('🔙 Назад', 'back_to_menu')]
+      ]);
+      
+      await ctx.reply(message, keyboard);
+    } catch (error) {
+      console.error('Settings menu error:', error);
+      await ctx.reply('❌ Ошибка открытия настроек.');
+    }
+  }
+
+  // Handle language selection
+  async handleLanguageSelection(ctx) {
+    try {
+      const languageService = require('../services/languageService');
+      const languages = languageService.getSupportedLanguages();
+      
+      const message = '🌍 Выберите язык интерфейса:';
+      
+      // Create language buttons (2 per row)
+      const languageButtons = [];
+      for (let i = 0; i < languages.length; i += 2) {
+        const row = [];
+        
+        // First language in row
+        const lang1 = languages[i];
+        row.push(Markup.button.callback(
+          `${lang1.flag} ${lang1.country}`,
+          `select_language_${lang1.code}`
+        ));
+        
+        // Second language in row (if exists)
+        if (i + 1 < languages.length) {
+          const lang2 = languages[i + 1];
+          row.push(Markup.button.callback(
+            `${lang2.flag} ${lang2.country}`,
+            `select_language_${lang2.code}`
+          ));
+        }
+        
+        languageButtons.push(row);
+      }
+      
+      // Add back button
+      languageButtons.push([Markup.button.callback('🔙 Назад', 'settings_menu')]);
+      
+      const keyboard = Markup.inlineKeyboard(languageButtons);
+      
+      await ctx.reply(message, keyboard);
+    } catch (error) {
+      console.error('Language selection error:', error);
+      await ctx.reply('❌ Ошибка выбора языка.');
+    }
+  }
+
+  // Handle language selection confirmation
+  async handleLanguageSelected(ctx, languageCode) {
+    try {
+      const chatId = ctx.chat.id.toString();
+      const languageService = require('../services/languageService');
+      
+      // Set user language preference
+      languageService.setUserLanguage(chatId, languageCode);
+      
+      // Get language config
+      const languageConfig = languageService.getLanguageConfig(languageCode);
+      
+      const message = `✅ Язык интерфейса установлен: ${languageConfig.flag} ${languageConfig.country}`;
+      const keyboard = Markup.inlineKeyboard([
+        [Markup.button.callback('🔙 Назад', 'settings_menu')]
+      ]);
+      
+      await ctx.reply(message, keyboard);
+    } catch (error) {
+      console.error('Language selection confirmation error:', error);
+      await ctx.reply('❌ Ошибка установки языка.');
     }
   }
 

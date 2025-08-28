@@ -1,12 +1,15 @@
 /**
- * P2P Trading Service with Escrow
- * Handles buying and selling CES tokens for rubles with 1% commission ONLY from makers (order creators)
+ * P2P Trading Service with Escrow and Multi-Currency Support
+ * Handles buying and selling CES tokens for multiple fiat currencies with 1% commission ONLY from makers (order creators)
  * Includes advanced escrow system for maximum security
+ * 
+ * Supported Currencies: USD, RUB, EUR, CNY, INR, NGN, VND, KRW, JPY, BRL
  */
 
-const { P2POrder, P2PTrade, User } = require('../database/models');
+const { P2POrder, P2PTrade, User, FiatReserve } = require('../database/models');
 const walletService = require('./walletService');
 const priceService = require('./priceService');
+const fiatCurrencyService = require('./fiatCurrencyService'); // 🆕 Мультивалютный сервис
 const escrowService = require('./escrowService');
 const smartNotificationService = require('./smartNotificationService');
 const reputationService = require('./reputationService');
@@ -22,10 +25,10 @@ class P2PService {
     this.minOrderAmount = 1; // Minimum order amount in CES
   }
 
-  // Create a buy order (мейкер создаёт ордер на покупку CES за рубли)
-  async createBuyOrder(chatId, amount, pricePerToken, minTradeAmount = 1, maxTradeAmount = null) {
+  // Create a buy order (мейкер создаёт ордер на покупку CES за выбранную валюту)
+  async createBuyOrder(chatId, amount, pricePerToken, currency = 'RUB', minTradeAmount = 1, maxTradeAmount = null) {
     try {
-      console.log(`Создание ордера на покупку: ${amount} CES по ₽${pricePerToken} за токен (chatId: ${chatId})`);
+      console.log(`Создание ордера на покупку: ${amount} CES по ${fiatCurrencyService.formatAmount(pricePerToken, currency)} за токен (chatId: ${chatId})`);
       
       const user = await User.findOne({ chatId });
       if (!user) {
@@ -36,6 +39,11 @@ class P2PService {
       if (!user.walletAddress) {
         console.log(`У пользователя ${chatId} нет кошелька`);
         throw new Error('Сначала создайте кошелек');
+      }
+      
+      // 🆕 Проверяем поддержку валюты
+      if (!fiatCurrencyService.isCurrencySupported(currency)) {
+        throw new Error(`Валюта ${currency} не поддерживается`);
       }
       
       // Проверяем профиль P2P
@@ -82,7 +90,7 @@ class P2PService {
       }
       
       const totalValue = amount * pricePerToken;
-      console.log(`Общая стоимость ордера: ₽${totalValue.toFixed(2)}`);
+      console.log(`Общая стоимость ордера: ${fiatCurrencyService.formatAmount(totalValue, currency)}`);
       
       // 🔧 FIX: Проверяем наличие средств для оплаты 1% комиссии при создании ордера на покупку
       const commissionAmount = amount * this.commissionRate; // 1% комиссия в CES
@@ -93,12 +101,19 @@ class P2PService {
         throw new Error(`Недостаточно CES для оплаты комиссии 1%. Доступно: ${availableBalance.toFixed(4)} CES, требуется: ${commissionAmount.toFixed(4)} CES`);
       }
       
-      // Проверяем доступность рублей у мейкера
-      const rubleReserveService = require('./rubleReserveService');
-      const availableRubleBalance = await rubleReserveService.getAvailableBalance(user._id.toString());
+      // 🆕 Конвертируем цены в USD для унификации
+      const pricePerTokenInUSD = await fiatCurrencyService.convertAmount(pricePerToken, currency, 'USD');
+      const totalValueInUSD = await fiatCurrencyService.convertAmount(totalValue, currency, 'USD');
+      const exchangeRate = await fiatCurrencyService.getExchangeRate(currency, 'USD');
       
-      if (availableRubleBalance < totalValue) {
-        throw new Error(`Недостаточно рублей. Доступно: ₽${availableRubleBalance.toFixed(2)}, требуется: ₽${totalValue.toFixed(2)}`);
+      console.log(`💱 Цена в USD: ${fiatCurrencyService.formatAmount(pricePerTokenInUSD, 'USD')} за токен`);
+      
+      // Проверяем доступность фиатных средств у мейкера
+      const fiatReserveService = require('./fiatReserveService');
+      const availableFiatBalance = await fiatReserveService.getAvailableBalance(user._id.toString(), currency);
+      
+      if (availableFiatBalance < totalValue) {
+        throw new Error(`Недостаточно ${currency}. Доступно: ${fiatCurrencyService.formatAmount(availableFiatBalance, currency)}, требуется: ${fiatCurrencyService.formatAmount(totalValue, currency)}`);
       }
       
       // 🔍 ANTI-FRAUD: Проверка безопасности перед созданием ордера
@@ -107,7 +122,9 @@ class P2PService {
         type: 'buy',
         amount: amount,
         pricePerToken: pricePerToken,
-        totalValue: totalValue
+        currency: currency, // 🆕 Добавляем валюту в проверку
+        totalValue: totalValue,
+        totalValueInUSD: totalValueInUSD // 🆕 USD эквивалент для единообразной проверки
       });
       
       if (!securityCheck.allowed) {
@@ -123,14 +140,20 @@ class P2PService {
       const userTradeTimeLimit = user.p2pProfile?.tradeTimeLimit || this.defaultTradeTimeout;
       console.log(`Время сделки для пользователя ${user.chatId}: ${userTradeTimeLimit} мин.`);
       
-      // Создаём новый ордер на покупку
-      console.log(`Создание нового ордера на покупку`);
+      // 🆕 Создаём новый мультивалютный ордер на покупку
+      console.log(`Создание нового мультивалютного ордера на покупку`);
       const buyOrder = new P2POrder({
         userId: user._id,
         type: 'buy',
         amount: amount,
-        pricePerToken: pricePerToken,
+        // 🆕 Мультивалютные поля
+        currency: currency,
+        pricePerToken: pricePerToken, // Цена в выбранной валюте
         totalValue: totalValue,
+        pricePerTokenInUSD: pricePerTokenInUSD, // USD эквивалент
+        totalValueInUSD: totalValueInUSD,
+        exchangeRateAtCreation: exchangeRate,
+        // Остальные поля
         remainingAmount: amount,
         minTradeAmount: minTradeAmount,
         maxTradeAmount: maxTradeAmount || amount,
@@ -141,11 +164,14 @@ class P2PService {
       
       await buyOrder.save();
       
-      // Резервируем рубли у мейкера
-      const reserveResult = await rubleReserveService.reserveForOrder(
+      // 🆕 Резервируем фиатные средства у мейкера
+      const reserveResult = await fiatReserveService.reserveForOrder(
         user._id.toString(),
         buyOrder._id.toString(),
-        totalValue
+        totalValue,
+        currency, // 🆕 Указываем валюту
+        totalValueInUSD, // USD эквивалент
+        exchangeRate
       );
       
       if (!reserveResult.success) {
@@ -155,7 +181,7 @@ class P2PService {
       }
       
       console.log(`Ордер на покупку создан: ${buyOrder._id}`);
-      console.log(`Зарезервировано ₽${totalValue} у мейкера ${user._id}`);
+      console.log(`Зарезервировано ${fiatCurrencyService.formatAmount(totalValue, currency)} у мейкера ${user._id}`);
       
       return buyOrder;
       
@@ -1703,18 +1729,49 @@ class P2PService {
     try {
       // Get current CES price from price service (cached for performance)
       const cesPriceData = await priceService.getCESPrice();
-      const currentPrice = cesPriceData.priceRub;
+      const currentPriceRub = cesPriceData.priceRub;
+      const currentPriceUSD = cesPriceData.price;
+      
+      // Get exchange rates for other currencies
+      const currencies = ['USD', 'EUR', 'CNY', 'INR', 'NGN', 'VND', 'KRW', 'JPY', 'BRL'];
+      const currencyPrices = {};
+      
+      // Add USD price
+      currencyPrices.USD = parseFloat(currentPriceUSD.toFixed(4));
+      
+      // Convert to other currencies
+      for (const currency of currencies) {
+        if (currency !== 'USD' && currency !== 'RUB') {
+          try {
+            const convertedPrice = await fiatCurrencyService.convertAmount(
+              currentPriceUSD, 
+              'USD', 
+              currency
+            );
+            currencyPrices[currency] = parseFloat(convertedPrice.toFixed(
+              fiatCurrencyService.getCurrencyMetadata(currency).decimals
+            ));
+          } catch (error) {
+            console.error(`Error converting price to ${currency}:`, error);
+            // Fallback to 0 if conversion fails
+            currencyPrices[currency] = 0;
+          }
+        }
+      }
       
       // For better performance, use a simpler calculation for suggested price
       // Add a small premium for sellers, subtract a small discount for buyers
-      const suggestedPrice = currentPrice;
+      const suggestedPriceRub = currentPriceRub;
       
       return {
-        currentPrice: parseFloat(currentPrice.toFixed(2)),
-        suggestedPrice: parseFloat(suggestedPrice.toFixed(2)),
+        currentPrice: parseFloat(currentPriceRub.toFixed(2)),
+        currentPriceRub: parseFloat(currentPriceRub.toFixed(2)),
+        currentPriceUSD: parseFloat(currentPriceUSD.toFixed(4)),
+        currencyPrices: currencyPrices,
+        suggestedPrice: parseFloat(suggestedPriceRub.toFixed(2)),
         priceRange: {
-          min: parseFloat((currentPrice * 0.95).toFixed(2)), // 5% below market
-          max: parseFloat((currentPrice * 1.05).toFixed(2))  // 5% above market
+          min: parseFloat((currentPriceRub * 0.95).toFixed(2)), // 5% below market
+          max: parseFloat((currentPriceRub * 1.05).toFixed(2))  // 5% above market
         }
       };
     } catch (error) {
@@ -1722,6 +1779,9 @@ class P2PService {
       // Return default values to prevent app crashes
       return {
         currentPrice: 0,
+        currentPriceRub: 0,
+        currentPriceUSD: 0,
+        currencyPrices: {},
         suggestedPrice: 0,
         priceRange: { min: 0, max: 0 }
       };

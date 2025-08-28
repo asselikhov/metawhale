@@ -336,6 +336,23 @@ class TelegramBot {
       console.log('Received back_to_menu callback');
       return messageHandler.handleBackToMenu(ctx);
     });
+
+    // Settings handlers
+    this.bot.action('settings_menu', (ctx) => {
+      console.log('Received settings_menu callback');
+      return messageHandler.handleSettingsMenu(ctx);
+    });
+
+    this.bot.action('select_language', (ctx) => {
+      console.log('Received select_language callback');
+      return messageHandler.handleLanguageSelection(ctx);
+    });
+
+    this.bot.action(/^select_language_(.+)$/, (ctx) => {
+      const languageCode = ctx.match[1];
+      console.log('Received select_language callback:', languageCode);
+      return messageHandler.handleLanguageSelected(ctx, languageCode);
+    });
     
     // Token transfer handlers
     this.bot.action('send_ces_tokens', (ctx) => {
@@ -382,6 +399,31 @@ class TelegramBot {
       const tokenSymbol = ctx.match[1].toUpperCase();
       console.log('Received p2p_sell callback for token:', tokenSymbol);
       return messageHandler.handleP2PSellToken(ctx, tokenSymbol);
+    });
+    
+    // Currency selection handlers for P2P trading
+    this.bot.action(/^p2p_currency_selection_(.+)_(.+)$/, (ctx) => {
+      const orderType = ctx.match[1];
+      const tokenSymbol = ctx.match[2].toUpperCase();
+      console.log('Received p2p_currency_selection callback:', orderType, tokenSymbol);
+      return messageHandler.handleP2PCurrencySelection(ctx, orderType, tokenSymbol);
+    });
+    
+    this.bot.action(/^p2p_currency_selected_(.+)_(.+)_(.+)$/, (ctx) => {
+      const orderType = ctx.match[1];
+      const tokenSymbol = ctx.match[2].toUpperCase();
+      const currencyCode = ctx.match[3];
+      console.log('Received p2p_currency_selected callback:', orderType, tokenSymbol, currencyCode);
+      return messageHandler.handleP2PCurrencySelected(ctx, orderType, tokenSymbol, currencyCode);
+    });
+    
+    // Updated price refresh handlers with currency support
+    this.bot.action(/^refresh_price_(.+)_(.+)_(.+)$/, (ctx) => {
+      const orderType = ctx.match[1];
+      const tokenSymbol = ctx.match[2].toUpperCase();
+      const currencyCode = ctx.match[3];
+      console.log('Received refresh_price callback with currency:', orderType, tokenSymbol, currencyCode);
+      return messageHandler.handlePriceRefresh(ctx, orderType, tokenSymbol, currencyCode);
     });
     
     this.bot.action('p2p_market_orders', (ctx) => {

@@ -75,7 +75,8 @@ class WalletHandler {
         message += `🌐 Поддерживаемые сети: ${multiChainService.getNetworks().map(n => `${multiChainService.getNetworkEmoji(n.id)} ${n.name}`).join(', ')}`;
       
         const keyboard = Markup.inlineKeyboard([
-          [Markup.button.callback('➕ Создать кошелек', 'create_wallet')]
+          [Markup.button.callback('➕ Создать кошелек', 'create_wallet')],
+          [Markup.button.callback('🔙 Назад', 'back_to_menu')]
         ]);
       
         await ctx.reply(message, keyboard);
@@ -139,7 +140,8 @@ class WalletHandler {
         
         // Remove the Главное меню button
         const keyboard = Markup.inlineKeyboard([
-          [Markup.button.callback('➕ Создать кошелек', 'create_wallet')]
+          [Markup.button.callback('➕ Создать кошелек', 'create_wallet')],
+          [Markup.button.callback('🔙 Назад', 'back_to_menu')]
         ]);
         
         await ctx.reply(message, keyboard);
@@ -457,7 +459,8 @@ class WalletHandler {
         
         const keyboard = Markup.inlineKeyboard([
           [Markup.button.callback('➕ Создать кошелек', 'create_wallet')],
-          [Markup.button.callback('🔙 Назад к кабинету', 'personal_cabinet')]
+          [Markup.button.callback('🔙 Назад к кабинету', 'personal_cabinet')],
+          [Markup.button.callback('🏠 Главное меню', 'back_to_menu')]
         ]);
         
         await ctx.reply(message, keyboard);

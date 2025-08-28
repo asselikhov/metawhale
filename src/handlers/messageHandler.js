@@ -81,6 +81,19 @@ class MessageHandler {
     return this.baseHandler.handleBackToMenu(ctx);
   }
 
+  // Settings operations
+  async handleSettingsMenu(ctx) {
+    return this.baseHandler.handleSettingsMenu(ctx);
+  }
+
+  async handleLanguageSelection(ctx) {
+    return this.baseHandler.handleLanguageSelection(ctx);
+  }
+
+  async handleLanguageSelected(ctx, languageCode) {
+    return this.baseHandler.handleLanguageSelected(ctx, languageCode);
+  }
+
   // Delegate wallet operations
   async handlePersonalCabinetText(ctx) {
     return this.walletHandler.handlePersonalCabinetText(ctx);
@@ -201,6 +214,20 @@ class MessageHandler {
 
   async handleP2PSellToken(ctx, tokenSymbol) {
     return this.p2pHandler.handleP2PSellToken(ctx, tokenSymbol);
+  }
+
+  // Handle P2P currency selection for multi-currency support
+  async handleP2PCurrencySelection(ctx, orderType, tokenSymbol) {
+    return this.p2pHandler.handleP2PCurrencySelection(ctx, orderType, tokenSymbol);
+  }
+
+  async handleP2PCurrencySelected(ctx, orderType, tokenSymbol, currencyCode) {
+    return this.p2pHandler.handleP2PCurrencySelected(ctx, orderType, tokenSymbol, currencyCode);
+  }
+
+  // Updated price refresh handler with currency support
+  async handlePriceRefresh(ctx, orderType, tokenSymbol = null, currencyCode = null) {
+    return this.p2pHandler.handlePriceRefresh(ctx, orderType, tokenSymbol, currencyCode);
   }
 
   // Delegate P2P data operations
@@ -426,11 +453,15 @@ class MessageHandler {
       
       // Create order (legacy database-only escrow)
       const p2pService = require('../services/p2pService');
+      
+      // Get selected currency from pending order or session
+      const selectedCurrency = pendingOrder.currency || sessionManager.getSessionData(chatId, 'selectedCurrency') || 'RUB';
+      
       let order;
       
       try {
         if (orderType === 'buy') {
-          order = await p2pService.createBuyOrder(chatId, amount, pricePerToken, minAmount, maxAmount);
+          order = await p2pService.createBuyOrder(chatId, amount, pricePerToken, selectedCurrency, minAmount, maxAmount);
         } else {
           // Get payment methods for sell order and convert to enum values
           const userPaymentMethods = user.p2pProfile?.paymentMethods?.filter(pm => pm.isActive) || [];
@@ -576,11 +607,15 @@ class MessageHandler {
       
       // Create order with smart contract escrow
       const p2pService = require('../services/p2pService');
+      
+      // Get selected currency from pending order or session
+      const selectedCurrency = pendingOrder.currency || sessionManager.getSessionData(chatId, 'selectedCurrency') || 'RUB';
+      
       let order;
       
       try {
         if (orderType === 'buy') {
-          order = await p2pService.createBuyOrder(chatId, amount, pricePerToken, minAmount, maxAmount);
+          order = await p2pService.createBuyOrder(chatId, amount, pricePerToken, selectedCurrency, minAmount, maxAmount);
         } else {
           // Get payment methods for sell order and convert to enum values
           const userPaymentMethods = user.p2pProfile?.paymentMethods?.filter(pm => pm.isActive) || [];
