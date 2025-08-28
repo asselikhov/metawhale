@@ -150,17 +150,29 @@ class OptimizedCallbackHandler {
       try {
         const p2pData = await backgroundService.processP2PData(chatId);
         
+        // Get selected token from session
+        const sessionManager = require('./SessionManager');
+        const selectedToken = sessionManager.getSessionData(chatId, 'selectedToken') || 'CES';
+        
+        // Get token name for display
+        const userNetworkService = require('../services/userNetworkService');
+        const multiChainService = require('../services/multiChainService');
+        const currentNetwork = await userNetworkService.getUserNetwork(chatId);
+        const tokenConfig = multiChainService.getTokenConfig(currentNetwork, selectedToken);
+        const tokenName = tokenConfig?.name || selectedToken;
+        
         const finalMessage = `🔄 P2P БИРЖА\n` +
                             `➖➖➖➖➖➖➖➖➖➖➖\n` +
                             `${p2pData.userName}\n` +
-                            `Исполненные ордера за 30 дней: ${p2pData.stats.ordersLast30Days} шт.\n` +
+                            `Исполненные ордеры за 30 дней: ${p2pData.stats.ordersLast30Days} шт.\n` +
                             `Процент исполнения за 30 дней: ${p2pData.stats.completionRateLast30Days}%\n` +
                             `Среднее время перевода: ${p2pData.stats.avgTransferTime} мин.\n` +
                             `Среднее время оплаты: ${p2pData.stats.avgPaymentTime} мин.\n` +
                             `Рейтинг: ${p2pData.stats.rating}`;
 
         const keyboard = Markup.inlineKeyboard([
-          [Markup.button.callback('📈 Купить CES', 'p2p_buy_ces'), Markup.button.callback('📉 Продать CES', 'p2p_sell_ces')],
+          [Markup.button.callback(`📈 Купить ${tokenName}`, `p2p_buy_${selectedToken.toLowerCase()}`), 
+           Markup.button.callback(`📉 Продать ${tokenName}`, `p2p_sell_${selectedToken.toLowerCase()}`)],
           [Markup.button.callback('📊 Рынок', 'p2p_market_orders'), Markup.button.callback('📋 Мои ордера', 'p2p_my_orders')],
           [Markup.button.callback('🏆 Топ', 'p2p_top_traders'), Markup.button.callback('🧮 Аналитика', 'p2p_analytics')],
           [Markup.button.callback('📑 Мои данные', 'p2p_my_data')]
@@ -226,43 +238,61 @@ class OptimizedCallbackHandler {
       backgroundService.queueTask(priceTaskId, async () => {
         const priceService = require('../services/priceService');
         const walletService = require('../services/walletService');
+        const sessionManager = require('./SessionManager');
+        const fiatCurrencyService = require('../services/fiatCurrencyService');
+        
+        const chatId = ctx.chat.id.toString();
+        const selectedToken = sessionManager.getSessionData(chatId, 'selectedToken') || 'CES';
+        const selectedCurrency = sessionManager.getSessionData(chatId, 'selectedCurrency') || 'RUB';
         
         const priceData = await priceService.getMarketPriceSuggestion();
         let walletInfo = null;
         
         if (orderType === 'sell') {
-          const chatId = ctx.chat.id.toString();
           walletInfo = await walletService.getUserWallet(chatId);
         }
 
-        return { priceData, walletInfo };
+        return { priceData, walletInfo, selectedToken, selectedCurrency };
       }, { priority: 2 })
-      .then(async ({ priceData, walletInfo }) => {
+      .then(async ({ priceData, walletInfo, selectedToken, selectedCurrency }) => {
+        const fiatCurrencyService = require('../services/fiatCurrencyService');
+        const currency = fiatCurrencyService.getCurrencyMetadata(selectedCurrency);
+        
         let message;
         
         if (orderType === 'buy') {
-          message = `📈 ПОКУПКА CES ТОКЕНОВ\n` +
+          message = `📈 ПОКУПКА ${selectedToken} ТОКЕНОВ\n` +
                    `➖➖➖➖➖➖➖➖➖➖➖\n` +
-                   `Текущая рыночная цена: ₽ ${priceData.currentPrice.toFixed(2)} / CES 🟢\n\n` +
-                   `⚠️ Введите [кол-во, CES] [цена_за_токен, ₽] [мин_сумма, ₽] [макс_сумма, ₽]\n` +
+                   `${currency.flag} Валюта: ${currency.nameRu} (${currency.code})\n` +
+                   `Текущая рыночная цена: ₽ ${priceData.currentPrice.toFixed(2)} / ${selectedToken} 🟢\n\n` +
+                   `⚠️ Введите [кол-во, ${selectedToken}] [цена_за_токен, ${currency.symbol}] [мин_сумма, ${currency.symbol}] [макс_сумма, ${currency.symbol}]\n` +
                    `💡 Пример: 10 245 1000 2450\n\n` +
                    `Информация:\n` +
-                   `• Минимальная сумма: 10 ₽\n` +
+                   `• Минимальная сумма в ${currency.code}: эквивалент 10 ${currency.symbol}\n` +
                    `• Комиссия платформы: 1% (только с мейкеров)`;
         } else {
-          message = `📉 ПРОДАЖА CES ТОКЕНОВ\n` +
+          let balanceText = '';
+          if (selectedToken === 'CES' && walletInfo) {
+            balanceText = `Баланс: ${walletInfo.cesBalance.toFixed(4)} ${selectedToken}\n`;
+          } else if (walletInfo && walletInfo.balance !== undefined) {
+            balanceText = `Баланс: ${walletInfo.balance.toFixed(6)} ${selectedToken}\n`;
+          }
+          
+          message = `📉 ПРОДАЖА ${selectedToken} ТОКЕНОВ\n` +
                    `➖➖➖➖➖➖➖➖➖➖➖\n` +
-                   `Текущая рыночная цена: ₽ ${priceData.currentPrice.toFixed(2)} / CES 🟢\n` +
-                   `Ваш баланс: ${walletInfo.cesBalance.toFixed(4)} CES\n\n` +
-                   `⚠️ Введите  [кол-во, CES] [цена_за_токен, ₽] [мин_сумма, ₽] [макс_сумма, ₽]\n` +
+                   `${currency.flag} Валюта: ${currency.nameRu} (${currency.code})\n` +
+                   `Текущая рыночная цена: ₽ ${priceData.currentPrice.toFixed(2)} / ${selectedToken} 🟢\n` +
+                   balanceText + '\n' +
+                   `⚠️ Введите [кол-во, ${selectedToken}] [цена_за_токен, ${currency.symbol}] [мин_сумма, ${currency.symbol}] [макс_сумма, ${currency.symbol}]\n` +
                    `💡 Пример: 50 253.5 1000 12675\n\n` +
                    `Информация:\n` +
-                   `• Минимальная сумма: 10 ₽\n` +
-                   `• Комиссия платформы: 1% (только с мейкеров)`;
+                   `• Минимальная сумма в ${currency.code}: эквивалент 10 ${currency.symbol}\n` +
+                   `• Комиссия платформы: 1%`;
         }
 
         const keyboard = Markup.inlineKeyboard([
-          [Markup.button.callback('🔄 Обновить цену', `refresh_price_${orderType}`)],
+          [Markup.button.callback('🔄 Обновить цену', `refresh_price_${orderType}_${selectedToken.toLowerCase()}_${selectedCurrency}`)],
+          [Markup.button.callback('💱 Сменить валюту', `p2p_currency_selection_${orderType}_${selectedToken.toLowerCase()}`)],
           [Markup.button.callback('🔙 Назад', 'p2p_menu')]
         ]);
 

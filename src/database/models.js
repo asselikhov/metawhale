@@ -287,7 +287,19 @@ const transactionSchema = new mongoose.Schema({
 const p2pOrderSchema = new mongoose.Schema({
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   type: { type: String, enum: ['buy', 'sell'], required: true },
-  amount: { type: Number, required: true }, // Amount of CES tokens
+  amount: { type: Number, required: true }, // Amount of tokens
+  
+  // 🆕 МУЛЬТИТОКЕННЫЕ ПОЛЯ
+  tokenType: { 
+    type: String, 
+    enum: ['CES', 'USDT', 'POL', 'TRX', 'BNB', 'SOL', 'ETH', 'ARB', 'AVAX', 'BUSD', 'TON', 'NOT'],
+    default: 'CES' // Обратная совместимость
+  },
+  network: {
+    type: String,
+    enum: ['polygon', 'tron', 'bsc', 'solana', 'arbitrum', 'avalanche', 'ton'],
+    default: 'polygon' // Обратная совместимость
+  },
   
   // 🆕 МУЛЬТИВАЛЮТНЫЕ ПОЛЯ
   currency: { 
@@ -295,7 +307,7 @@ const p2pOrderSchema = new mongoose.Schema({
     enum: ['USD', 'RUB', 'EUR', 'CNY', 'INR', 'NGN', 'VND', 'KRW', 'JPY', 'BRL'],
     default: 'RUB' // Обратная совместимость
   },
-  pricePerToken: { type: Number, required: true }, // Price per CES token in selected currency
+  pricePerToken: { type: Number, required: true }, // Price per token in selected currency
   totalValue: { type: Number, required: true }, // Total value in selected currency
   
   // Дополнительные поля для унификации и аналитики
@@ -327,6 +339,9 @@ p2pOrderSchema.index({ currency: 1, type: 1, status: 1 });
 p2pOrderSchema.index({ currency: 1, pricePerToken: 1 });
 p2pOrderSchema.index({ currency: 1, pricePerTokenInUSD: 1 });
 p2pOrderSchema.index({ totalValueInUSD: 1 });
+// 🆕 Новые индексы для мультитокенности
+p2pOrderSchema.index({ tokenType: 1, network: 1, type: 1, status: 1 });
+p2pOrderSchema.index({ tokenType: 1, network: 1, pricePerToken: 1 });
 
 // P2P Trade Schema (for completed trades with multiple fiat currencies and escrow)
 const p2pTradeSchema = new mongoose.Schema({

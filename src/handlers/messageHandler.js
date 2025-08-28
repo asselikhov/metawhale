@@ -303,11 +303,23 @@ class MessageHandler {
 
   // Delegate P2P orders operations
   async handleP2PBuyOrders(ctx, page) {
-    return this.ordersHandler.handleP2PBuyOrders(ctx, page);
+    // Get selected token from session
+    const chatId = ctx.chat.id.toString();
+    const sessionManager = require('./SessionManager');
+    const selectedToken = sessionManager.getSessionData(chatId, 'selectedToken') || 'CES';
+    
+    // Pass token to orders handler
+    return this.ordersHandler.handleP2PBuyOrders(ctx, page, selectedToken);
   }
 
   async handleP2PSellOrders(ctx, page) {
-    return this.ordersHandler.handleP2PSellOrders(ctx, page);
+    // Get selected token from session
+    const chatId = ctx.chat.id.toString();
+    const sessionManager = require('./SessionManager');
+    const selectedToken = sessionManager.getSessionData(chatId, 'selectedToken') || 'CES';
+    
+    // Pass token to orders handler
+    return this.ordersHandler.handleP2PSellOrders(ctx, page, selectedToken);
   }
 
   async handleP2PMyOrders(ctx, page) {
@@ -539,6 +551,110 @@ class MessageHandler {
       const processingKey = `processing_order_${chatId}`;
       sessionManager.clearUserSession(chatId);
       sessionManager.setSessionData(chatId, processingKey, false);
+      await ctx.reply('❌ Ошибка подтверждения ордера.');
+    }
+  }
+
+  // Handle P2P order confirmation
+  async handleP2POrderConfirmation(ctx) {
+    try {
+      const chatId = ctx.chat.id.toString();
+      const sessionManager = require('./SessionManager');
+      const pendingOrder = sessionManager.getPendingP2POrder(chatId);
+      
+      if (!pendingOrder) {
+        return await ctx.reply('❌ Ордер не найден. Создайте новый ордер.');
+      }
+      
+      const { 
+        orderType, 
+        amount, 
+        pricePerToken, 
+        minAmount, 
+        maxAmount,
+        tokenType = 'CES',
+        network = 'polygon',
+        currency = 'RUB'
+      } = pendingOrder;
+      
+      // Clear pending order from session
+      sessionManager.setSessionData(chatId, 'pendingP2POrder', null);
+      
+      const p2pService = require('../services/p2pService');
+      
+      try {
+        let result;
+        if (orderType === 'buy') {
+          result = await p2pService.createBuyOrder(
+            chatId, 
+            amount, 
+            pricePerToken, 
+            minAmount, 
+            maxAmount,
+            tokenType,
+            network,
+            currency
+          );
+        } else {
+          // For sell orders, get payment methods from user profile
+          const { User } = require('../database/models');
+          const user = await User.findOne({ chatId });
+          if (!user || !user.p2pProfile || !user.p2pProfile.paymentMethods) {
+            throw new Error('Профиль пользователя не найден');
+          }
+          
+          // Filter only active payment methods
+          const activePaymentMethods = user.p2pProfile.paymentMethods
+            .filter(pm => pm.isActive)
+            .map(pm => 'bank_transfer'); // Map to standard payment method
+          
+          if (activePaymentMethods.length === 0) {
+            throw new Error('Активные способы оплаты не найдены');
+          }
+          
+          result = await p2pService.createSellOrder(
+            chatId, 
+            amount, 
+            pricePerToken, 
+            activePaymentMethods,
+            minAmount, 
+            maxAmount,
+            tokenType,
+            network,
+            currency
+          );
+        }
+        
+        const typeText = orderType === 'buy' ? 'покупки' : 'продажи';
+        const tokenText = tokenType || 'CES';
+        const networkText = network || 'polygon';
+        const currencyText = currency || 'RUB';
+        
+        await ctx.reply(`✅ Ордер на ${typeText} ${tokenText} в сети ${networkText} успешно создан!\n\n` +
+                       `💱 Валюта: ${currencyText}\n` +
+                       `💰 Количество: ${amount} ${tokenText}\n` +
+                       `💵 Цена: ${pricePerToken} ${currencyText}/${tokenText}\n\n` +
+                       `📊 Ордер будет автоматически сопоставлен с подходящими предложениями.`);
+        
+      } catch (error) {
+        console.error('Order creation error:', error);
+        let errorMessage = '❌ Ошибка создания ордера';
+        
+        if (error.message.includes('Пользователь не найден')) {
+          errorMessage = '❌ Пользователь не найден';
+        } else if (error.message.includes('Заполните профиль P2P')) {
+          errorMessage = '❌ Заполните профиль P2P для создания ордеров';
+        } else if (error.message.includes('лимит')) {
+          errorMessage = `❌ ${error.message}`;
+        } else if (error.message.includes('средств')) {
+          errorMessage = `❌ ${error.message}`;
+        }
+        
+        await ctx.reply(`${errorMessage}\n\nПодробности: ${error.message}`);
+      }
+      
+    } catch (error) {
+      console.error('P2P order confirmation error:', error);
       await ctx.reply('❌ Ошибка подтверждения ордера.');
     }
   }

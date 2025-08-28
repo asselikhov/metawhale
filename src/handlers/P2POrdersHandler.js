@@ -311,7 +311,7 @@ class P2POrdersHandler {
       // Дополнительные действия
       const extraButtons = [];
       extraButtons.push(Markup.button.callback('📊 Аналитика', `order_analytics_${order._id}`));
-      extraButtons.push(Markup.button.callback('📈 История', `order_history_${order._id}`));
+      extraButtons.push(Markup.button.callback('chartInstance История', `order_history_${order._id}`));
       buttons.push(extraButtons);
       
       // Кнопки управления
@@ -328,7 +328,7 @@ class P2POrdersHandler {
     // Кнопки для завершённых ордеров
     else if (order.status === 'completed') {
       const completedButtons = [];
-      completedButtons.push(Markup.button.callback('📈 История', `order_history_${order._id}`));
+      completedButtons.push(Markup.button.callback('chartInstance История', `order_history_${order._id}`));
       completedButtons.push(Markup.button.callback('🔄 Повторить', `duplicate_order_${order._id}`));
       buttons.push(completedButtons);
     }
@@ -394,7 +394,7 @@ class P2POrdersHandler {
         userRank = '💪 Продвинутый';
       }
       
-      const statisticsHeader = `📈 МОЯ СТАТИСТИКА P2P\n` +
+      const statisticsHeader = `chartInstance МОЯ СТАТИСТИКА P2P\n` +
                               `➖➖➖➖➖➖➖➖➖➖➖\n` +
                               `🟢 Активных ордеров: ${activeOrders}\n` +
                               `✅ Исполнено всего: ${completedOrders} ордеров\n` +
@@ -408,24 +408,41 @@ class P2POrdersHandler {
       
     } catch (error) {
       console.error('Ошибка генерации статистики:', error);
-      return '📈 МОЯ СТАТИСТИКА P2P\n➖➖➖➖➖➖➖➖➖➖➖\n⚠️ Ошибка загрузки статистики\n\n';
+      return 'chartInstance МОЯ СТАТИСТИКА P2P\n➖➖➖➖➖➖➖➖➖➖➖\n⚠️ Ошибка загрузки статистики\n\n';
     }
   }
 
   // Handle buy orders display with pagination (edit existing messages)
-  async handleP2PBuyOrders(ctx, page = 1) {
+  async handleP2PBuyOrders(ctx, page = 1, tokenSymbol = 'CES') {
     try {
+      const chatId = ctx.chat.id.toString();
+      const sessionManager = require('./SessionManager');
+      const userNetworkService = require('../services/userNetworkService');
+      const fiatCurrencyService = require('../services/fiatCurrencyService');
+      
+      // Get user's selected token, network, and currency from session
+      const selectedToken = sessionManager.getSessionData(chatId, 'selectedToken') || tokenSymbol;
+      const selectedNetwork = await userNetworkService.getUserNetwork(chatId);
+      const selectedCurrency = await fiatCurrencyService.getUserCurrency(chatId);
+      
       const limit = 5; // Показываем по 5 ордеров на странице
       const offset = (page - 1) * limit;
-      const result = await p2pService.getMarketOrders(limit, offset);
-      const chatId = ctx.chat.id.toString();
+      
+      // Pass filters to getMarketOrders
+      const filters = {
+        tokenType: selectedToken,
+        network: selectedNetwork,
+        currency: selectedCurrency
+      };
+      
+      const result = await p2pService.getMarketOrders(limit, offset, filters);
       
       // Filter out orders with null userId
       const validSellOrders = result.sellOrders.filter(order => order.userId !== null);
       
-      // Buy orders section shows sell orders from database (users wanting to buy CES)
+      // Buy orders section shows sell orders from database (users wanting to buy tokens)
       if (validSellOrders.length === 0) {
-        const message = `⚠️ Активных ордеров на покупку пока нет\n\n` +
+        const message = `⚠️ Активных ордеров на покупку ${selectedToken} пока нет\n\n` +
                        `💡 Создайте первый ордер на покупку!`;
         
         const keyboard = Markup.inlineKeyboard([
@@ -447,7 +464,7 @@ class P2POrdersHandler {
       const reputationService = require('../services/reputationService');
       const orderMessageIds = [];
       
-      // Display sell orders from database (users wanting to buy CES from market perspective)
+      // Display sell orders from database (users wanting to buy tokens from market perspective)
       for (let i = 0; i < validSellOrders.length; i++) {
         const order = validSellOrders[i];
         // Проверяем, что userId существует перед доступом к username
@@ -462,15 +479,15 @@ class P2POrdersHandler {
         // Calculate remaining time for this order
         const timeInfo = this.calculateRemainingTime(order);
         
-        // Calculate limits in rubles based on price and amounts
+        // Calculate limits in selected currency based on price and amounts
         const minAmount = order.minTradeAmount || 1;
         const maxAmount = order.maxTradeAmount || order.remainingAmount;
-        const minRubles = (minAmount * order.pricePerToken).toFixed(2);
-        const maxRubles = (maxAmount * order.pricePerToken).toFixed(2);
+        const minCurrency = (minAmount * order.pricePerToken).toFixed(2);
+        const maxCurrency = (maxAmount * order.pricePerToken).toFixed(2);
         
-        const orderMessage = `₽ ${order.pricePerToken.toFixed(2)} / CES | @${username} ${emoji}\n` +
-                           `Доступно: ${order.remainingAmount.toFixed(2)} CES\n` +
-                           `Лимиты: ${minRubles} - ${maxRubles} ₽\n` +
+        const orderMessage = `${order.currency} ${order.pricePerToken.toFixed(2)} / ${order.tokenType} | @${username} ${emoji}\n` +
+                           `Доступно: ${order.remainingAmount.toFixed(2)} ${order.tokenType}\n` +
+                           `Лимиты: ${minCurrency} - ${maxCurrency} ${order.currency}\n` +
                            `⏰ Время: ${timeInfo.timeText}`;
         
         // Check if this is the last order on page to add navigation
@@ -479,7 +496,7 @@ class P2POrdersHandler {
         
         if (isLastOrder) {
           // Create navigation buttons for the last order
-          const navigationButtons = [[Markup.button.callback('🟩 Купить', order.userId && order.userId._id && order._id ? `buy_details_${order.userId._id}_${order._id}` : 'no_action')]];
+          const navigationButtons = [[Markup.button.callback(`🟩 Купить ${order.tokenType}`, order.userId && order.userId._id && order._id ? `buy_details_${order.userId._id}_${order._id}` : 'no_action')]];
           
           // Add pagination if there are multiple pages
           if (totalPages > 1) {
@@ -515,7 +532,7 @@ class P2POrdersHandler {
           orderKeyboard = Markup.inlineKeyboard(navigationButtons);
         } else {
           orderKeyboard = Markup.inlineKeyboard([
-            [Markup.button.callback('🟩 Купить', order.userId && order.userId._id && order._id ? `buy_details_${order.userId._id}_${order._id}` : 'no_action')]
+            [Markup.button.callback(`🟩 Купить ${order.tokenType}`, order.userId && order.userId._id && order._id ? `buy_details_${order.userId._id}_${order._id}` : 'no_action')]
           ]);
         }
         
@@ -556,24 +573,41 @@ class P2POrdersHandler {
       
     } catch (error) {
       console.error('Buy orders error:', error);
-      await ctx.reply('❌ Ошибка загрузки ордеров на покупку.');
+      await ctx.reply(`❌ Ошибка загрузки ордеров на покупку ${selectedToken}.`);
     }
   }
 
   // Handle sell orders display with pagination (edit existing messages)
-  async handleP2PSellOrders(ctx, page = 1) {
+  async handleP2PSellOrders(ctx, page = 1, tokenSymbol = 'CES') {
     try {
+      const chatId = ctx.chat.id.toString();
+      const sessionManager = require('./SessionManager');
+      const userNetworkService = require('../services/userNetworkService');
+      const fiatCurrencyService = require('../services/fiatCurrencyService');
+      
+      // Get user's selected token, network, and currency from session
+      const selectedToken = sessionManager.getSessionData(chatId, 'selectedToken') || tokenSymbol;
+      const selectedNetwork = await userNetworkService.getUserNetwork(chatId);
+      const selectedCurrency = await fiatCurrencyService.getUserCurrency(chatId);
+      
       const limit = 5; // Показываем по 5 ордеров на странице
       const offset = (page - 1) * limit;
-      const result = await p2pService.getMarketOrders(limit, offset);
-      const chatId = ctx.chat.id.toString();
+      
+      // Pass filters to getMarketOrders
+      const filters = {
+        tokenType: selectedToken,
+        network: selectedNetwork,
+        currency: selectedCurrency
+      };
+      
+      const result = await p2pService.getMarketOrders(limit, offset, filters);
       
       // Filter out orders with null userId
       const validBuyOrders = result.buyOrders.filter(order => order.userId !== null);
       
-      // Sell orders section shows buy orders from database (users wanting to sell CES)
+      // Sell orders section shows buy orders from database (users wanting to sell tokens)
       if (validBuyOrders.length === 0) {
-        const message = `⚠️ Активных ордеров на продажу пока нет\n\n` +
+        const message = `⚠️ Активных ордеров на продажу ${selectedToken} пока нет\n\n` +
                        `💡 Создайте первый ордер на продажу!`;
         
         const keyboard = Markup.inlineKeyboard([
@@ -595,7 +629,7 @@ class P2POrdersHandler {
       const reputationService = require('../services/reputationService');
       const orderMessageIds = [];
       
-      // Display buy orders from database (users wanting to sell CES from market perspective)
+      // Display buy orders from database (users wanting to sell tokens from market perspective)
       for (let i = 0; i < validBuyOrders.length; i++) {
         const order = validBuyOrders[i];
         // Проверяем, что userId существует перед доступом к username
@@ -610,15 +644,15 @@ class P2POrdersHandler {
         // Calculate remaining time for this order
         const timeInfo = this.calculateRemainingTime(order);
         
-        // Calculate limits in rubles based on price and amounts
+        // Calculate limits in selected currency based on price and amounts
         const minAmount = order.minTradeAmount || 1;
         const maxAmount = order.maxTradeAmount || order.remainingAmount;
-        const minRubles = (minAmount * order.pricePerToken).toFixed(2);
-        const maxRubles = (maxAmount * order.pricePerToken).toFixed(2);
+        const minCurrency = (minAmount * order.pricePerToken).toFixed(2);
+        const maxCurrency = (maxAmount * order.pricePerToken).toFixed(2);
         
-        const orderMessage = `₽ ${order.pricePerToken.toFixed(2)} / CES | @${username} ${emoji}\n` +
-                           `Доступно: ${order.remainingAmount.toFixed(2)} CES\n` +
-                           `Лимиты: ${minRubles} - ${maxRubles} ₽\n` +
+        const orderMessage = `${order.currency} ${order.pricePerToken.toFixed(2)} / ${order.tokenType} | @${username} ${emoji}\n` +
+                           `Доступно: ${order.remainingAmount.toFixed(2)} ${order.tokenType}\n` +
+                           `Лимиты: ${minCurrency} - ${maxCurrency} ${order.currency}\n` +
                            `⏰ Время: ${timeInfo.timeText}`;
         
         // Check if this is the last order on page to add navigation
@@ -627,7 +661,7 @@ class P2POrdersHandler {
         
         if (isLastOrder) {
           // Create navigation buttons for the last order
-          const navigationButtons = [[Markup.button.callback('🟥 Продать', order.userId && order.userId._id && order._id ? `sell_details_${order.userId._id}_${order._id}` : 'no_action')]];
+          const navigationButtons = [[Markup.button.callback(`🟥 Продать ${order.tokenType}`, order.userId && order.userId._id && order._id ? `sell_details_${order.userId._id}_${order._id}` : 'no_action')]];
           
           // Add pagination if there are multiple pages
           if (totalPages > 1) {
@@ -663,7 +697,7 @@ class P2POrdersHandler {
           orderKeyboard = Markup.inlineKeyboard(navigationButtons);
         } else {
           orderKeyboard = Markup.inlineKeyboard([
-            [Markup.button.callback('🟥 Продать', order.userId && order.userId._id && order._id ? `sell_details_${order.userId._id}_${order._id}` : 'no_action')]
+            [Markup.button.callback(`🟥 Продать ${order.tokenType}`, order.userId && order.userId._id && order._id ? `sell_details_${order.userId._id}_${order._id}` : 'no_action')]
           ]);
         }
         
@@ -704,7 +738,7 @@ class P2POrdersHandler {
       
     } catch (error) {
       console.error('Sell orders error:', error);
-      await ctx.reply('❌ Ошибка загрузки ордеров на продажу.');
+      await ctx.reply(`❌ Ошибка загрузки ордеров на продажу ${selectedToken}.`);
     }
   }
 
@@ -738,7 +772,7 @@ class P2POrdersHandler {
       const reputationService = require('../services/reputationService');
       const stats = await reputationService.getStandardizedUserStats(user._id);
       
-      const statisticsHeader = `📈 МОЯ СТАТИСТИКА\n` +
+      const statisticsHeader = `chartInstance МОЯ СТАТИСТИКА\n` +
                               `➖➖➖➖➖➖➖➖➖➖➖\n` +
                               `🟢 Активных ордеров: ${activeOrders}\n` +
                               `✅ Исполнено за месяц: ${stats.ordersLast30Days} ордеров\n` +
@@ -783,7 +817,7 @@ class P2POrdersHandler {
       if (page === 1 && statisticsHeader && result.orders.length > 0) {
         const statsKeyboard = Markup.inlineKeyboard([
           [
-            Markup.button.callback('📈 Полная аналитика', 'p2p_analytics'),
+            Markup.button.callback('chartInstance Полная аналитика', 'p2p_analytics'),
             Markup.button.callback('🏆 Топ трейдеров', 'p2p_top_traders')
           ]
         ]);
@@ -867,7 +901,7 @@ class P2POrdersHandler {
         for (let i = 0; i < result.orders.length; i++) {
           const order = result.orders[i];
           const orderNumber = offset + i + 1;
-          const orderType = order.type === 'buy' ? '📈 Покупка' : '📉 Продажа';
+          const orderType = order.type === 'buy' ? 'chartInstance Покупка' : '📉 Продажа';
           
           // 🎯 РАСШИРЕННАЯ ИНФОРМАЦИЯ ОБ ОРДЕРЕ
           const user = await User.findOne({ chatId });
@@ -1149,15 +1183,15 @@ class P2POrdersHandler {
       const enhancedInfo = await this.calculateEnhancedOrderInfo(order);
       const timeInfo = this.calculateRemainingTime(order);
       
-      const analytics = `📊 АНАЛИТИКА ОРДЕРА\n` +
+      const analytics = `chartInstance АНАЛИТИКА ОРДЕРА\n` +
                        `➖➖➖➖➖➖➖➖➖➖➖\n` +
                        `🏷️ ID: ${order._id}\n` +
-                       `📈 Тип: ${order.type === 'buy' ? 'Покупка' : 'Продажа'}\n\n` +
+                       `chartInstance Тип: ${order.type === 'buy' ? 'Покупка' : 'Продажа'}\n\n` +
                        `💰 ФИНАНСОВАЯ ИНФОРМАЦИЯ:\n` +
                        `• Общая сумма: ₽${enhancedInfo.totalValue.toLocaleString('ru-RU')}\n` +
                        `• Комиссия: ₽${enhancedInfo.commission.toLocaleString('ru-RU')}\n` +
                        `• Отклонение от рынка: ${enhancedInfo.priceDeviation.toFixed(1)}%\n\n` +
-                       `📈 ПРОГРЕСС ИСПОЛНЕНИЯ:\n` +
+                       `chartInstance ПРОГРЕСС ИСПОЛНЕНИЯ:\n` +
                        `${this.generateProgressBar(enhancedInfo.progressPercent)} ${enhancedInfo.progressPercent}%\n` +
                        `• Исполнено: ${enhancedInfo.filledAmount.toFixed(4)} CES\n` +
                        `• Осталось: ${enhancedInfo.remainingAmount.toFixed(4)} CES\n\n` +
@@ -1203,7 +1237,7 @@ class P2POrdersHandler {
         ]
       }).populate(['buyerId', 'sellerId']).sort({ createdAt: -1 });
       
-      let history = `📈 ИСТОРИЯ ОРДЕРА\n` +
+      let history = `chartInstance ИСТОРИЯ ОРДЕРА\n` +
                    `➖➖➖➖➖➖➖➖➖➖➖\n` +
                    `🏷️ ID: ${order._id}\n` +
                    `📅 Создан: ${order.createdAt.toLocaleString('ru-RU')}\n\n`;
@@ -1260,7 +1294,7 @@ class P2POrdersHandler {
                      `➖➖➖➖➖➖➖➖➖➖➖\n` +
                      `Создать новый ордер на основе этого?\n\n` +
                      `.DataGridViewColumn: ${order.type === 'buy' ? 'Покупка' : 'Продажа'}\n` +
-                     `📊 Количество: ${order.amount.toFixed(4)} CES\n` +
+                     `chartInstance Количество: ${order.amount.toFixed(4)} CES\n` +
                      `💰 Цена: ₽${order.pricePerToken.toLocaleString('ru-RU')} за CES`;
       
       const keyboard = Markup.inlineKeyboard([
@@ -1294,8 +1328,8 @@ class P2POrdersHandler {
       
       const shareText = `📤 P2P ОРДЕР\n` +
                        `➖➖➖➖➖➖➖➖➖➖➖\n` +
-                       `${order.type === 'buy' ? '📈 ПОКУПКА' : '📉 ПРОДАЖА'} CES\n` +
-                       `📊 Количество: ${order.remainingAmount.toFixed(4)} CES\n` +
+                       `${order.type === 'buy' ? 'chartInstance ПОКУПКА' : '📉 ПРОДАЖА'} CES\n` +
+                       `chartInstance Количество: ${order.remainingAmount.toFixed(4)} CES\n` +
                        `💰 Цена: ₽${order.pricePerToken.toLocaleString('ru-RU')} за CES\n` +
                        `💵 Сумма: ₽${(order.remainingAmount * order.pricePerToken).toLocaleString('ru-RU')}\n\n` +
                        `🏷️ ID: ${order._id}\n\n` +

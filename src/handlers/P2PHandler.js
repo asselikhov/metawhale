@@ -198,14 +198,17 @@ class P2PHandler {
       // Clear any existing order session data when entering market orders
       sessionManager.clearUserSession(chatId);
       
-      // Show selection menu for buy/sell orders
-      const message = `📊 РЫНОК\n` +
+      // Get user's selected token from session
+      const selectedToken = sessionManager.getSessionData(chatId, 'selectedToken') || 'CES';
+      
+      // Show selection menu for buy/sell orders with token context
+      const message = `📊 РЫНОК ${selectedToken}\n` +
                      `➖➖➖➖➖➖➖➖➖➖➖\n` +
                      `Выберите тип ордеров для просмотра:`;
 
       const keyboard = Markup.inlineKeyboard([
-        [Markup.button.callback('📈 Купить', 'p2p_buy_orders')],
-        [Markup.button.callback('📉 Продать', 'p2p_sell_orders')],
+        [Markup.button.callback(`📈 Купить ${selectedToken}`, `p2p_buy_orders`)],
+        [Markup.button.callback(`📉 Продать ${selectedToken}`, `p2p_sell_orders`)],
         [Markup.button.callback('🔙 Назад', 'p2p_menu')]
       ]);
 
@@ -272,11 +275,17 @@ class P2PHandler {
         return;
       }
       
-      // Get selected currency from session, default to RUB for backward compatibility
+      // Get selected token, network, and currency from session
+      const sessionManager = require('./SessionManager');
+      const userNetworkService = require('../services/userNetworkService');
+      const fiatCurrencyService = require('../services/fiatCurrencyService');
+      
+      const selectedToken = sessionManager.getSessionData(chatId, 'selectedToken') || 'CES';
+      const selectedNetwork = await userNetworkService.getUserNetwork(chatId);
       const selectedCurrency = sessionManager.getSessionData(chatId, 'selectedCurrency') || 'RUB';
       const currency = fiatCurrencyService.getCurrencyMetadata(selectedCurrency);
       
-      console.log(`💱 Processing P2P order for user ${chatId} in currency ${selectedCurrency}`);
+      console.log(`💱 Processing P2P order for user ${chatId} with token ${selectedToken}, network ${selectedNetwork}, currency ${selectedCurrency}`);
       
       // ONLY handle main menu buttons if we're actually in an order processing session
       const userState = sessionManager.getUserState(chatId);
@@ -325,36 +334,36 @@ class P2PHandler {
         return await ctx.reply(`⚠️ Неверный формат. \n💡 Используйте: количество цена_за_токен [мин_сумма_${currency.symbol} макс_сумма_${currency.symbol}]\n\nПример: 10 250.50 или 10 250.50 1000 2500`);
       }
       
-      const [amountStr, priceStr, minRublesStr, maxRublesStr] = parts;
+      const [amountStr, priceStr, minCurrencyStr, maxCurrencyStr] = parts;
       
       // Normalize decimal separators
       const amount = parseFloat(amountStr.replace(',', '.'));
       const pricePerToken = parseFloat(priceStr.replace(',', '.'));
-      const minRubles = minRublesStr ? parseFloat(minRublesStr.replace(',', '.')) : pricePerToken; // Default to price of 1 CES
-      const maxRubles = maxRublesStr ? parseFloat(maxRublesStr.replace(',', '.')) : amount * pricePerToken; // Default to total order value
+      const minCurrency = minCurrencyStr ? parseFloat(minCurrencyStr.replace(',', '.')) : pricePerToken; // Default to price of 1 token
+      const maxCurrency = maxCurrencyStr ? parseFloat(maxCurrencyStr.replace(',', '.')) : amount * pricePerToken; // Default to total order value
       
-      // Convert ruble amounts to CES amounts
-      const minAmount = minRubles / pricePerToken;
-      const maxAmount = maxRubles / pricePerToken;
+      // Convert currency amounts to token amounts
+      const minAmount = minCurrency / pricePerToken;
+      const maxAmount = maxCurrency / pricePerToken;
       
       if (isNaN(amount) || amount <= 0 || isNaN(pricePerToken) || pricePerToken <= 0) {
         return await ctx.reply('❌ Неверные значения. Укажите положительные числа.');
       }
       
       if (amount < 0.1) {
-        return await ctx.reply('❌ Минимальное количество: 0.1 CES');
+        return await ctx.reply(`❌ Минимальное количество: 0.1 ${selectedToken}`);
       }
       
-      if (minRubles < 10) {
-        return await ctx.reply('❌ Минимальная сумма: 10 ₽');
+      if (minCurrency < 10) {
+        return await ctx.reply(`❌ Минимальная сумма: 10 ${currency.symbol}`);
       }
       
-      if (maxRubles < minRubles) {
+      if (maxCurrency < minCurrency) {
         return await ctx.reply('❌ Максимальная сумма не может быть меньше минимальной');
       }
       
       const totalValue = amount * pricePerToken;
-      const commissionCES = amount * 0.01; // 1% commission in CES
+      const commissionTokens = amount * 0.01; // 1% commission in tokens
       
       // Show confirmation
       const typeEmoji = orderType === 'buy' ? '📈' : '📉';
@@ -378,14 +387,16 @@ class P2PHandler {
         securityMessage += '\n✅ Все сделки защищены эскроу-системой';
       }
       
-      const message = `${typeEmoji} Подтверждение ордера на ${typeText}\n` +
+      const message = `${typeEmoji} Подтверждение ордера на ${typeText} ${selectedToken}\n` +
                      `➖➖➖➖➖➖➖➖➖➖➖\n` +
-                     `Количество: ${amount} CES\n` +
-                     `Цена за токен: ${pricePerToken.toFixed(2)} ₽\n` +
-                     `Общая сумма: ${totalValue.toFixed(2)} ₽\n` +
-                     `Мин. сумма: ${minRubles.toFixed(0)} ₽\n` +
-                     `Макс. сумма: ${maxRubles.toFixed(0)} ₽\n` +
-                     `Комиссия: ${commissionCES.toFixed(2)} CES (1%)\n\n` +
+                     `Сеть: ${selectedNetwork}\n` +
+                     `Валюта: ${currency.nameRu} (${currency.code})\n` +
+                     `Количество: ${amount} ${selectedToken}\n` +
+                     `Цена за токен: ${pricePerToken.toFixed(2)} ${currency.symbol}\n` +
+                     `Общая сумма: ${totalValue.toFixed(2)} ${currency.symbol}\n` +
+                     `Мин. сумма: ${minCurrency.toFixed(0)} ${currency.symbol}\n` +
+                     `Макс. сумма: ${maxCurrency.toFixed(0)} ${currency.symbol}\n` +
+                     `Комиссия: ${commissionTokens.toFixed(2)} ${selectedToken} (1%)\n\n` +
                      `⚠️ Подтвердить создание ордера?`;
       
       // Store order data in session
@@ -395,6 +406,9 @@ class P2PHandler {
         pricePerToken,
         minAmount,
         maxAmount,
+        tokenType: selectedToken,
+        network: selectedNetwork,
+        currency: selectedCurrency,
         timestamp: Date.now()
       });
       
@@ -759,17 +773,31 @@ class P2PHandler {
         return await ctx.reply('❌ Выбранный токен недоступен в текущей сети.');
       }
       
+      // Store selected token in session
+      const sessionManager = require('./SessionManager');
+      sessionManager.setSessionData(chatId, 'selectedToken', tokenSymbol);
+      
+      // Log session data for debugging
+      console.log(`💾 Session data for user ${chatId}:`, {
+        selectedToken: sessionManager.getSessionData(chatId, 'selectedToken'),
+        selectedNetwork: currentNetwork,
+        selectedCurrency: userCurrencyCode
+      });
+      
       // Show P2P exchange interface with the specific format
       const message = `🔄 P2P БИРЖА\n` +
                      `➖➖➖➖➖➖➖➖➖➖➖\n` +
                      `🌐 Текущая сеть: ${networkInfo}\n` +
-                     `🔘 Монета для торговли: ${tokenSymbol}\n` +
+                     `⚪ Монета для торговли: ${tokenSymbol}\n` +
                      `💳 Валюта для торговли: ${userCurrency.flag} ${userCurrencyCode}\n\n` +
                      `Комиссия мейкера 1 %, тейкера 0 %`;
       
+      // Get full token name for button labels
+      const tokenName = tokenConfig.name || tokenSymbol;
+      
       const keyboard = Markup.inlineKeyboard([
-        [Markup.button.callback(`📈 Купить ${tokenSymbol}`, `p2p_buy_${tokenSymbol.toLowerCase()}`), 
-         Markup.button.callback(`📉 Продать ${tokenSymbol}`, `p2p_sell_${tokenSymbol.toLowerCase()}`)],
+        [Markup.button.callback(`📈 Купить ${tokenName}`, `p2p_buy_${tokenSymbol.toLowerCase()}`), 
+         Markup.button.callback(`📉 Продать ${tokenName}`, `p2p_sell_${tokenSymbol.toLowerCase()}`)],
         [Markup.button.callback('📊 Рынок', 'p2p_market_orders'), Markup.button.callback('📋 Мои ордера', 'p2p_my_orders')],
         [Markup.button.callback('🏆 Топ', 'p2p_top_traders'), Markup.button.callback('📊 Аналитика', 'p2p_analytics')],
         [Markup.button.callback('📑 Мои данные', 'p2p_my_data')]
@@ -789,6 +817,15 @@ class P2PHandler {
       const chatId = ctx.chat.id.toString();
       console.log(`📈 User ${chatId} wants to buy ${tokenSymbol}`);
       
+      // Store selected token in session for market orders
+      const sessionManager = require('./SessionManager');
+      sessionManager.setSessionData(chatId, 'selectedToken', tokenSymbol);
+      
+      // Log session data for debugging
+      console.log(`💾 Updated session data for user ${chatId}:`, {
+        selectedToken: sessionManager.getSessionData(chatId, 'selectedToken')
+      });
+      
       // Redirect to currency selection for multi-currency support
       return await this.handleP2PCurrencySelection(ctx, 'buy', tokenSymbol);
       
@@ -803,6 +840,15 @@ class P2PHandler {
     try {
       const chatId = ctx.chat.id.toString();
       console.log(`📉 User ${chatId} wants to sell ${tokenSymbol}`);
+      
+      // Store selected token in session for market orders
+      const sessionManager = require('./SessionManager');
+      sessionManager.setSessionData(chatId, 'selectedToken', tokenSymbol);
+      
+      // Log session data for debugging
+      console.log(`💾 Updated session data for user ${chatId}:`, {
+        selectedToken: sessionManager.getSessionData(chatId, 'selectedToken')
+      });
       
       // Redirect to currency selection for multi-currency support
       return await this.handleP2PCurrencySelection(ctx, 'sell', tokenSymbol);

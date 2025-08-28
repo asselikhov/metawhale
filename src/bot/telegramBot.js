@@ -1041,16 +1041,14 @@ class TelegramBot {
       return optimizedHandler.handlePriceRefreshOptimized(ctx, 'sell');
     });
     
-    // Error handling for the bot
-    this.bot.catch((err, ctx) => {
-      console.error(`❌ Telegram bot error for ${ctx.updateType}:`, err);
-      try {
-        ctx.reply('❌ Произошла ошибка. Попробуйте еще раз.');
-      } catch (replyError) {
-        console.error('Failed to send error message:', replyError);
-      }
+    // Handle real-time price refresh for buy orders with token and currency
+    this.bot.action(/^refresh_price_buy_(.+)_(.+)$/, (ctx) => {
+      console.log('Received refresh_price_buy callback with token and currency');
+      return optimizedHandler.handlePriceRefreshOptimized(ctx, 'buy');
     });
-  }
-}
-
-module.exports = new TelegramBot();
+    
+    // Handle real-time price refresh for sell orders with token and currency
+    this.bot.action(/^refresh_price_sell_(.+)_(.+)$/, (ctx) => {
+      console.log('Received refresh_price_sell callback with token and currency');
+      return optimizedHandler.handlePriceRefreshOptimized(ctx, 'sell');
+    });
