@@ -43,7 +43,7 @@ class P2PHandler {
       const networkInfo = await userNetworkService.getNetworkInfo(chatId);
       
       // Prepare message text with token selection prompt
-      const message = `💰 Какую монеты вы хотите торговать?`;
+      const message = `💰 Какую монету вы хотите торговать?`;
       
       // Generate buttons for available tokens in current network
       const tokenButtons = [];
@@ -744,11 +744,16 @@ class P2PHandler {
       // Get user's current network for context
       const userNetworkService = require('../services/userNetworkService');
       const multiChainService = require('../services/multiChainService');
+      const fiatCurrencyService = require('../services/fiatCurrencyService');
       
       const currentNetwork = await userNetworkService.getUserNetwork(chatId);
       const networkEmoji = multiChainService.getNetworkEmoji(currentNetwork);
       const tokenConfig = multiChainService.getTokenConfig(currentNetwork, tokenSymbol);
       const networkInfo = await userNetworkService.getNetworkInfo(chatId);
+      
+      // Get user's selected currency
+      const userCurrencyCode = await fiatCurrencyService.getUserCurrency(chatId);
+      const userCurrency = fiatCurrencyService.getCurrencyMetadata(userCurrencyCode);
       
       if (!tokenConfig) {
         return await ctx.reply('❌ Выбранный токен недоступен в текущей сети.');
@@ -757,14 +762,14 @@ class P2PHandler {
       // Show P2P exchange interface with the specific format
       const message = `🔄 P2P БИРЖА\n` +
                      `➖➖➖➖➖➖➖➖➖➖➖\n` +
-                     `👤 ЛИЧНЫЙ КАБИНИТЕТ\n` +
                      `🌐 Текущая сеть: ${networkInfo}\n` +
-                     `💰 Монета для торговли: ${tokenSymbol}\n\n` +
-                     `Комиссия мейкера 1%, тейкера 0%`;
+                     `🔘 Монета для торговли: ${tokenSymbol}\n` +
+                     `💳 Валюта для торговли: ${userCurrency.flag} ${userCurrencyCode}\n\n` +
+                     `Комиссия мейкера 1 %, тейкера 0 %`;
       
       const keyboard = Markup.inlineKeyboard([
-        [Markup.button.callback(`📈 Купить ${tokenSymbol}`, `p2p_buy_${tokenSymbol.toLowerCase()}`)],
-        [Markup.button.callback(`📉 Продать ${tokenSymbol}`, `p2p_sell_${tokenSymbol.toLowerCase()}`)],
+        [Markup.button.callback(`📈 Купить ${tokenSymbol}`, `p2p_buy_${tokenSymbol.toLowerCase()}`), 
+         Markup.button.callback(`📉 Продать ${tokenSymbol}`, `p2p_sell_${tokenSymbol.toLowerCase()}`)],
         [Markup.button.callback('📊 Рынок', 'p2p_market_orders'), Markup.button.callback('📋 Мои ордера', 'p2p_my_orders')],
         [Markup.button.callback('🏆 Топ', 'p2p_top_traders'), Markup.button.callback('📊 Аналитика', 'p2p_analytics')],
         [Markup.button.callback('📑 Мои данные', 'p2p_my_data')]

@@ -691,12 +691,18 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}%${volumeDisplay}${
       // Get language config
       const languageConfig = languageService.getLanguageConfig(languageCode);
       
-      const message = `✅ Язык интерфейса установлен: ${languageConfig.flag} ${languageConfig.country}`;
-      const keyboard = Markup.inlineKeyboard([
-        [Markup.button.callback('🔙 Назад', 'settings_menu')]
-      ]);
+      // Instead of just showing confirmation, refresh the entire interface with the new language
+      const mainMenu = Markup.keyboard(
+        await LocalizationHelper.getLocalizedMainMenu(chatId)
+      ).resize();
       
-      await ctx.reply(message, keyboard);
+      // Send confirmation message
+      const confirmationMessage = `✅ ${await LocalizationHelper.getText(chatId, 'language_selected')} ${languageConfig.flag} ${languageConfig.country}`;
+      await ctx.reply(confirmationMessage);
+      
+      // Automatically refresh the main menu with the new language
+      await ctx.reply(await LocalizationHelper.getText(chatId, 'main_menu'), mainMenu);
+      
     } catch (error) {
       console.error('Language selection confirmation error:', error);
       await ctx.reply('❌ Ошибка установки языка.');
@@ -743,6 +749,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}%${volumeDisplay}${
       const networkConfig = multiChainService.getNetworkConfig(networkId);
       const networkEmoji = multiChainService.getNetworkEmoji(networkId);
       
+      // Instead of just showing confirmation, go back to settings menu
       const message = `✅ Сеть установлена: ${networkEmoji} ${networkConfig.name}`;
       const keyboard = Markup.inlineKeyboard([
         [Markup.button.callback('🔙 Назад', 'settings_menu')]
@@ -842,6 +849,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}%${volumeDisplay}${
       
       const selectedCurrency = supportedCurrencies.find(c => c.code === currencyCode);
       
+      // Instead of just showing confirmation, go back to settings menu
       const message = `✅ Валюта установлена: ${selectedCurrency.flag} ${selectedCurrency.name} (${selectedCurrency.code})`;
       const keyboard = Markup.inlineKeyboard([
         [Markup.button.callback('🔙 Назад', 'settings_menu')]
@@ -858,72 +866,71 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}%${volumeDisplay}${
   getTokenDisplayConfig(tokenSymbol) {
     const configs = {
       CES: {
-        emoji: '💰',
-        priceDecimals: 2,
-        description: 'Торгуй CES удобно и безопасно на P2P бирже!'
+        emoji: '🌱',
+        priceDecimals: 4,
+        description: 'КриптовалютаCES'
       },
       POL: {
-        emoji: '🟣',
+        emoji: '💰',
         priceDecimals: 4,
-        description: 'Polygon экосистема • Низкие комиссии • Быстрые транзакции'
+        description: 'КриптовалютаPOL'
       },
       TRX: {
-        emoji: '🔴',
+        emoji: '💰',
         priceDecimals: 4,
-        description: 'TRON блокчейн • Бесплатные транзакции • Высокая пропускная способность'
+        description: 'КриптовалютаTRX'
       },
       BNB: {
-        emoji: '🟡',
-        priceDecimals: 2,
-        description: 'Binance Smart Chain • DeFi экосистема • Низкие комиссии'
+        emoji: '💰',
+        priceDecimals: 4,
+        description: 'КриптовалютаBNB'
       },
       SOL: {
-        emoji: '🟢',
-        priceDecimals: 2,
-        description: 'Solana блокчейн • Молниеносные транзакции • NFT и DeFi'
+        emoji: '💰',
+        priceDecimals: 4,
+        description: 'КриптовалютаSOL'
       },
       ETH: {
-        emoji: '🔵',
-        priceDecimals: 2,
-        description: 'Ethereum • Пионер смарт-контрактов • DeFi и NFT экосистема'
+        emoji: '💰',
+        priceDecimals: 4,
+        description: 'КриптовалютаETH'
       },
       ARB: {
-        emoji: '🔵',
+        emoji: '💰',
         priceDecimals: 4,
-        description: 'Arbitrum One • Layer 2 Ethereum • Масштабирование без потерь'
+        description: 'КриптовалютаARB'
       },
       AVAX: {
-        emoji: '🔶',
-        priceDecimals: 2,
-        description: 'Avalanche • Быстрая и масштабируемая платформа'
+        emoji: '💰',
+        priceDecimals: 4,
+        description: 'КриптовалютаAVAX'
       },
       USDT: {
-        emoji: '💵',
+        emoji: '💰',
         priceDecimals: 4,
-        description: 'Tether USD • Стабильная монета • 1:1 к USD'
+        description: 'КриптовалютаUSDT'
       },
       USDC: {
-        emoji: '💵',
+        emoji: '💰',
         priceDecimals: 4,
-        description: 'USD Coin • Централизованная стабильная монета'
+        description: 'КриптовалютаUSDC'
       },
       BUSD: {
-        emoji: '🟡',
+        emoji: '💰',
         priceDecimals: 4,
-        description: 'Binance USD • Стабильная монета Binance'
+        description: 'КриптовалютаBUSD'
       },
       TON: {
-        emoji: '💎',
-        priceDecimals: 2,
-        description: 'TON Network • Быстрый и масштабируемый блокчейн'
+        emoji: '💰',
+        priceDecimals: 4,
+        description: 'КриптовалютаTON'
       },
       NOT: {
-        emoji: '💎',
-        priceDecimals: 6,
-        description: 'Notcoin • Мем-коин на TON • Коммюнити проект'
+        emoji: '💰',
+        priceDecimals: 4,
+        description: 'КриптовалютаNOT'
       }
     };
-    
     return configs[tokenSymbol.toUpperCase()] || {
       emoji: '💰',
       priceDecimals: 4,

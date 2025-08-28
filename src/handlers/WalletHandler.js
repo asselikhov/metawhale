@@ -111,7 +111,6 @@ class WalletHandler {
         }
       
         const keyboard = Markup.inlineKeyboard([
-          [Markup.button.callback('🌐 Сменить сеть', 'switch_network')],
           [Markup.button.callback('💳 Кошелек', 'wallet_details')],
           [Markup.button.callback('💸 Перевод', 'transfer_menu')]
         ]);

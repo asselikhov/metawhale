@@ -914,7 +914,7 @@ class P2POrdersHandler {
           const isLastOrder = i === result.orders.length - 1;
           
           // Генерируем улучшенные кнопки действий
-          const orderKeyboard = await this.generateEnhancedOrderButtons(order, enhancedInfo);
+          let orderKeyboard = await this.generateEnhancedOrderButtons(order, enhancedInfo);
           
           // Добавляем пагинацию и кнопку "Назад" для последнего ордера
           if (isLastOrder) {
@@ -1259,7 +1259,7 @@ class P2POrdersHandler {
       const message = `🔄 ПОВТОРИТЬ ОРДЕР\n` +
                      `➖➖➖➖➖➖➖➖➖➖➖\n` +
                      `Создать новый ордер на основе этого?\n\n` +
-                     `📉 Тип: ${order.type === 'buy' ? 'Покупка' : 'Продажа'}\n` +
+                     `.DataGridViewColumn: ${order.type === 'buy' ? 'Покупка' : 'Продажа'}\n` +
                      `📊 Количество: ${order.amount.toFixed(4)} CES\n` +
                      `💰 Цена: ₽${order.pricePerToken.toLocaleString('ru-RU')} за CES`;
       
