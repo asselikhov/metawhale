@@ -553,6 +553,57 @@ class FiatCurrencyService {
     this.lastUpdateTime = 0;
     console.log('🧹 Кэш курсов валют очищен');
   }
+  
+  /**
+   * Получить валюту пользователя
+   */
+  async getUserCurrency(chatId) {
+    try {
+      const { User } = require('../database/models');
+      const user = await User.findOne({ chatId });
+      
+      if (!user) {
+        // Возвращаем валюту по умолчанию (RUB)
+        return 'RUB';
+      }
+      
+      // Возвращаем пользовательскую валюту или валюту по умолчанию
+      return user.preferredCurrency || 'RUB';
+    } catch (error) {
+      console.error('Ошибка получения валюты пользователя:', error);
+      // Возвращаем валюту по умолчанию в случае ошибки
+      return 'RUB';
+    }
+  }
+  
+  /**
+   * Установить валюту пользователя
+   */
+  async setUserCurrency(chatId, currencyCode) {
+    try {
+      // Проверяем, поддерживается ли валюта
+      if (!this.isCurrencySupported(currencyCode)) {
+        throw new Error(`Валюта ${currencyCode} не поддерживается`);
+      }
+      
+      const { User } = require('../database/models');
+      const user = await User.findOne({ chatId });
+      
+      if (!user) {
+        throw new Error('Пользователь не найден');
+      }
+      
+      // Обновляем пользовательскую валюту
+      user.preferredCurrency = currencyCode;
+      await user.save();
+      
+      console.log(`✅ Валюта пользователя ${chatId} установлена: ${currencyCode}`);
+      return true;
+    } catch (error) {
+      console.error('Ошибка установки валюты пользователя:', error);
+      throw error;
+    }
+  }
 }
 
 module.exports = new FiatCurrencyService();

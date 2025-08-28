@@ -353,6 +353,30 @@ class TelegramBot {
       console.log('Received select_language callback:', languageCode);
       return messageHandler.handleLanguageSelected(ctx, languageCode);
     });
+
+    // Network selection handlers
+    this.bot.action('select_network', (ctx) => {
+      console.log('Received select_network callback');
+      return messageHandler.handleNetworkSelection(ctx);
+    });
+
+    this.bot.action(/^select_network_(.+)$/, (ctx) => {
+      const networkId = ctx.match[1];
+      console.log('Received select_network callback:', networkId);
+      return messageHandler.handleNetworkSelected(ctx, networkId);
+    });
+    
+    // Currency selection handlers
+    this.bot.action('select_currency', (ctx) => {
+      console.log('Received select_currency callback');
+      return messageHandler.handleCurrencySelection(ctx);
+    });
+
+    this.bot.action(/^select_currency_(.+)$/, (ctx) => {
+      const currencyCode = ctx.match[1];
+      console.log('Received select_currency callback:', currencyCode);
+      return messageHandler.handleCurrencySelected(ctx, currencyCode);
+    });
     
     // Token transfer handlers
     this.bot.action('send_ces_tokens', (ctx) => {

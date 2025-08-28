@@ -65,6 +65,7 @@ const userSchema = new mongoose.Schema({
   subscribedAt: { type: Date, default: Date.now },
   lastNotified: Date,
   language: { type: String, default: 'ru' },
+  preferredCurrency: { type: String, default: 'RUB' }, // Добавляем поле для предпочитаемой валюты
   // Wallet functionality
   walletAddress: { type: String, unique: true, sparse: true },
   walletCreatedAt: { type: Date },
@@ -79,7 +80,6 @@ const userSchema = new mongoose.Schema({
   successfulTrades: { type: Number, default: 0 },
   totalTradeVolume: { type: Number, default: 0 },
   p2pRating: { type: Number, default: 5.0, min: 1, max: 5 },
-  disputeCount: { type: Number, default: 0 },
   // Enhanced verification system
   verificationLevel: { 
     type: String, 
@@ -171,7 +171,7 @@ const userSchema = new mongoose.Schema({
   cleanupServiceBypass: { type: Boolean, default: false },
   balanceRestorationTimestamp: Date,
   // Multi-Chain Support Fields
-  selectedNetwork: { type: String, default: 'polygon', enum: ['polygon', 'tron', 'bsc', 'solana', 'arbitrum', 'avalanche'] },
+  selectedNetwork: { type: String, default: 'polygon', enum: ['polygon', 'tron', 'bsc', 'solana', 'arbitrum', 'avalanche', 'ton'] },
   lastNetworkSwitch: Date,
   networkSwitches: [{
     from: String,

@@ -608,6 +608,8 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}%${volumeDisplay}${
       const message = '⚙️ Настройки';
       const keyboard = Markup.inlineKeyboard([
         [Markup.button.callback('🌍 Выберите язык', 'select_language')],
+        [Markup.button.callback('🔗 Выберите сеть', 'select_network')],
+        [Markup.button.callback('💰 Выберите валюту', 'select_currency')],
         [Markup.button.callback('🔙 Назад', 'back_to_menu')]
       ]);
       
@@ -683,6 +685,157 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}%${volumeDisplay}${
     } catch (error) {
       console.error('Language selection confirmation error:', error);
       await ctx.reply('❌ Ошибка установки языка.');
+    }
+  }
+
+  // Handle network selection
+  async handleNetworkSelection(ctx) {
+    try {
+      const userNetworkService = require('../services/userNetworkService');
+      const multiChainService = require('../services/multiChainService');
+      
+      const chatId = ctx.chat.id.toString();
+      const currentNetwork = await userNetworkService.getUserNetwork(chatId);
+      
+      const message = '🌐 Выберите блокчейн сеть:';
+      
+      // Get network selector buttons
+      const networkButtons = multiChainService.getNetworkSelectorButtons(currentNetwork);
+      
+      // Add back button
+      networkButtons.push([Markup.button.callback('🔙 Назад', 'settings_menu')]);
+      
+      const keyboard = Markup.inlineKeyboard(networkButtons);
+      
+      await ctx.reply(message, keyboard);
+    } catch (error) {
+      console.error('Network selection error:', error);
+      await ctx.reply('❌ Ошибка выбора сети.');
+    }
+  }
+
+  // Handle network selection confirmation
+  async handleNetworkSelected(ctx, networkId) {
+    try {
+      const chatId = ctx.chat.id.toString();
+      const userNetworkService = require('../services/userNetworkService');
+      const multiChainService = require('../services/multiChainService');
+      
+      // Set user network preference
+      await userNetworkService.setUserNetwork(chatId, networkId);
+      
+      // Get network config
+      const networkConfig = multiChainService.getNetworkConfig(networkId);
+      const networkEmoji = multiChainService.getNetworkEmoji(networkId);
+      
+      const message = `✅ Сеть установлена: ${networkEmoji} ${networkConfig.name}`;
+      const keyboard = Markup.inlineKeyboard([
+        [Markup.button.callback('🔙 Назад', 'settings_menu')]
+      ]);
+      
+      await ctx.reply(message, keyboard);
+    } catch (error) {
+      console.error('Network selection confirmation error:', error);
+      await ctx.reply('❌ Ошибка установки сети.');
+    }
+  }
+
+  // Handle currency selection
+  async handleCurrencySelection(ctx) {
+    try {
+      const fiatCurrencyService = require('../services/fiatCurrencyService');
+      
+      const chatId = ctx.chat.id.toString();
+      const currentCurrency = await fiatCurrencyService.getUserCurrency(chatId);
+      
+      const message = '💰 Выберите фиатную валюту:';
+      
+      // Get supported currencies
+      const supportedCurrencies = [
+        { code: 'RUB', name: 'Российский рубль', flag: '🇷🇺' },
+        { code: 'USD', name: 'Доллар США', flag: '🇺🇸' },
+        { code: 'EUR', name: 'Евро', flag: '🇪🇺' },
+        { code: 'CNY', name: 'Китайский юань', flag: '🇨🇳' },
+        { code: 'INR', name: 'Индийская рупия', flag: '🇮🇳' },
+        { code: 'NGN', name: 'Нигерийская найра', flag: '🇳🇬' },
+        { code: 'VND', name: 'Вьетнамский донг', flag: '🇻🇳' },
+        { code: 'KRW', name: 'Южнокорейская вона', flag: '🇰🇷' },
+        { code: 'JPY', name: 'Японская иена', flag: '🇯🇵' },
+        { code: 'BRL', name: 'Бразильский реал', flag: '🇧🇷' }
+      ];
+      
+      // Create currency buttons (2 per row)
+      const currencyButtons = [];
+      for (let i = 0; i < supportedCurrencies.length; i += 2) {
+        const row = [];
+        
+        // First currency in row
+        const currency1 = supportedCurrencies[i];
+        const isSelected1 = currency1.code === currentCurrency;
+        const buttonText1 = isSelected1 
+          ? `${currency1.flag} ${currency1.name} (${currency1.code}) ✅` 
+          : `${currency1.flag} ${currency1.name} (${currency1.code})`;
+        row.push(Markup.button.callback(buttonText1, `select_currency_${currency1.code}`));
+        
+        // Second currency in row (if exists)
+        if (i + 1 < supportedCurrencies.length) {
+          const currency2 = supportedCurrencies[i + 1];
+          const isSelected2 = currency2.code === currentCurrency;
+          const buttonText2 = isSelected2 
+            ? `${currency2.flag} ${currency2.name} (${currency2.code}) ✅` 
+            : `${currency2.flag} ${currency2.name} (${currency2.code})`;
+          row.push(Markup.button.callback(buttonText2, `select_currency_${currency2.code}`));
+        }
+        
+        currencyButtons.push(row);
+      }
+      
+      // Add back button
+      currencyButtons.push([Markup.button.callback('🔙 Назад', 'settings_menu')]);
+      
+      const keyboard = Markup.inlineKeyboard(currencyButtons);
+      
+      await ctx.reply(message, keyboard);
+    } catch (error) {
+      console.error('Currency selection error:', error);
+      await ctx.reply('❌ Ошибка выбора валюты.');
+    }
+  }
+
+  // Handle currency selection confirmation
+  async handleCurrencySelected(ctx, currencyCode) {
+    try {
+      const chatId = ctx.chat.id.toString();
+      const fiatCurrencyService = require('../services/fiatCurrencyService');
+      
+      // Set user currency preference
+      await fiatCurrencyService.setUserCurrency(chatId, currencyCode);
+      
+      // Get currency info
+      const supportedCurrencies = [
+        { code: 'RUB', name: 'Российский рубль', flag: '🇷🇺' },
+        { code: 'USD', name: 'Доллар США', flag: '🇺🇸' },
+        { code: 'EUR', name: 'Евро', flag: '🇪🇺' },
+        { code: 'CNY', name: 'Китайский юань', flag: '🇨🇳' },
+        { code: 'INR', name: 'Индийская рупия', flag: '🇮🇳' },
+        { code: 'NGN', name: 'Нигерийская найра', flag: '🇳🇬' },
+        { code: 'VND', name: 'Вьетнамский донг', flag: '🇻🇳' },
+        { code: 'KRW', name: 'Южнокорейская вона', flag: '🇰🇷' },
+        { code: 'JPY', name: 'Японская иена', flag: '🇯🇵' },
+        { code: 'BRL', name: 'Бразильский реал', flag: '🇧🇷' }
+      ];
+      
+      const selectedCurrency = supportedCurrencies.find(c => c.code === currencyCode);
+      
+      const message = `✅ Валюта установлена: ${selectedCurrency.flag} ${selectedCurrency.name} (${selectedCurrency.code})`;
+      const keyboard = Markup.inlineKeyboard([
+        [Markup.button.callback('🔙 Назад', 'settings_menu')]
+      ]);
+      
+      await ctx.reply(message, keyboard);
+    } catch (error) {
+      console.error('Currency selection confirmation error:', error);
+      await ctx.reply('❌ Ошибка установки валюты.');
     }
   }
 
