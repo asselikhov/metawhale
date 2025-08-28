@@ -1052,3 +1052,66 @@ class TelegramBot {
       console.log('Received refresh_price_sell callback with token and currency');
       return optimizedHandler.handlePriceRefreshOptimized(ctx, 'sell');
     });
+
+    // P2P token selection handlers for any token
+    this.bot.action(/^p2p_select_token_(.+)$/, (ctx) => {
+      const tokenSymbol = ctx.match[1].toUpperCase();
+      console.log('Received p2p_select_token callback:', tokenSymbol);
+      return messageHandler.handleP2PTokenSelect(ctx, tokenSymbol);
+    });
+
+    // Dynamic buy/sell handlers for any token
+    this.bot.action(/^p2p_buy_(.+)$/, (ctx) => {
+      const tokenSymbol = ctx.match[1].toUpperCase();
+      console.log('Received p2p_buy callback for token:', tokenSymbol);
+      return messageHandler.handleP2PBuyToken(ctx, tokenSymbol);
+    });
+
+    this.bot.action(/^p2p_sell_(.+)$/, (ctx) => {
+      const tokenSymbol = ctx.match[1].toUpperCase();
+      console.log('Received p2p_sell callback for token:', tokenSymbol);
+      return messageHandler.handleP2PSellToken(ctx, tokenSymbol);
+    });
+
+    // Currency selection handlers for P2P trading
+    this.bot.action(/^p2p_currency_selection_(.+)_(.+)$/, (ctx) => {
+      const orderType = ctx.match[1];
+      const tokenSymbol = ctx.match[2].toUpperCase();
+      console.log('Received p2p_currency_selection callback:', orderType, tokenSymbol);
+      return messageHandler.handleP2PCurrencySelection(ctx, orderType, tokenSymbol);
+    });
+
+    this.bot.action(/^p2p_currency_selected_(.+)_(.+)_(.+)$/, (ctx) => {
+      const orderType = ctx.match[1];
+      const tokenSymbol = ctx.match[2].toUpperCase();
+      const currencyCode = ctx.match[3];
+      console.log('Received p2p_currency_selected callback:', orderType, tokenSymbol, currencyCode);
+      return messageHandler.handleP2PCurrencySelected(ctx, orderType, tokenSymbol, currencyCode);
+    });
+
+    // Price refresh handlers with token and currency support
+    this.bot.action(/^refresh_price_(.+)_(.+)_(.+)$/, (ctx) => {
+      const orderType = ctx.match[1];
+      const tokenSymbol = ctx.match[2].toUpperCase();
+      const currencyCode = ctx.match[3];
+      console.log('Received refresh_price callback:', orderType, tokenSymbol, currencyCode);
+      return messageHandler.handlePriceRefresh(ctx, orderType, tokenSymbol, currencyCode);
+    });
+
+    console.log('✅ Telegram bot callbacks registered successfully');
+  }
+
+  // Start the bot
+  start() {
+    this.bot.launch();
+    console.log('🚀 Telegram bot started successfully');
+  }
+
+  // Stop the bot
+  stop() {
+    this.bot.stop();
+    console.log('🛑 Telegram bot stopped');
+  }
+}
+
+module.exports = TelegramBot;
