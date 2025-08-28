@@ -9,6 +9,7 @@ const walletService = require('../services/walletService');
 const { User, P2PTrade } = require('../database/models');
 const sessionManager = require('./SessionManager');
 const fiatCurrencyService = require('../services/fiatCurrencyService');
+const LocalizationHelper = require('../utils/localizationHelper');
 
 class P2PHandler {
   // Handle P2P menu
@@ -61,17 +62,17 @@ class P2PHandler {
       const networkInfo = await userNetworkService.getNetworkInfo(chatId);
       
       // Prepare message text with network info and token selection prompt
-      const message = `🔄 P2P БИРЖА\n` +
+      const message = `🔄 ${LocalizationHelper.getText(chatId, 'p2p_exchange')}\n` +
                      `➖➖➖➖➖➖➖➖➖➖➖\n` +
                      `${userName}\n` +
-                     `🌐 Текущая сеть: ${networkInfo}\n\n` +
-                     `Исполненные ордеры за 30 дней: ${stats.ordersLast30Days} шт.\n` +
-                     `Процент исполнения за 30 дней: ${stats.completionRateLast30Days}%\n` +
-                     `Среднее время перевода: ${stats.avgTransferTime} мин.\n` +
-                     `Среднее время оплаты: ${stats.avgPaymentTime} мин.\n` +
-                     `Рейтинг: ${stats.rating}\n\n` +
-                     `💰 КАКУЮ МОНЕТУ ВЫ ХОТИТЕ ТОРГОВАТЬ?\n` +
-                     `Выберите токен для торговли в сети ${networkInfo}:`;
+                     `🌐 ${LocalizationHelper.getText(chatId, 'current_network')} ${networkInfo}\n\n` +
+                     `${LocalizationHelper.getText(chatId, 'orders_last_30_days')}: ${stats.ordersLast30Days} ${LocalizationHelper.getText(chatId, 'pieces')}\n` +
+                     `${LocalizationHelper.getText(chatId, 'completion_rate_30_days')}: ${stats.completionRateLast30Days}%\n` +
+                     `${LocalizationHelper.getText(chatId, 'avg_transfer_time')}: ${stats.avgTransferTime} ${LocalizationHelper.getText(chatId, 'minutes')}\n` +
+                     `${LocalizationHelper.getText(chatId, 'avg_payment_time')}: ${stats.avgPaymentTime} ${LocalizationHelper.getText(chatId, 'minutes')}\n` +
+                     `${LocalizationHelper.getText(chatId, 'rating')}: ${stats.rating}\n\n` +
+                     `💰 ${LocalizationHelper.getText(chatId, 'which_token_trade')}\n` +
+                     `${LocalizationHelper.getText(chatId, 'select_token_for_network')} ${networkInfo}:`;
       
       // Generate buttons for available tokens in current network
       const tokenButtons = [];

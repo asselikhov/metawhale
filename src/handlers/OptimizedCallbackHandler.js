@@ -75,7 +75,7 @@ class OptimizedCallbackHandler {
 
           keyboard = Markup.inlineKeyboard([
             [Markup.button.callback('➕ Создать кошелек', 'create_wallet')],
-            [Markup.button.callback('🔙 Назад', 'back_to_menu')]
+            [Markup.button.callback('🔙 Назад', 'personal_cabinet')]
           ]);
         }
 

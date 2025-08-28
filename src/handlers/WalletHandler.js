@@ -11,6 +11,7 @@ const userNetworkService = require('../services/userNetworkService');
 const multiChainService = require('../services/multiChainService');
 const { isDatabaseConnected } = require('../database/models');
 const sessionManager = require('./SessionManager');
+const LocalizationHelper = require('../utils/localizationHelper');
 
 class WalletHandler {
   // Handle Personal Cabinet from text message
@@ -39,7 +40,8 @@ class WalletHandler {
       }
       
       // Header
-      let message = '👤 ЛИЧНЫЙ КАБИНЕТ\n' +
+      const chatId = ctx.chat.id.toString();
+      let message = LocalizationHelper.getText(chatId, 'personal_cabinet_title') + '\n' +
                    '➖➖➖➖➖➖➖➖➖➖➖\n';
       
       if (walletInfo.hasWallet) {
@@ -76,7 +78,7 @@ class WalletHandler {
       
         const keyboard = Markup.inlineKeyboard([
           [Markup.button.callback('➕ Создать кошелек', 'create_wallet')],
-          [Markup.button.callback('🔙 Назад', 'back_to_menu')]
+          [Markup.button.callback('🔙 Назад', 'personal_cabinet')]
         ]);
       
         await ctx.reply(message, keyboard);
@@ -141,7 +143,7 @@ class WalletHandler {
         // Remove the Главное меню button
         const keyboard = Markup.inlineKeyboard([
           [Markup.button.callback('➕ Создать кошелек', 'create_wallet')],
-          [Markup.button.callback('🔙 Назад', 'back_to_menu')]
+          [Markup.button.callback('🔙 Назад', 'personal_cabinet')]
         ]);
         
         await ctx.reply(message, keyboard);
@@ -175,8 +177,7 @@ class WalletHandler {
       const walletResult = await walletService.createUserWallet(chatId);
       
       const keyboard = Markup.inlineKeyboard([
-        [Markup.button.callback('🔙 Назад к кабинету', 'personal_cabinet')],
-        [Markup.button.callback('🏠 Главное меню', 'back_to_menu')]
+        [Markup.button.callback('🔙 Назад к кабинету', 'personal_cabinet')]
       ]);
       
       let networkInfo = '';
@@ -459,8 +460,7 @@ class WalletHandler {
         
         const keyboard = Markup.inlineKeyboard([
           [Markup.button.callback('➕ Создать кошелек', 'create_wallet')],
-          [Markup.button.callback('🔙 Назад к кабинету', 'personal_cabinet')],
-          [Markup.button.callback('🏠 Главное меню', 'back_to_menu')]
+          [Markup.button.callback('🔙 Назад к кабинету', 'personal_cabinet')]
         ]);
         
         await ctx.reply(message, keyboard);

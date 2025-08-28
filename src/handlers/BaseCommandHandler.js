@@ -10,6 +10,7 @@ const visitorStatsService = require('../services/visitorStatsService');
 const { User, PriceHistory, isDatabaseConnected } = require('../database/models');
 const sessionManager = require('./SessionManager');
 const fs = require('fs').promises;
+const LocalizationHelper = require('../utils/localizationHelper');
 
 class BaseCommandHandler {
   constructor() {
@@ -59,9 +60,9 @@ class BaseCommandHandler {
       console.log(`💬 Welcome message: ${welcomeMessage}`);
       
       // Main menu with regular keyboard buttons (4 buttons in 1 row)
-      const mainMenu = Markup.keyboard([
-        ['👤 ЛК', '🔄 P2P', '💠 Matrix', '⚙️']
-      ]).resize();
+      const mainMenu = Markup.keyboard(
+        LocalizationHelper.getLocalizedMainMenu(chatId)
+      ).resize();
       
       console.log(`📤 Sending welcome message to user ${chatId}`);
       console.log(`⌨ Keyboard markup configured`);
@@ -587,11 +588,12 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}%${volumeDisplay}${
   // Handle back to main menu
   async handleBackToMenu(ctx) {
     try {
-      const mainMenu = Markup.keyboard([
-        ['👤 ЛК', '🔄 P2P', '💠 Matrix', '⚙️']
-      ]).resize();
+      const chatId = ctx.chat.id.toString();
+      const mainMenu = Markup.keyboard(
+        LocalizationHelper.getLocalizedMainMenu(chatId)
+      ).resize();
       
-      await ctx.reply('🌾 Главное меню', mainMenu);
+      await ctx.reply(LocalizationHelper.getText(chatId, 'main_menu'), mainMenu);
     } catch (error) {
       console.error('Back to menu error:', error);
       await ctx.reply('❌ Ошибка возврата в главное меню.');
