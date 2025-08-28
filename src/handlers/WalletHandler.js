@@ -40,7 +40,7 @@ class WalletHandler {
       }
       
       // Header
-      let message = LocalizationHelper.getText(chatId, 'personal_cabinet_title') + '\n' +
+      let message = await LocalizationHelper.getText(chatId, 'personal_cabinet_title') + '\n' +
                    '➖➖➖➖➖➖➖➖➖➖➖\n';
       
       if (walletInfo.hasWallet) {

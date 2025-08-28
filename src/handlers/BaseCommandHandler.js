@@ -61,7 +61,7 @@ class BaseCommandHandler {
       
       // Main menu with regular keyboard buttons (4 buttons in 1 row)
       const mainMenu = Markup.keyboard(
-        LocalizationHelper.getLocalizedMainMenu(chatId)
+        await LocalizationHelper.getLocalizedMainMenu(chatId)
       ).resize();
       
       console.log(`📤 Sending welcome message to user ${chatId}`);
@@ -593,7 +593,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}%${volumeDisplay}${
         LocalizationHelper.getLocalizedMainMenu(chatId)
       ).resize();
       
-      await ctx.reply(LocalizationHelper.getText(chatId, 'main_menu'), mainMenu);
+      await ctx.reply(await LocalizationHelper.getText(chatId, 'main_menu'), mainMenu);
     } catch (error) {
       console.error('Back to menu error:', error);
       await ctx.reply('❌ Ошибка возврата в главное меню.');
@@ -671,7 +671,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}%${volumeDisplay}${
       const languageService = require('../services/languageService');
       
       // Set user language preference
-      languageService.setUserLanguage(chatId, languageCode);
+      await languageService.setUserLanguage(chatId, languageCode);
       
       // Get language config
       const languageConfig = languageService.getLanguageConfig(languageCode);

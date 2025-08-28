@@ -62,17 +62,17 @@ class P2PHandler {
       const networkInfo = await userNetworkService.getNetworkInfo(chatId);
       
       // Prepare message text with network info and token selection prompt
-      const message = `🔄 ${LocalizationHelper.getText(chatId, 'p2p_exchange')}\n` +
+      const message = `🔄 ${await LocalizationHelper.getText(chatId, 'p2p_exchange')}\n` +
                      `➖➖➖➖➖➖➖➖➖➖➖\n` +
                      `${userName}\n` +
-                     `🌐 ${LocalizationHelper.getText(chatId, 'current_network')} ${networkInfo}\n\n` +
-                     `${LocalizationHelper.getText(chatId, 'orders_last_30_days')}: ${stats.ordersLast30Days} ${LocalizationHelper.getText(chatId, 'pieces')}\n` +
-                     `${LocalizationHelper.getText(chatId, 'completion_rate_30_days')}: ${stats.completionRateLast30Days}%\n` +
-                     `${LocalizationHelper.getText(chatId, 'avg_transfer_time')}: ${stats.avgTransferTime} ${LocalizationHelper.getText(chatId, 'minutes')}\n` +
-                     `${LocalizationHelper.getText(chatId, 'avg_payment_time')}: ${stats.avgPaymentTime} ${LocalizationHelper.getText(chatId, 'minutes')}\n` +
-                     `${LocalizationHelper.getText(chatId, 'rating')}: ${stats.rating}\n\n` +
-                     `💰 ${LocalizationHelper.getText(chatId, 'which_token_trade')}\n` +
-                     `${LocalizationHelper.getText(chatId, 'select_token_for_network')} ${networkInfo}:`;
+                     `🌐 ${await LocalizationHelper.getText(chatId, 'current_network')} ${networkInfo}\n\n` +
+                     `${await LocalizationHelper.getText(chatId, 'orders_last_30_days')}: ${stats.ordersLast30Days} ${await LocalizationHelper.getText(chatId, 'pieces')}\n` +
+                     `${await LocalizationHelper.getText(chatId, 'completion_rate_30_days')}: ${stats.completionRateLast30Days}%\n` +
+                     `${await LocalizationHelper.getText(chatId, 'avg_transfer_time')}: ${stats.avgTransferTime} ${await LocalizationHelper.getText(chatId, 'minutes')}\n` +
+                     `${await LocalizationHelper.getText(chatId, 'avg_payment_time')}: ${stats.avgPaymentTime} ${await LocalizationHelper.getText(chatId, 'minutes')}\n` +
+                     `${await LocalizationHelper.getText(chatId, 'rating')}: ${stats.rating}\n\n` +
+                     `💰 ${await LocalizationHelper.getText(chatId, 'which_token_trade')}\n` +
+                     `${await LocalizationHelper.getText(chatId, 'select_token_for_network')} ${networkInfo}:`;
       
       // Generate buttons for available tokens in current network
       const tokenButtons = [];

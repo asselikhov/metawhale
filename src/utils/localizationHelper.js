@@ -12,7 +12,7 @@ class LocalizationHelper {
    * @param {string} key - Translation key
    * @returns {string} Localized text
    */
-  static getText(chatId, key) {
+  static async getText(chatId, key) {
     return languageService.getText(chatId, key);
   }
   
@@ -21,8 +21,8 @@ class LocalizationHelper {
    * @param {string} chatId - Telegram chat ID
    * @returns {string} Language code
    */
-  static getUserLanguage(chatId) {
-    return languageService.getUserLanguage(chatId);
+  static async getUserLanguage(chatId) {
+    return await languageService.getUserLanguage(chatId);
   }
   
   /**
@@ -31,8 +31,8 @@ class LocalizationHelper {
    * @param {string} languageCode - Language code
    * @returns {boolean} Success status
    */
-  static setUserLanguage(chatId, languageCode) {
-    return languageService.setUserLanguage(chatId, languageCode);
+  static async setUserLanguage(chatId, languageCode) {
+    return await languageService.setUserLanguage(chatId, languageCode);
   }
   
   /**
@@ -57,13 +57,13 @@ class LocalizationHelper {
    * @param {string} chatId - Telegram chat ID
    * @returns {Array} Localized main menu buttons
    */
-  static getLocalizedMainMenu(chatId) {
+  static async getLocalizedMainMenu(chatId) {
     return [
       [
-        this.getText(chatId, 'personal_cabinet'),
-        this.getText(chatId, 'p2p'),
-        this.getText(chatId, 'matrix'),
-        this.getText(chatId, 'settings')
+        await this.getText(chatId, 'personal_cabinet'),
+        await this.getText(chatId, 'p2p'),
+        await this.getText(chatId, 'matrix'),
+        await this.getText(chatId, 'settings')
       ]
     ];
   }
@@ -74,9 +74,9 @@ class LocalizationHelper {
    * @param {Array} buttons - Additional buttons to include
    * @returns {Object} Markup keyboard
    */
-  static createLocalizedKeyboardWithBack(chatId, buttons = []) {
+  static async createLocalizedKeyboardWithBack(chatId, buttons = []) {
     const { Markup } = require('telegraf');
-    const backButton = [Markup.button.callback(this.getText(chatId, 'back'), 'personal_cabinet')];
+    const backButton = [Markup.button.callback(await this.getText(chatId, 'back'), 'personal_cabinet')];
     return Markup.inlineKeyboard([...buttons, backButton]);
   }
 }

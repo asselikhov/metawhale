@@ -91,7 +91,25 @@ class MessageHandler {
   }
 
   async handleLanguageSelected(ctx, languageCode) {
-    return this.baseHandler.handleLanguageSelected(ctx, languageCode);
+    return await this.baseHandler.handleLanguageSelected(ctx, languageCode);
+  }
+
+  // Network selection operations
+  async handleNetworkSelection(ctx) {
+    return this.baseHandler.handleNetworkSelection(ctx);
+  }
+
+  async handleNetworkSelected(ctx, networkId) {
+    return this.baseHandler.handleNetworkSelected(ctx, networkId);
+  }
+
+  // Currency selection operations
+  async handleCurrencySelection(ctx) {
+    return this.baseHandler.handleCurrencySelection(ctx);
+  }
+
+  async handleCurrencySelected(ctx, currencyCode) {
+    return this.baseHandler.handleCurrencySelected(ctx, currencyCode);
   }
 
   // Delegate wallet operations

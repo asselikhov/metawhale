@@ -442,22 +442,39 @@ class LanguageService {
   }
   
   // Set user language preference
-  setUserLanguage(chatId, languageCode) {
+  async setUserLanguage(chatId, languageCode) {
     if (this.supportedLanguages[languageCode]) {
-      this.userLanguages.set(chatId, languageCode);
-      return true;
+      try {
+        const { User } = require('../database/models');
+        await User.findOneAndUpdate(
+          { chatId },
+          { language: languageCode },
+          { upsert: true, new: true }
+        );
+        return true;
+      } catch (error) {
+        console.error('Error setting user language:', error);
+        return false;
+      }
     }
     return false;
   }
   
   // Get user language preference
-  getUserLanguage(chatId) {
-    return this.userLanguages.get(chatId) || this.defaultLanguage;
+  async getUserLanguage(chatId) {
+    try {
+      const { User } = require('../database/models');
+      const user = await User.findOne({ chatId });
+      return (user && user.language) ? user.language : this.defaultLanguage;
+    } catch (error) {
+      console.error('Error getting user language:', error);
+      return this.defaultLanguage;
+    }
   }
   
   // Get localized text for a key
-  getText(chatId, key) {
-    const languageCode = this.getUserLanguage(chatId);
+  async getText(chatId, key) {
+    const languageCode = await this.getUserLanguage(chatId);
     const languageTranslations = this.translations[languageCode];
     
     if (languageTranslations && languageTranslations[key]) {

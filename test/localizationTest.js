@@ -13,23 +13,23 @@ async function testLocalizationHelper() {
     const LocalizationHelper = require('../src/utils/localizationHelper');
     
     // Test getting text in different languages
-    LocalizationHelper.setUserLanguage('test_user_1', 'en');
-    const englishText = LocalizationHelper.getText('test_user_1', 'main_menu');
+    await LocalizationHelper.setUserLanguage('test_user_1', 'en');
+    const englishText = await LocalizationHelper.getText('test_user_1', 'main_menu');
     console.log(`   🇺🇸 English text: ${englishText}`);
     
-    LocalizationHelper.setUserLanguage('test_user_2', 'zh');
-    const chineseText = LocalizationHelper.getText('test_user_2', 'main_menu');
+    await LocalizationHelper.setUserLanguage('test_user_2', 'zh');
+    const chineseText = await LocalizationHelper.getText('test_user_2', 'main_menu');
     console.log(`   🇨🇳 Chinese text: ${chineseText}`);
     
     // Test default language fallback
-    const defaultText = LocalizationHelper.getText('unknown_user', 'main_menu');
+    const defaultText = await LocalizationHelper.getText('unknown_user', 'main_menu');
     console.log(`   🇷🇺 Default (Russian) text: ${defaultText}`);
     
     // Test main menu generation
-    const englishMenu = LocalizationHelper.getLocalizedMainMenu('test_user_1');
+    const englishMenu = await LocalizationHelper.getLocalizedMainMenu('test_user_1');
     console.log(`   🎯 English menu buttons: ${JSON.stringify(englishMenu[0])}`);
     
-    const chineseMenu = LocalizationHelper.getLocalizedMainMenu('test_user_2');
+    const chineseMenu = await LocalizationHelper.getLocalizedMainMenu('test_user_2');
     console.log(`   🎯 Chinese menu buttons: ${JSON.stringify(chineseMenu[0])}`);
     
     return true;
@@ -47,21 +47,21 @@ async function testLanguageServiceTranslations() {
     const languageService = require('../src/services/languageService');
     
     // Test Russian translations
-    const ruText = languageService.getText('test_user_ru', 'p2p_exchange');
+    const ruText = await languageService.getText('test_user_ru', 'p2p_exchange');
     console.log(`   🇷🇺 Russian P2P exchange: ${ruText}`);
     
     // Test English translations
-    languageService.setUserLanguage('test_user_en', 'en');
-    const enText = languageService.getText('test_user_en', 'p2p_exchange');
+    await languageService.setUserLanguage('test_user_en', 'en');
+    const enText = await languageService.getText('test_user_en', 'p2p_exchange');
     console.log(`   🇺🇸 English P2P exchange: ${enText}`);
     
     // Test Chinese translations
-    languageService.setUserLanguage('test_user_zh', 'zh');
-    const zhText = languageService.getText('test_user_zh', 'p2p_exchange');
+    await languageService.setUserLanguage('test_user_zh', 'zh');
+    const zhText = await languageService.getText('test_user_zh', 'p2p_exchange');
     console.log(`   🇨🇳 Chinese P2P exchange: ${zhText}`);
     
     // Test missing translation fallback
-    const fallbackText = languageService.getText('test_user_ru', 'nonexistent_key');
+    const fallbackText = await languageService.getText('test_user_ru', 'nonexistent_key');
     console.log(`   🏠 Fallback text: ${fallbackText}`);
     
     return true;
