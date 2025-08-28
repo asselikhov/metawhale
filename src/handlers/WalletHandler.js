@@ -40,7 +40,6 @@ class WalletHandler {
       }
       
       // Header
-      const chatId = ctx.chat.id.toString();
       let message = LocalizationHelper.getText(chatId, 'personal_cabinet_title') + '\n' +
                    '➖➖➖➖➖➖➖➖➖➖➖\n';
       
