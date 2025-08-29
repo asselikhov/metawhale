@@ -3,7 +3,7 @@
  * Utility functions for working with localized texts in the Telegram bot
  */
 
-const languageService = require('../services/languageService');
+const languageService = require('../services/utility/languageService');
 
 class LocalizationHelper {
   /**
@@ -58,7 +58,7 @@ class LocalizationHelper {
    * @returns {Array} Localized main menu buttons
    */
   static async getLocalizedMainMenu(chatId) {
-    // Ensure we always return the correct main menu structure
+    // Return 4 buttons in a single row as requested: Personal Cabinet, P2P, Matrix, Settings
     const personalCabinet = await this.getText(chatId, 'personal_cabinet');
     const p2p = await this.getText(chatId, 'p2p');
     const matrix = await this.getText(chatId, 'matrix');

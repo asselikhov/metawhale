@@ -11,6 +11,7 @@ const { User, PriceHistory, isDatabaseConnected } = require('../database/models'
 const sessionManager = require('./SessionManager');
 const fs = require('fs').promises;
 const LocalizationHelper = require('../utils/localizationHelper');
+const languageService = require('../services/utility/languageService');
 
 class BaseCommandHandler {
   constructor() {
@@ -205,21 +206,15 @@ class BaseCommandHandler {
       if (tokenSymbol === 'CES') {
         // Special format for CES with P2P promotion
         message = `➖➖➖➖➖➖➖➖➖➖➖➖➖➖➖
-${tokenConfig.emoji} Цена токена ${tokenSymbol}: $ ${priceData.price.toFixed(tokenConfig.priceDecimals)} | ₽ ${priceData.priceRub.toFixed(2)}
+💰 Цена токена ${tokenSymbol}: $ ${priceData.price.toFixed(tokenConfig.priceDecimals)} | ₽ ${priceData.priceRub.toFixed(2)}
 ➖➖➖➖➖➖➖➖➖➖➖➖➖➖➖
-${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}%${volumeDisplay}${athDisplay}
-
-Торгуй CES удобно и безопасно  
-<a href="https://t.me/rogassistant_bot">P2P Биржа</a>: Покупка и продажа за ₽`;
+${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}%${volumeDisplay}${athDisplay}`;
       } else {
-        // Standard format for ALL other tokens with P2P promotion using token name
+        // Standard format for ALL other tokens
         message = `➖➖➖➖➖➖➖➖➖➖➖➖➖➖➖
-${tokenConfig.emoji} Цена токена ${tokenSymbol}: $ ${priceData.price.toFixed(tokenConfig.priceDecimals)} | ₽ ${priceData.priceRub.toFixed(2)}
+💰 Цена токена ${tokenSymbol}: $ ${priceData.price.toFixed(tokenConfig.priceDecimals)} | ₽ ${priceData.priceRub.toFixed(2)}
 ➖➖➖➖➖➖➖➖➖➖➖➖➖➖➖
-${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}%${volumeDisplay}${athDisplay}
-
-Торгуй ${tokenSymbol} удобно и безопасно  
-<a href="https://t.me/rogassistant_bot">P2P Биржа</a>: Покупка и продажа за ₽`;
+${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}%${volumeDisplay}${athDisplay}`;
       }
       
       // Edit the original message

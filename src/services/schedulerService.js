@@ -99,10 +99,7 @@ class SchedulerService {
 ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${priceService.formatNumber(priceData.volume24h).replace(/(\d+\.\d{2})K/, (match) => {
         const num = parseFloat(match.replace('K', ''));
         return num.toFixed(1) + 'K';
-      })} • 🅐🅣🅗 ${athDisplay}
-
-Торгуй CES удобно и безопасно  
-<a href="https://t.me/rogassistant_bot">P2P Биржа</a>: Покупка и продажа за ₽`;
+      })} • 🅐🅣🅗 ${athDisplay}`;
       
       // Send message to group with HTML parse mode to support links
       if (this.bot) {

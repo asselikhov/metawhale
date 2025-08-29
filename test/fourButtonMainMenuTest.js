@@ -1,9 +1,10 @@
 /**
- * Comprehensive test for main menu display functionality
- * Verifies that the main menu buttons are properly constructed and displayed
+ * Test for main menu with 4 buttons
+ * Verifies that the main menu buttons are displayed correctly with 4 buttons
  */
 
 const { Markup } = require('telegraf');
+const LocalizationHelper = require('../src/utils/localizationHelper');
 
 // Mock the language service functions
 const mockLanguageService = {
@@ -69,7 +70,7 @@ const mockCtx = {
 };
 
 async function testMainMenuConstruction() {
-  console.log('🚀 Testing main menu construction...');
+  console.log('🚀 Testing main menu construction with 4 buttons...');
   
   try {
     const chatId = mockCtx.chat.id.toString();
@@ -101,8 +102,6 @@ async function testMainMenuConstruction() {
     console.log(`Third button: "${thirdButton}"`);
     console.log(`Fourth button: "${fourthButton}"`);
     
-    console.log('✅ Main menu structure is correct');
-    
     // Test keyboard creation
     console.log('\n--- Keyboard Creation ---');
     const mainMenu = Markup.keyboard(mainMenuButtons).resize();
@@ -122,7 +121,7 @@ async function testMainMenuConstruction() {
 }
 
 async function testButtonRecognition() {
-  console.log('\n🚀 Testing button recognition...');
+  console.log('\n🚀 Testing button recognition for 4 buttons...');
   
   try {
     // Test button recognition patterns
@@ -185,7 +184,7 @@ async function testButtonRecognition() {
 
 // Run all tests
 async function runAllTests() {
-  console.log('🚀 Starting comprehensive main menu tests...\n');
+  console.log('🚀 Starting main menu tests with 4 buttons...\n');
   
   const tests = [
     { name: 'Main Menu Construction', func: testMainMenuConstruction },
@@ -225,10 +224,10 @@ async function runAllTests() {
 // Run the tests
 if (require.main === module) {
   runAllTests().then((success) => {
-    console.log('\n🏁 Comprehensive main menu tests finished');
+    console.log('\n🏁 Main menu tests finished');
     process.exit(success ? 0 : 1);
   }).catch((error) => {
-    console.error('💥 Comprehensive main menu tests failed with error:', error);
+    console.error('💥 Main menu tests failed with error:', error);
     process.exit(1);
   });
 }

@@ -27,12 +27,9 @@ async function demonstratePOLCommand() {
     
     // Новое сообщение для POL с P2P информацией
     const message = `➖➖➖➖➖➖➖➖➖➖➖➖➖➖➖
-${tokenConfig.emoji} Цена токена POL: $ ${priceData.price.toFixed(tokenConfig.priceDecimals)} | ₽ ${priceData.priceRub.toFixed(2)}
+💰 Цена токена POL: $ ${priceData.price.toFixed(tokenConfig.priceDecimals)} | ₽ ${priceData.priceRub.toFixed(2)}
 ➖➖➖➖➖➖➖➖➖➖➖➖➖➖➖
-${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}%${volumeDisplay}
-
-Торгуй POL удобно и безопасно  
-P2P Биржа: Покупка и продажа за ₽`;
+${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}%${volumeDisplay}`;
     
     console.log('🎉 НОВОЕ СООБЩЕНИЕ КОМАНДЫ /pol:');
     console.log('┌─────────────────────────────────────────────────────────┐');
@@ -46,12 +43,6 @@ P2P Биржа: Покупка и продажа за ₽`;
     console.log('✅ Emoji POL: 🟣');
     console.log(`✅ Цена: $${priceData.price.toFixed(4)} (₽${priceData.priceRub.toFixed(2)})`);
     console.log(`✅ Изменение: ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}%`);
-    console.log('✅ P2P информация: "Торгуй POL удобно и безопасно"');
-    console.log('✅ Ссылка: P2P Биржа для покупки и продажи за ₽');
-    
-    console.log('\n🔄 Сравнение:');
-    console.log('❌ БЫЛО: "Polygon экосистема • Низкие комиссии • Быстрые транзакции"');
-    console.log('✅ СТАЛО: "Торгуй POL удобно и безопасно + P2P Биржа: Покупка и продажа за ₽"');
     
     return true;
     
