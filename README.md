@@ -83,7 +83,23 @@ Metawhale - это многофункциональный Telegram бот для
 
 ## Архитектура
 
-### Основные компоненты
+### Новая модульная архитектура
+Проект был перестроен на профессиональную модульную архитектуру для улучшения поддержки и масштабируемости.
+
+#### Основные модули
+- `src/modules/core/` - Ядро приложения (Application, Config, Database, Server, Logger)
+- `src/modules/bot/` - Telegram бот (TelegramBot, MessageHandler, CommandHandler, CallbackHandler)
+- `src/modules/user/` - Управление пользователями
+- `src/modules/wallet/` - Управление кошельками
+- `src/modules/p2p/` - P2P торговля
+- `src/modules/transfer/` - Переводы токенов
+- `src/modules/settings/` - Настройки пользователя
+- `src/modules/analytics/` - Аналитика и статистика
+- `src/modules/notification/` - Система уведомлений
+- `src/modules/escrow/` - Эскроу-сервис
+- `src/modules/utils/` - Вспомогательные утилиты
+
+### Старая архитектура (для совместимости)
 - `src/bot/` - Основной код бота и обработчики Telegram
 - `src/handlers/` - Обработчики различных функций
 - `src/services/` - Сервисы для работы с блокчейном, базой данных и другими функциями

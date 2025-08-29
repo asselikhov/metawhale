@@ -4,10 +4,10 @@
  * Provides maximum security for P2P exchanges with automated dispute resolution
  */
 
-const { User, P2PTrade, EscrowTransaction } = require('../database/models');
-const walletService = require('./walletService');
-const smartContractService = require('./smartContractService');
-const config = require('../config/configuration');
+const { User, P2PTrade, EscrowTransaction } = require('../../database/models');
+const { walletService } = require('../wallet');
+const smartContractService = require('../smartContractService');
+const config = require('../../config/configuration');
 
 class EscrowService {
   constructor() {

@@ -5,7 +5,7 @@
 
 const { Markup } = require('telegraf');
 const backgroundService = require('../services/backgroundProcessingService');
-const performanceMonitor = require('../services/performanceMonitorService');
+const { performanceMonitorService } = require('../services');
 
 class OptimizedCallbackHandler {
   constructor() {
@@ -173,7 +173,7 @@ class OptimizedCallbackHandler {
         const keyboard = Markup.inlineKeyboard([
           [Markup.button.callback(`📈 Купить ${tokenName}`, `p2p_buy_${selectedToken.toLowerCase()}`), 
            Markup.button.callback(`📉 Продать ${tokenName}`, `p2p_sell_${selectedToken.toLowerCase()}`)],
-          [Markup.button.callback('📊 Рынок', 'p2p_market_orders'), Markup.button.callback('📋 Мои ордера', 'p2p_my_orders')],
+          [Markup.button.callback('📊 Рынок', 'p2p_market_orders'), Markup.button.callback('📋 Мои ордеры', 'p2p_my_orders')],
           [Markup.button.callback('🏆 Топ', 'p2p_top_traders'), Markup.button.callback('🧮 Аналитика', 'p2p_analytics')],
           [Markup.button.callback('📑 Мои данные', 'p2p_my_data')]
         ]);
