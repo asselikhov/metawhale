@@ -3,9 +3,9 @@
  * Export P2P-related handlers
  */
 
-const P2PHandler = require('./index');
+const P2PTradeHandler = require('./P2PHandler');
 
-module.exports = P2PHandler;
+module.exports = P2PTradeHandler;
 
 /**
  * P2P Handler
