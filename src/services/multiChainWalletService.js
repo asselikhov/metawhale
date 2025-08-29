@@ -4,10 +4,12 @@
  */
 
 const { ethers } = require('ethers');
+
+// Properly import TronWeb with error handling
 let TronWeb = null;
 try {
   TronWeb = require('tronweb');
-  // Проверяем, что TronWeb является конструктором
+  // Check if TronWeb is a constructor function
   if (typeof TronWeb !== 'function') {
     console.warn('⚠️ TronWeb loaded but not a constructor, checking .default');
     TronWeb = TronWeb.default || null;
@@ -16,6 +18,7 @@ try {
   console.warn('⚠️ TronWeb not installed or failed to load:', error.message);
   TronWeb = null;
 }
+
 const multiChainService = require('./multiChainService');
 const userNetworkService = require('./userNetworkService');
 const walletService = require('./walletService');
@@ -477,6 +480,241 @@ class MultiChainWalletService {
       return { estimatedFee: 0 };
     }
   }
+
+  // Get user's current network wallet info
+  async getCurrentNetworkWalletInfo(chatId) {
+    try {
+      const currentNetwork = await userNetworkService.getUserNetwork(chatId);
+      const walletInfo = await userNetworkService.getUserWalletForNetwork(chatId, currentNetwork);
+      
+      if (!walletInfo.hasWallet) {
+        return {
+          hasWallet: false,
+          network: currentNetwork,
+          networkName: multiChainService.getNetworkName(currentNetwork),
+          networkEmoji: multiChainService.getNetworkEmoji(currentNetwork)
+        };
+      }
+
+      // Get balances for the network
+      const balances = await this.getNetworkBalances(walletInfo.address, currentNetwork);
+      const prices = await this.getTokenPrices(currentNetwork);
+      
+      // Format the data
+      const formattedBalances = this.formatBalances(currentNetwork, balances, prices);
+      const totalValue = this.calculateTotalValue(balances, prices);
+
+      return {
+        hasWallet: true,
+        network: currentNetwork,
+        networkName: multiChainService.getNetworkName(currentNetwork),
+        networkEmoji: multiChainService.getNetworkEmoji(currentNetwork),
+        address: walletInfo.address,
+        balances: formattedBalances,
+        totalValue: totalValue
+      };
+    } catch (error) {
+      console.error('Error getting current network wallet info:', error);
+      throw error;
+    }
+  }
+
+  // Check if user has sufficient balance for a token on current network
+  async hasSufficientBalance(chatId, tokenSymbol, amount) {
+    try {
+      const walletInfo = await this.getCurrentNetworkWalletInfo(chatId);
+      if (!walletInfo.hasWallet) return false;
+
+      const balance = walletInfo.balances[tokenSymbol]?.balance || 0;
+      return parseFloat(balance) >= parseFloat(amount);
+    } catch (error) {
+      console.error('Error checking sufficient balance:', error);
+      return false;
+    }
+  }
+
+  // Get formatted wallet display for user
+  async getWalletDisplayForUser(chatId) {
+    try {
+      const walletInfo = await this.getCurrentNetworkWalletInfo(chatId);
+      
+      if (!walletInfo.hasWallet) {
+        return {
+          hasWallet: false,
+          message: 'У вас нет кошелька в текущей сети.',
+          networkInfo: `${walletInfo.networkEmoji} ${walletInfo.networkName}`
+        };
+      }
+
+      let message = `👛 ${walletInfo.networkEmoji} ${walletInfo.networkName}\n`;
+      message += `➖➖➖➖➖➖➖➖➖➖➖\n`;
+      message += `Адрес: \`${walletInfo.address}\`\n\n`;
+      message += `💰 Балансы:\n`;
+
+      // Add each token balance
+      for (const [tokenSymbol, tokenData] of Object.entries(walletInfo.balances)) {
+        if (parseFloat(tokenData.balance) > 0) {
+          message += `${tokenData.displayText}\n`;
+        }
+      }
+
+      message += `\n💎 Общая стоимость: $${walletInfo.totalValue.usd} • ₽${walletInfo.totalValue.rub}`;
+
+      return {
+        hasWallet: true,
+        message: message,
+        networkInfo: `${walletInfo.networkEmoji} ${walletInfo.networkName}`,
+        address: walletInfo.address,
+        totalValue: walletInfo.totalValue
+      };
+    } catch (error) {
+      console.error('Error getting wallet display for user:', error);
+      throw error;
+    }
+  }
+
+  // Get network selector options
+  getNetworkSelectorOptions(currentNetwork) {
+    return multiChainService.getNetworkSelectorButtons(currentNetwork);
+  }
+
+  // Validate that a token is supported on the current network
+  async isTokenSupportedOnCurrentNetwork(chatId, tokenSymbol) {
+    try {
+      const currentNetwork = await userNetworkService.getUserNetwork(chatId);
+      return multiChainService.isTokenSupported(currentNetwork, tokenSymbol);
+    } catch (error) {
+      console.error('Error checking token support:', error);
+      return false;
+    }
+  }
+
+  // Get all supported tokens for current network
+  async getSupportedTokensForCurrentUser(chatId) {
+    try {
+      const currentNetwork = await userNetworkService.getUserNetwork(chatId);
+      return multiChainService.getNetworkTokens(currentNetwork);
+    } catch (error) {
+      console.error('Error getting supported tokens:', error);
+      return {};
+    }
+  }
+
+  // Get minimum transfer amount for current network
+  async getMinimumTransferForCurrentUser(chatId, tokenSymbol) {
+    try {
+      const currentNetwork = await userNetworkService.getUserNetwork(chatId);
+      return multiChainService.getMinimumTransferAmount(currentNetwork, tokenSymbol);
+    } catch (error) {
+      console.error('Error getting minimum transfer amount:', error);
+      return 0.001;
+    }
+  }
+
+  // Format token amount for display
+  async formatTokenAmountForCurrentUser(chatId, tokenSymbol, amount) {
+    try {
+      const currentNetwork = await userNetworkService.getUserNetwork(chatId);
+      return multiChainService.formatTokenAmount(currentNetwork, tokenSymbol, amount);
+    } catch (error) {
+      console.error('Error formatting token amount:', error);
+      return amount.toString();
+    }
+  }
+
+  // Get network transaction fee estimate
+  async getNetworkFeeEstimateForCurrentUser(chatId, tokenSymbol) {
+    try {
+      const currentNetwork = await userNetworkService.getUserNetwork(chatId);
+      return multiChainService.estimateNetworkFee(currentNetwork, tokenSymbol);
+    } catch (error) {
+      console.error('Error getting network fee estimate:', error);
+      return { estimatedFee: 0, currency: 'USD' };
+    }
+  }
+
+  // Get network explorer URL for transaction
+  async getNetworkExplorerUrlForTransaction(chatId, txHash) {
+    try {
+      const currentNetwork = await userNetworkService.getUserNetwork(chatId);
+      return multiChainService.getExplorerUrl(currentNetwork, txHash);
+    } catch (error) {
+      console.error('Error getting explorer URL:', error);
+      return null;
+    }
+  }
+
+  // Get network status information
+  async getNetworkStatus(chatId) {
+    try {
+      const currentNetwork = await userNetworkService.getUserNetwork(chatId);
+      const networkConfig = multiChainService.getNetworkConfig(currentNetwork);
+      
+      if (!networkConfig) {
+        return {
+          network: currentNetwork,
+          status: 'unsupported',
+          message: 'Сеть не поддерживается'
+        };
+      }
+
+      // Check if network is enabled
+      if (!multiChainService.isNetworkEnabled(currentNetwork)) {
+        return {
+          network: currentNetwork,
+          status: 'disabled',
+          message: 'Сеть временно отключена'
+        };
+      }
+
+      return {
+        network: currentNetwork,
+        status: 'active',
+        message: 'Сеть активна и доступна',
+        name: multiChainService.getNetworkName(currentNetwork),
+        emoji: multiChainService.getNetworkEmoji(currentNetwork)
+      };
+    } catch (error) {
+      console.error('Error getting network status:', error);
+      return {
+        network: 'unknown',
+        status: 'error',
+        message: 'Ошибка проверки статуса сети'
+      };
+    }
+  }
+
+  // Get all network information for user
+  async getAllNetworkInfoForUser(chatId) {
+    try {
+      const networks = multiChainService.getAllNetworks();
+      const userNetwork = await userNetworkService.getUserNetwork(chatId);
+      const info = {};
+
+      for (const networkId of networks) {
+        const networkConfig = multiChainService.getNetworkConfig(networkId);
+        if (!networkConfig) continue;
+
+        const isCurrent = networkId === userNetwork;
+        const isEnabled = multiChainService.isNetworkEnabled(networkId);
+        const tokens = multiChainService.getNetworkTokens(networkId);
+
+        info[networkId] = {
+          id: networkId,
+          name: multiChainService.getNetworkName(networkId),
+          emoji: multiChainService.getNetworkEmoji(networkId),
+          enabled: isEnabled,
+          current: isCurrent,
+          tokens: Object.keys(tokens)
+        };
+      }
+
+      return info;
+    } catch (error) {
+      console.error('Error getting all network info:', error);
+      return {};
+    }
+  }
 }
 
-module.exports = new MultiChainWalletService();
+module.exports = MultiChainWalletService;

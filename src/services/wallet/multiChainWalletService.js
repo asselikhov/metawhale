@@ -10,6 +10,20 @@ const walletService = require('./walletService');
 const multiChainService = require('../multiChainService');
 const userNetworkService = require('../userNetworkService');
 
+// Properly import TronWeb with error handling
+let TronWeb = null;
+try {
+  TronWeb = require('tronweb');
+  // Check if TronWeb is a constructor function
+  if (typeof TronWeb !== 'function') {
+    console.warn('⚠️ TronWeb loaded but not a constructor, checking .default');
+    TronWeb = TronWeb.default || null;
+  }
+} catch (error) {
+  console.warn('⚠️ TronWeb not installed or failed to load:', error.message);
+  TronWeb = null;
+}
+
 class MultiChainWalletService {
   constructor() {
     this.tronWeb = null;
@@ -455,16 +469,312 @@ class MultiChainWalletService {
     }
   }
 
-  // Get network fee estimation
-  async getNetworkFeeEstimate(chatId, tokenSymbol) {
+  // Get network transaction fee estimate
+  async getNetworkFeeEstimate(networkId, tokenSymbol) {
+    try {
+      const networkConfig = multiChainService.getNetworkConfig(networkId);
+      if (!networkConfig) return { fee: 0, currency: 'USD' };
+
+      // Return estimated fees based on network
+      switch (networkId) {
+        case 'polygon':
+          return { fee: 0.01, currency: 'POL', usdValue: 0.01 };
+        case 'tron':
+          return { fee: 1, currency: 'TRX', usdValue: 0.05 };
+        case 'bsc':
+          return { fee: 0.001, currency: 'BNB', usdValue: 0.3 };
+        case 'solana':
+          return { fee: 0.00025, currency: 'SOL', usdValue: 0.05 };
+        case 'arbitrum':
+          return { fee: 0.0001, currency: 'ETH', usdValue: 0.2 };
+        case 'avalanche':
+          return { fee: 0.001, currency: 'AVAX', usdValue: 0.1 };
+        case 'ton':
+          return { fee: 0.1, currency: 'TON', usdValue: 0.5 };
+        default:
+          return { fee: 0, currency: 'USD', usdValue: 0 };
+      }
+    } catch (error) {
+      console.error('Error getting network fee estimate:', error);
+      return { fee: 0, currency: 'USD', usdValue: 0 };
+    }
+  }
+
+  // Check if user has sufficient balance for transfer
+  async hasSufficientBalance(chatId, tokenSymbol, amount, networkId = null) {
+    try {
+      if (!networkId) {
+        networkId = await userNetworkService.getUserNetwork(chatId);
+      }
+
+      const walletInfo = await userNetworkService.getUserWalletForNetwork(chatId, networkId);
+      if (!walletInfo.hasWallet) return false;
+
+      const balances = await this.getNetworkBalances(walletInfo.address, networkId);
+      const balance = balances[tokenSymbol] || 0;
+
+      return parseFloat(balance) >= parseFloat(amount);
+    } catch (error) {
+      console.error('Error checking sufficient balance:', error);
+      return false;
+    }
+  }
+
+  // Get user's wallet address for current network
+  async getUserWalletAddress(chatId) {
     try {
       const currentNetwork = await userNetworkService.getUserNetwork(chatId);
-      return multiChainService.estimateNetworkFee(currentNetwork, tokenSymbol);
+      const walletInfo = await userNetworkService.getUserWalletForNetwork(chatId, currentNetwork);
+      
+      return walletInfo.hasWallet ? walletInfo.address : null;
     } catch (error) {
-      console.error('Error getting fee estimate:', error);
-      return { estimatedFee: 0 };
+      console.error('Error getting user wallet address:', error);
+      return null;
     }
+  }
+
+  // Get all user's wallet addresses across networks
+  async getAllUserWalletAddresses(chatId) {
+    try {
+      const user = await User.findOne({ chatId });
+      if (!user || !user.wallets) return {};
+
+      const addresses = {};
+      for (const [networkId, wallet] of Object.entries(user.wallets)) {
+        if (wallet && wallet.address) {
+          addresses[networkId] = wallet.address;
+        }
+      }
+
+      return addresses;
+    } catch (error) {
+      console.error('Error getting all user wallet addresses:', error);
+      return {};
+    }
+  }
+
+  // Format token amount for network
+  formatTokenAmount(networkId, tokenSymbol, amount) {
+    return multiChainService.formatTokenAmount(networkId, tokenSymbol, amount);
+  }
+
+  // Get network confirmation requirements
+  getNetworkConfirmationRequirements(networkId) {
+    return multiChainService.getConfirmationRequirements(networkId);
+  }
+
+  // Get network explorer URL
+  getNetworkExplorerUrl(networkId, txHash) {
+    return multiChainService.getExplorerUrl(networkId, txHash);
+  }
+
+  // Get network token information
+  getNetworkTokenInfo(networkId, tokenSymbol) {
+    return multiChainService.getTokenConfig(networkId, tokenSymbol);
+  }
+
+  // Check if token is supported on network
+  isTokenSupportedOnNetwork(networkId, tokenSymbol) {
+    return multiChainService.isTokenSupported(networkId, tokenSymbol);
+  }
+
+  // Get all supported tokens for network
+  getSupportedTokensForNetwork(networkId) {
+    return multiChainService.getNetworkTokens(networkId);
+  }
+
+  // Get network icon/emoji
+  getNetworkIcon(networkId) {
+    return multiChainService.getNetworkEmoji(networkId);
+  }
+
+  // Get network name
+  getNetworkName(networkId) {
+    return multiChainService.getNetworkName(networkId);
+  }
+
+  // Get all supported networks
+  getAllSupportedNetworks() {
+    return multiChainService.getAllNetworks();
+  }
+
+  // Check if network is enabled
+  isNetworkEnabled(networkId) {
+    return multiChainService.isNetworkEnabled(networkId);
+  }
+
+  // Get network RPC status
+  async getNetworkRpcStatus(networkId) {
+    try {
+      const networkConfig = multiChainService.getNetworkConfig(networkId);
+      if (!networkConfig || !networkConfig.rpcUrls || networkConfig.rpcUrls.length === 0) {
+        return { status: 'disabled', message: 'No RPC URLs configured' };
+      }
+
+      // Test RPC connection
+      const provider = new ethers.providers.JsonRpcProvider(networkConfig.rpcUrls[0]);
+      const network = await provider.getNetwork();
+      
+      return { 
+        status: 'online', 
+        message: 'RPC connection successful',
+        chainId: network.chainId
+      };
+    } catch (error) {
+      return { 
+        status: 'offline', 
+        message: `RPC connection failed: ${error.message}`
+      };
+    }
+  }
+
+  // Get all network statuses
+  async getAllNetworkStatuses() {
+    const networks = multiChainService.getAllNetworks();
+    const statuses = {};
+
+    for (const networkId of networks) {
+      statuses[networkId] = await this.getNetworkRpcStatus(networkId);
+    }
+
+    return statuses;
+  }
+
+  // Get network gas price estimate
+  async getNetworkGasPrice(networkId) {
+    try {
+      const networkConfig = multiChainService.getNetworkConfig(networkId);
+      if (!networkConfig || !networkConfig.rpcUrls || networkConfig.rpcUrls.length === 0) {
+        return { gasPrice: 0, currency: 'USD' };
+      }
+
+      const provider = new ethers.providers.JsonRpcProvider(networkConfig.rpcUrls[0]);
+      const gasPrice = await provider.getGasPrice();
+      
+      return { 
+        gasPrice: parseFloat(ethers.utils.formatUnits(gasPrice, 'gwei')),
+        currency: 'Gwei'
+      };
+    } catch (error) {
+      console.error(`Error getting gas price for ${networkId}:`, error);
+      return { gasPrice: 0, currency: 'Gwei' };
+    }
+  }
+
+  // Get estimated transaction cost
+  async getEstimatedTransactionCost(networkId, tokenSymbol) {
+    try {
+      const feeEstimate = await this.getNetworkFeeEstimate(networkId, tokenSymbol);
+      const gasPrice = await this.getNetworkGasPrice(networkId);
+      
+      return {
+        ...feeEstimate,
+        gasPrice: gasPrice.gasPrice,
+        gasPriceCurrency: gasPrice.currency
+      };
+    } catch (error) {
+      console.error(`Error getting estimated transaction cost for ${networkId}:`, error);
+      return {
+        fee: 0,
+        currency: 'USD',
+        usdValue: 0,
+        gasPrice: 0,
+        gasPriceCurrency: 'Gwei'
+      };
+    }
+  }
+
+  // Validate token transfer
+  async validateTokenTransfer(chatId, tokenSymbol, amount, recipientAddress) {
+    try {
+      const currentNetwork = await userNetworkService.getUserNetwork(chatId);
+      
+      // Check if token is supported
+      if (!this.isTokenSupportedOnNetwork(currentNetwork, tokenSymbol)) {
+        return {
+          valid: false,
+          error: `Token ${tokenSymbol} is not supported on ${this.getNetworkName(currentNetwork)}`
+        };
+      }
+
+      // Validate recipient address
+      if (!this.validateAddressForNetwork(chatId, recipientAddress)) {
+        return {
+          valid: false,
+          error: 'Invalid recipient address for current network'
+        };
+      }
+
+      // Check sufficient balance
+      const hasBalance = await this.hasSufficientBalance(chatId, tokenSymbol, amount, currentNetwork);
+      if (!hasBalance) {
+        return {
+          valid: false,
+          error: 'Insufficient balance for transfer'
+        };
+      }
+
+      // Check minimum transfer amount
+      const minTransfer = await this.getMinimumTransfer(chatId, tokenSymbol);
+      if (parseFloat(amount) < parseFloat(minTransfer)) {
+        return {
+          valid: false,
+          error: `Minimum transfer amount is ${minTransfer} ${tokenSymbol}`
+        };
+      }
+
+      return {
+        valid: true,
+        network: currentNetwork,
+        feeEstimate: await this.getEstimatedTransactionCost(currentNetwork, tokenSymbol)
+      };
+    } catch (error) {
+      console.error('Error validating token transfer:', error);
+      return {
+        valid: false,
+        error: 'Failed to validate transfer'
+      };
+    }
+  }
+
+  // Get network statistics
+  async getNetworkStatistics(networkId) {
+    try {
+      const networkConfig = multiChainService.getNetworkConfig(networkId);
+      if (!networkConfig) return null;
+
+      const stats = {
+        network: networkId,
+        name: this.getNetworkName(networkId),
+        icon: this.getNetworkIcon(networkId),
+        enabled: this.isNetworkEnabled(networkId),
+        tokens: this.getSupportedTokensForNetwork(networkId)
+      };
+
+      // Add RPC status if enabled
+      if (stats.enabled) {
+        stats.rpcStatus = await this.getNetworkRpcStatus(networkId);
+        stats.gasPrice = await this.getNetworkGasPrice(networkId);
+      }
+
+      return stats;
+    } catch (error) {
+      console.error(`Error getting network statistics for ${networkId}:`, error);
+      return null;
+    }
+  }
+
+  // Get all network statistics
+  async getAllNetworkStatistics() {
+    const networks = multiChainService.getAllNetworks();
+    const statistics = {};
+
+    for (const networkId of networks) {
+      statistics[networkId] = await this.getNetworkStatistics(networkId);
+    }
+
+    return statistics;
   }
 }
 
-module.exports = new MultiChainWalletService();
+module.exports = MultiChainWalletService;
