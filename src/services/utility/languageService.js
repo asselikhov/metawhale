@@ -445,7 +445,7 @@ class LanguageService {
   async setUserLanguage(chatId, languageCode) {
     if (this.supportedLanguages[languageCode]) {
       try {
-        const { User } = require('../database/models');
+        const { User } = require('../../database/models');
         await User.findOneAndUpdate(
           { chatId },
           { language: languageCode },
@@ -459,11 +459,11 @@ class LanguageService {
     }
     return false;
   }
-  
+
   // Get user language preference
   async getUserLanguage(chatId) {
     try {
-      const { User } = require('../database/models');
+      const { User } = require('../../database/models');
       const user = await User.findOne({ chatId });
       return (user && user.language) ? user.language : this.defaultLanguage;
     } catch (error) {
