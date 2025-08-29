@@ -58,13 +58,14 @@ class LocalizationHelper {
    * @returns {Array} Localized main menu buttons
    */
   static async getLocalizedMainMenu(chatId) {
+    // Ensure we always return the correct main menu structure
+    const personalCabinet = await this.getText(chatId, 'personal_cabinet');
+    const p2p = await this.getText(chatId, 'p2p');
+    const matrix = await this.getText(chatId, 'matrix');
+    const settings = await this.getText(chatId, 'settings');
+    
     return [
-      [
-        await this.getText(chatId, 'personal_cabinet'),
-        await this.getText(chatId, 'p2p'),
-        await this.getText(chatId, 'matrix'),
-        await this.getText(chatId, 'settings')
-      ]
+      [personalCabinet, p2p, matrix, settings]
     ];
   }
   

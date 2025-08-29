@@ -94,7 +94,7 @@ class LanguageService {
         'personal_cabinet': '👤 ЛК',
         'p2p': '🔄 P2P',
         'matrix': '💠 Matrix',
-        'settings': '⚙️',
+        'settings': '⚙️ Настройки',
         
         // Settings menu
         'settings_menu': '⚙️ Настройки',
@@ -208,7 +208,7 @@ class LanguageService {
         'personal_cabinet': '👤 PC',
         'p2p': '🔄 P2P',
         'matrix': '💠 Matrix',
-        'settings': '⚙️',
+        'settings': '⚙️ Settings',
         
         // Settings menu
         'settings_menu': '⚙️ Settings',
@@ -322,7 +322,7 @@ class LanguageService {
         'personal_cabinet': '👤 个人中心',
         'p2p': '🔄 P2P',
         'matrix': '💠 Matrix',
-        'settings': '⚙️',
+        'settings': '⚙️ 设置',
         
         // Settings menu
         'settings_menu': '⚙️ 设置',

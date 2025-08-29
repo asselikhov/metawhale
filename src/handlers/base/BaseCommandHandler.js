@@ -334,7 +334,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}%${volumeDisplay}${
       }
       
       // Handle main menu buttons
-      if (text.includes('ЛК') || text.includes('Личный кабинет')) {
+      if (text.includes('ЛК') || text.includes('Личный кабинет') || text.includes('👤')) {
         console.log(`🏠 Handling Personal Cabinet request from ${chatId}`);
         if (!this.walletHandler) {
           // Fallback - create WalletHandler instance
@@ -359,7 +359,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}%${volumeDisplay}${
       }
       
       // Handle settings button
-      if (text.includes('⚙️') || text.includes('Настройки')) {
+      if (text.includes('⚙️') || text.includes('Настройки') || text.includes('Settings')) {
         console.log(`⚙️ Handling Settings request from ${chatId}`);
         return await this.handleSettingsMenu(ctx);
       }
@@ -605,7 +605,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}%${volumeDisplay}${
     try {
       const chatId = ctx.chat.id.toString();
       const mainMenu = Markup.keyboard(
-        LocalizationHelper.getLocalizedMainMenu(chatId)
+        await LocalizationHelper.getLocalizedMainMenu(chatId)
       ).resize();
       
       await ctx.reply(await LocalizationHelper.getText(chatId, 'main_menu'), mainMenu);
