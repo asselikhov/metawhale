@@ -2,7 +2,7 @@ const { describe, it, beforeEach, afterEach } = require('mocha');
 const { expect } = require('chai');
 const sinon = require('sinon');
 const messageHandler = require('../handlers/messageHandler');
-const p2pService = require('../services/p2pService');
+const p2pService = require('../services/p2p');
 
 describe('P2P Orders Create with Min/Max Amounts', function() {
   let ctx;

@@ -7,7 +7,7 @@ const mongoose = require('mongoose');
 require('dotenv').config();
 
 // Import dispute system components
-const disputeService = require('../src/services/disputeService');
+const disputeService = require('../src/services/dispute/disputeServiceInstance');
 const DisputeHandler = require('../src/handlers/DisputeHandler');
 const AdminDisputeHandler = require('../src/handlers/AdminDisputeHandler');
 const { P2PTrade, User, Moderator, DisputeLog } = require('../src/database/models');

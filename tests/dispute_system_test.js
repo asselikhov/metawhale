@@ -11,7 +11,7 @@ process.env.NODE_ENV = 'test';
 process.env.MONGODB_URI = 'mongodb://localhost:27017/metawhale-test-disputes';
 
 // Import modules
-const disputeService = require('../src/services/disputeService');
+const disputeService = require('../src/services/dispute/disputeServiceInstance');
 const DisputeHandler = require('../src/handlers/DisputeHandler');
 const AdminDisputeHandler = require('../src/handlers/AdminDisputeHandler');
 const { P2PTrade, User, DisputeLog, Moderator } = require('../src/database/models');

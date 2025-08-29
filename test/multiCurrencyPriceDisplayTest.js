@@ -8,7 +8,7 @@ console.log('🔍 Тестирование обновленной функцио
 // Тест 1: Проверка сервиса получения рыночных цен
 try {
   console.log('1️⃣ Тестирование сервиса получения рыночных цен...');
-  const p2pService = require('../src/services/p2pService');
+  const p2pService = require('../src/services/p2p');
   
   // Проверяем, что метод getMarketPriceSuggestion существует
   if (typeof p2pService.getMarketPriceSuggestion === 'function') {

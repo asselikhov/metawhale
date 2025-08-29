@@ -5,7 +5,7 @@
 
 const { expect } = require('chai');
 const sinon = require('sinon');
-const p2pService = require('../services/p2pService');
+const p2pService = require('../services/p2p');
 
 describe('P2P Order Sorting', function() {
   let mockOrders;

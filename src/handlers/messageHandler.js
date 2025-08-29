@@ -392,7 +392,7 @@ class MessageHandler {
       const chatId = ctx.chat.id.toString();
       
       // Cancel the order using P2P service
-      const p2pService = require('../services/p2pService');
+      const p2pService = require('../services/p2p');
       const cancelledOrder = await p2pService.cancelOrder(chatId, orderId);
       
       // Send simple success message
@@ -482,7 +482,7 @@ class MessageHandler {
       }
       
       // Create order (legacy database-only escrow)
-      const p2pService = require('../services/p2pService');
+      const p2pService = require('../services/p2p');
       
       // Get selected currency from pending order or session
       const selectedCurrency = pendingOrder.currency || sessionManager.getSessionData(chatId, 'selectedCurrency') || 'RUB';
@@ -580,7 +580,7 @@ class MessageHandler {
       // Clear pending order from session
       sessionManager.setSessionData(chatId, 'pendingP2POrder', null);
       
-      const p2pService = require('../services/p2pService');
+      const p2pService = require('../services/p2p');
       
       try {
         let result;
@@ -740,7 +740,7 @@ class MessageHandler {
       await ctx.reply(message);
       
       // Create order with smart contract escrow
-      const p2pService = require('../services/p2pService');
+      const p2pService = require('../services/p2p');
       
       // Get selected currency from pending order or session
       const selectedCurrency = pendingOrder.currency || sessionManager.getSessionData(chatId, 'selectedCurrency') || 'RUB';
@@ -947,7 +947,7 @@ class MessageHandler {
       const chatId = ctx.chat.id.toString();
       
       // Cancel the order using P2P service
-      const p2pService = require('../services/p2pService');
+      const p2pService = require('../services/p2p');
       const cancelledOrder = await p2pService.cancelOrder(chatId, orderId);
       
       // Send simple success message
@@ -1632,7 +1632,7 @@ class MessageHandler {
       }
       
       // Create trade in P2P service and escrow CES tokens
-      const p2pService = require('../services/p2pService');
+      const p2pService = require('../services/p2p');
       const { User } = require('../database/models');
       
       // ИСПРАВЛЕНИЕ: Правильно определяем роли участников
@@ -1878,7 +1878,7 @@ class MessageHandler {
       }
       
       // Mark payment as received by seller
-      const p2pService = require('../services/p2pService');
+      const p2pService = require('../services/p2p');
       const result = await p2pService.confirmPaymentReceived(tradeId, chatId);
       
       if (!result.success) {
@@ -1949,7 +1949,7 @@ class MessageHandler {
       }
       
       // Mark payment as made by buyer (not completed by seller)
-      const p2pService = require('../services/p2pService');
+      const p2pService = require('../services/p2p');
       const result = await p2pService.markPaymentMade(tradeId, chatId);
       
       if (!result.success) {
@@ -2113,7 +2113,7 @@ class MessageHandler {
       console.log(`🔄 User ${chatId} has permission to cancel trade ${tradeId}`);
       
       // Cancel trade and release escrow
-      const p2pService = require('../services/p2pService');
+      const p2pService = require('../services/p2p');
       const result = await p2pService.cancelTradeByUser(tradeId, chatId);
       
       if (!result.success) {
@@ -2288,7 +2288,7 @@ class MessageHandler {
         return await ctx.reply('❌ Данные сделки не найдены.');
       }
       
-      const p2pService = require('../services/p2pService');
+      const p2pService = require('../services/p2p');
       const { User, P2POrder } = require('../database/models');
       
       // Get buyer (current user - taker)

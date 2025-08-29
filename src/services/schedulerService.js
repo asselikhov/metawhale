@@ -234,7 +234,7 @@ ${changeEmoji} ${changeSign}${priceData.change24h.toFixed(1)}% • 🅥 $ ${pric
       // Освобождаем заблокированные средства для sell ордеров
       if (order.type === 'sell' && order.escrowLocked && order.escrowAmount > 0 && order.userId) {
         try {
-          const escrowService = require('./escrowService');
+          const escrowService = require('./escrow/escrowServiceInstance');
           await escrowService.releaseTokensFromEscrow(order.userId, null, 'CES', order.escrowAmount);
           console.log(`💰 [P2P-TIMER] Освобождены заблокированные токены: ${order.escrowAmount} CES`);
         } catch (escrowError) {

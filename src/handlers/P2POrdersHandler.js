@@ -4,7 +4,7 @@
  */
 
 const { Markup } = require('telegraf');
-const p2pService = require('../services/p2pService');
+const p2pService = require('../services/p2p');
 const { User } = require('../database/models');
 const sessionManager = require('./SessionManager');
 
@@ -90,7 +90,7 @@ class P2POrdersHandler {
       const progressPercent = order.amount > 0 ? Math.round((filledAmount / order.amount) * 100) : 0;
       
       // Получаем среднерыночную цену (мок)
-      const p2pService = require('../services/p2pService');
+      const p2pService = require('../services/p2p');
       let marketPrice = order.pricePerToken; // По умолчанию
       let priceDeviation = 0;
       
@@ -750,7 +750,7 @@ class P2POrdersHandler {
    */
   async generateUserStatistics(chatId, result) {
     try {
-      const p2pService = require('../services/p2pService');
+      const p2pService = require('../services/p2p');
       const { User } = require('../database/models');
       
       // Получаем пользователя
@@ -1031,7 +1031,7 @@ class P2POrdersHandler {
   async handleQuickCancelOrder(ctx, orderId) {
     try {
       const chatId = ctx.chat.id.toString();
-      const p2pService = require('../services/p2pService');
+      const p2pService = require('../services/p2p');
       
       console.log(`⚡ [QUICK-CANCEL] Пользователь ${chatId} инициирует быструю отмену ордера ${orderId}`);
       
@@ -1090,7 +1090,7 @@ class P2POrdersHandler {
   async handleConfirmCancelOrder(ctx, orderId) {
     try {
       const chatId = ctx.chat.id.toString();
-      const p2pService = require('../services/p2pService');
+      const p2pService = require('../services/p2p');
       
       console.log(`✅ [CONFIRM-CANCEL] Подтверждение отмены ордера ${orderId}`);
       
@@ -1364,7 +1364,7 @@ class P2POrdersHandler {
       }
       
       // Создаём новый ордер на основе старого
-      const p2pService = require('../services/p2pService');
+      const p2pService = require('../services/p2p');
       
       try {
         let result;

@@ -4,7 +4,7 @@
  */
 
 const { Markup } = require('telegraf');
-const p2pService = require('../services/p2pService');
+const p2pService = require('../services/p2p');
 const walletService = require('../services/walletService');
 const { User, P2PTrade } = require('../database/models');
 const sessionManager = require('./SessionManager');
@@ -157,7 +157,7 @@ class P2PHandler {
       }
       
       // Send initial message with loading price
-      const initialMessage = `📉 ПРОДАЖА CES ТОКЕНОВ\n` +
+      const initialMessage = `.DataGridViewColumn ПРОДАЖА CES ТОКЕНОВ\n` +
                             `➖➖➖➖➖➖➖➖➖➖➖\n` +
                             `⏳ Загружаем актуальную цену...\n` +
                             `Баланс: ${walletInfo.cesBalance.toFixed(4)} CES\n\n` +
@@ -208,7 +208,7 @@ class P2PHandler {
 
       const keyboard = Markup.inlineKeyboard([
         [Markup.button.callback(`📈 Купить ${selectedToken}`, `p2p_buy_orders`)],
-        [Markup.button.callback(`📉 Продать ${selectedToken}`, `p2p_sell_orders`)],
+        [Markup.button.callback(`.DataGridViewColumn Продать ${selectedToken}`, `p2p_sell_orders`)],
         [Markup.button.callback('🔙 Назад', 'p2p_menu')]
       ]);
 
@@ -315,7 +315,7 @@ class P2PHandler {
         /❌/, // X emoji
         /💰/, // Money bag emoji
         /📈/, // Chart emoji
-        /📉/, // Chart emoji
+        /.DataGridViewColumn/, // Chart emoji
         /Назад/, // "Назад" word
         /Отмена/, // "Отмена" word
         /Подтверд/ // "Подтверд" word
@@ -366,7 +366,7 @@ class P2PHandler {
       const commissionTokens = amount * 0.01; // 1% commission in tokens
       
       // Show confirmation
-      const typeEmoji = orderType === 'buy' ? '📈' : '📉';
+      const typeEmoji = orderType === 'buy' ? '📈' : '.DataGridViewColumn';
       const typeText = orderType === 'buy' ? 'покупку' : 'продажу';
       
       // Check if smart contract escrow is enabled for sell orders
@@ -546,7 +546,7 @@ class P2PHandler {
       const currency = fiatCurrencyService.getCurrencyMetadata(currencyCode);
       
       // Get real market price
-      const p2pService = require('../services/p2pService');
+      const p2pService = require('../services/p2p');
       const marketPriceData = await p2pService.getMarketPriceSuggestion();
       
       // Convert market price to selected currency using pre-calculated prices when available
@@ -595,7 +595,7 @@ class P2PHandler {
           balanceText = `Баланс: ${walletInfo.balance.toFixed(6)} ${tokenSymbol}\n`;
         }
         
-        message = `📉 ПРОДАЖА ${tokenSymbol} ТОКЕНОВ\n` +
+        message = `.DataGridViewColumn ПРОДАЖА ${tokenSymbol} ТОКЕНОВ\n` +
                  `➖➖➖➖➖➖➖➖➖➖➖\n` +
                  `${currency.flag} Валюта: ${currency.nameRu} (${currency.code})\n` +
                  `Текущая рыночная цена: ${fiatCurrencyService.formatAmount(convertedPrice, currencyCode)} / ${tokenSymbol} 🟢\n` +
@@ -648,7 +648,7 @@ class P2PHandler {
       const currency = fiatCurrencyService.getCurrencyMetadata(currencyCode);
       
       // Get real market price
-      const p2pService = require('../services/p2pService');
+      const p2pService = require('../services/p2p');
       const marketPriceData = await p2pService.getMarketPriceSuggestion();
       
       // Convert market price to selected currency using pre-calculated prices when available
@@ -797,7 +797,7 @@ class P2PHandler {
       
       const keyboard = Markup.inlineKeyboard([
         [Markup.button.callback(`📈 Купить ${tokenName}`, `p2p_buy_${tokenSymbol.toLowerCase()}`), 
-         Markup.button.callback(`📉 Продать ${tokenName}`, `p2p_sell_${tokenSymbol.toLowerCase()}`)],
+         Markup.button.callback(`.DataGridViewColumn Продать ${tokenName}`, `p2p_sell_${tokenSymbol.toLowerCase()}`)],
         [Markup.button.callback('📊 Рынок', 'p2p_market_orders'), Markup.button.callback('📋 Мои ордера', 'p2p_my_orders')],
         [Markup.button.callback('🏆 Топ', 'p2p_top_traders'), Markup.button.callback('📊 Аналитика', 'p2p_analytics')],
         [Markup.button.callback('📑 Мои данные', 'p2p_my_data')]
@@ -839,7 +839,7 @@ class P2PHandler {
   async handleP2PSellToken(ctx, tokenSymbol) {
     try {
       const chatId = ctx.chat.id.toString();
-      console.log(`📉 User ${chatId} wants to sell ${tokenSymbol}`);
+      console.log(`.DataGridViewColumn User ${chatId} wants to sell ${tokenSymbol}`);
       
       // Store selected token in session for market orders
       const sessionManager = require('./SessionManager');
@@ -878,7 +878,7 @@ class P2PHandler {
       // Get supported currencies
       const currencies = fiatCurrencyService.getSupportedCurrencies();
       
-      const typeEmoji = orderType === 'buy' ? '📈' : '📉';
+      const typeEmoji = orderType === 'buy' ? '📈' : '.DataGridViewColumn';
       const typeText = orderType === 'buy' ? 'ПОКУПКИ' : 'ПРОДАЖИ';
       
       const message = `${typeEmoji} ${typeText} ${tokenSymbol} ТОКЕНОВ\n` +
@@ -927,107 +927,4 @@ class P2PHandler {
   async handleP2PCurrencySelected(ctx, orderType, tokenSymbol, currencyCode) {
     try {
       const chatId = ctx.chat.id.toString();
-      console.log(`💱 User ${chatId} selected ${currencyCode} for ${orderType} ${tokenSymbol} order`);
-      
-      // Validate currency support
-      if (!fiatCurrencyService.isCurrencySupported(currencyCode)) {
-        return await ctx.reply('❌ Выбранная валюта не поддерживается.');
-      }
-      
-      const currency = fiatCurrencyService.getCurrencyMetadata(currencyCode);
-      const typeEmoji = orderType === 'buy' ? '📈' : '📉';
-      const typeText = orderType === 'buy' ? 'ПОКУПКА' : 'ПРОДАЖА';
-      
-      // Special handling for sell orders - check token balance
-      if (orderType === 'sell') {
-        let hasBalance = false;
-        let tokenBalance = 0;
-        
-        if (tokenSymbol === 'CES') {
-          const walletInfo = await walletService.getUserWallet(chatId);
-          tokenBalance = walletInfo.cesBalance;
-          hasBalance = tokenBalance >= 0.1;
-        } else {
-          // For other tokens, check multi-chain wallet
-          try {
-            const multiChainWalletService = require('../services/multiChainWalletService');
-            const userNetworkService = require('../services/userNetworkService');
-            const currentNetwork = await userNetworkService.getUserNetwork(chatId);
-            const walletInfo = await multiChainWalletService.getMultiChainWalletInfo(chatId);
-            const networkBalances = walletInfo.networks[currentNetwork];
-            if (networkBalances && networkBalances.tokens && networkBalances.tokens[tokenSymbol]) {
-              tokenBalance = networkBalances.tokens[tokenSymbol].balance || 0;
-            }
-            hasBalance = tokenBalance >= 0.001;
-          } catch (balanceError) {
-            console.error(`Error getting ${tokenSymbol} balance:`, balanceError);
-            hasBalance = false;
-          }
-        }
-        
-        if (!hasBalance) {
-          const message = `.DataGridViewColumn ПРОДАЖА ${tokenSymbol} ТОКЕНОВ\n` +
-                         `➖➖➖➖➖➖➖➖➖➖➖\n` +
-                         `${currency.flag} Валюта: ${currency.nameRu}\n` +
-                         `⚠️ Недостаточно ${tokenSymbol} для продажи\n` +
-                         `Баланс: ${tokenBalance.toFixed(6)} ${tokenSymbol}\n\n` +
-                         `Информация:\n` +
-                         `• Минимальная сумма: ${tokenSymbol === 'CES' ? '0.1' : '0.001'} ${tokenSymbol}\n` +
-                         `• Комиссия платформы: 1%\n\n` +
-                         `💡 Пополните баланс ${tokenSymbol}`;
-          
-          const keyboard = Markup.inlineKeyboard([
-            [Markup.button.callback('🔄 Выбрать другую валюту', `p2p_currency_selection_${orderType}_${tokenSymbol.toLowerCase()}`)],
-            [Markup.button.callback('🔙 Назад', 'p2p_menu')]
-          ]);
-          
-          return await ctx.reply(message, keyboard);
-        }
-      }
-      
-      // Store currency selection in session
-      sessionManager.setSessionData(chatId, 'selectedCurrency', currencyCode);
-      
-      // Get current market price for display
-      let priceText = '';
-      try {
-        // For now, show that price is loading - will be updated by startRealTimePriceUpdates
-        priceText = `⏳ Загружаем актуальную цену...\n`;
-      } catch (error) {
-        priceText = `⚠️ Ошибка загрузки цены\n`;
-      }
-      
-      // Send order creation interface with currency context
-      const initialMessage = `${typeEmoji} ${typeText} ${tokenSymbol} ТОКЕНОВ\n` +
-                            `➖➖➖➖➖➖➖➖➖➖➖\n` +
-                            `${currency.flag} Валюта: ${currency.nameRu} (${currency.code})\n` +
-                            priceText + '\n' +
-                            `⚠️ Введите [кол-во, ${tokenSymbol}] [цена_за_токен, ${currency.symbol}] [мин_сумма, ${currency.symbol}] [макс_сумма, ${currency.symbol}]\n` +
-                            `💡 Пример: 10 245 1000 2450\n\n` +
-                            `Информация:\n` +
-                            `• Минимальная сумма в ${currency.code}: эквивалент 10 ${currency.symbol}\n` +
-                            `• Комиссия платформы: 1% (только с мейкеров)`;
-      
-      const keyboard = Markup.inlineKeyboard([
-        [Markup.button.callback('🔄 Обновить цену', `refresh_price_${orderType}_${tokenSymbol.toLowerCase()}_${currencyCode}`)],
-        [Markup.button.callback('💱 Сменить валюту', `p2p_currency_selection_${orderType}_${tokenSymbol.toLowerCase()}`)],
-        [Markup.button.callback('🔙 Назад', 'p2p_menu')]
-      ]);
-      
-      const sentMessage = await ctx.reply(initialMessage, keyboard);
-      
-      // Store state to handle next user message
-      console.log(`🔄 Setting P2P ${orderType} order session for ${chatId} with token ${tokenSymbol} and currency ${currencyCode}`);
-      sessionManager.setP2POrderState(chatId, orderType, tokenSymbol);
-      
-      // Start real-time price updates with currency context
-      this.startRealTimePriceUpdates(ctx, sentMessage, orderType, null, tokenSymbol, currencyCode);
-      
-    } catch (error) {
-      console.error('P2P currency selected error:', error);
-      await ctx.reply('❌ Ошибка обработки выбранной валюты.');
-    }
-  }
-}
-
-module.exports = P2PHandler;
+      console.log(`

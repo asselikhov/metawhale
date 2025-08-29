@@ -7,7 +7,7 @@
 const { P2POrder, P2PTrade, User } = require('../database/models');
 const walletService = require('./walletService');
 const priceService = require('./priceService');
-const escrowService = require('./escrowService');
+const escrowService = require('./escrow/escrowServiceInstance');
 const smartNotificationService = require('./smartNotificationService');
 const reputationService = require('./reputationService');
 const PrecisionUtil = require('../utils/PrecisionUtil');
@@ -1686,7 +1686,7 @@ class P2PService {
       }
       
       // Release tokens from escrow to buyer
-      const escrowService = require('./escrowService');
+      const escrowService = require('./escrow/escrowServiceInstance');
       await escrowService.releaseTokensFromEscrow(
         trade.sellerId._id,
         tradeId,

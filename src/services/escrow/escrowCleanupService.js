@@ -5,7 +5,7 @@
 
 const { User, P2POrder, P2PTrade, EscrowTransaction } = require('../database/models');
 const walletService = require('./walletService');
-const escrowService = require('./escrowService');
+const escrowService = require('./escrowServiceInstance');
 
 class EscrowCleanupService {
   constructor() {

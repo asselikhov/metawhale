@@ -116,7 +116,7 @@ class EscrowSafetySystem {
         }
         
         // 2. Выполняем возврат через сервис эскроу
-        const escrowService = require('./escrowService');
+        const escrowService = require('./escrowServiceInstance');
         await escrowService.refundTokensFromEscrow(
           trade.sellerId._id,
           trade._id,

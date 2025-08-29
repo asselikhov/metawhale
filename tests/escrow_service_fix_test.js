@@ -4,7 +4,7 @@
  */
 
 const { User, EscrowTransaction } = require('../src/database/models');
-const escrowService = require('../src/services/escrowService');
+const escrowService = require('../src/services/escrow/escrowServiceInstance');
 
 // Mock data for testing
 const mockUser = {

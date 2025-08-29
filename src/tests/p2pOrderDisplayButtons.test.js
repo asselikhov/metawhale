@@ -6,7 +6,7 @@
 const { expect } = require('chai');
 const sinon = require('sinon');
 const MessageHandler = require('../handlers/messageHandler');
-const p2pService = require('../services/p2pService');
+const p2pService = require('../services/p2p');
 const reputationService = require('../services/reputationService');
 
 describe('P2P Order Display with Inline Buttons', function() {

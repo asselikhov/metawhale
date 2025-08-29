@@ -122,7 +122,7 @@ class EscrowMonitoringService {
             if (Date.now() > expiryTime.getTime()) {
               console.log(`🕐 [MONITOR] Processing expired trade: ${trade._id}`);
               
-              const p2pService = require('../src/services/p2pService');
+              const p2pService = require('../src/services/p2p');
               await p2pService.cancelTradeWithTimeout(trade._id);
               
               console.log(`✅ [MONITOR] Processed expired trade: ${trade._id}`);

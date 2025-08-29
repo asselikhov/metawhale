@@ -13,7 +13,7 @@ module.exports = P2PTradeHandler;
  */
 
 const { Markup } = require('telegraf');
-const p2pService = require('../services/p2pService');
+const p2pService = require('../services/p2p');
 const walletService = require('../services/walletService');
 const { User, P2PTrade } = require('../database/models');
 const sessionManager = require('./SessionManager');
@@ -555,7 +555,7 @@ class P2PHandler {
       const currency = fiatCurrencyService.getCurrencyMetadata(currencyCode);
       
       // Get real market price
-      const p2pService = require('../services/p2pService');
+      const p2pService = require('../services/p2p');
       const marketPriceData = await p2pService.getMarketPriceSuggestion();
       
       // Convert market price to selected currency using pre-calculated prices when available
@@ -657,7 +657,7 @@ class P2PHandler {
       const currency = fiatCurrencyService.getCurrencyMetadata(currencyCode);
       
       // Get real market price
-      const p2pService = require('../services/p2pService');
+      const p2pService = require('../services/p2p');
       const marketPriceData = await p2pService.getMarketPriceSuggestion();
       
       // Convert market price to selected currency using pre-calculated prices when available

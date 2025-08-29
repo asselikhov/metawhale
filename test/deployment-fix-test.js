@@ -8,7 +8,7 @@ console.log('🔧 Тестирование исправлений для деп�
 // 1. Проверка синтаксиса p2pService
 try {
   console.log('1️⃣ Тестирование p2pService...');
-  const p2pService = require('../src/services/p2pService');
+  const p2pService = require('../src/services/p2p');
   console.log('   ✅ p2pService загружен без ошибок');
 } catch (error) {
   console.error('   ❌ Ошибка в p2pService:', error.message);

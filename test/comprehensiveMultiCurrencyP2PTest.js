@@ -10,7 +10,7 @@ async function testMarketPriceSuggestion() {
   console.log('1️⃣ Testing Market Price Suggestion Service...');
   
   try {
-    const p2pService = require('../src/services/p2pService');
+    const p2pService = require('../src/services/p2p');
     const marketPriceData = await p2pService.getMarketPriceSuggestion();
     
     console.log('   ✅ Market price suggestion service is available');
@@ -107,7 +107,7 @@ async function testPriceConversionAndDisplay() {
   console.log('\n4️⃣ Testing Price Conversion and Display...');
   
   try {
-    const p2pService = require('../src/services/p2pService');
+    const p2pService = require('../src/services/p2p');
     const fiatCurrencyService = require('../src/services/fiatCurrencyService');
     
     // Get market price data

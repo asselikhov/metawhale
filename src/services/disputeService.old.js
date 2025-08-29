@@ -12,7 +12,7 @@
 
 const { P2PTrade, User, DisputeLog, Moderator } = require('../database/models');
 const smartNotificationService = require('./smartNotificationService');
-const escrowService = require('./escrowService');
+const escrowService = require('./escrow/escrowServiceInstance');
 const antiFraudService = require('./antiFraudService');
 
 class DisputeService {
