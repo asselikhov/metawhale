@@ -10,7 +10,7 @@
  * - Comprehensive audit trails
  */
 
-const { P2PTrade, User, DisputeLog, Moderator } = require('../../database/models');
+const { P2PTrade, User, DisputeLog, Moderator } = require('../database/models');
 const smartNotificationService = require('../notification/smartNotificationService');
 const escrowService = require('../escrow/escrowServiceInstance');
 const antiFraudService = require('../utility/antiFraudService');

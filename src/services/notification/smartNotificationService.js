@@ -3,8 +3,8 @@
  * AI-powered notification system for P2P trading platform
  */
 
-const { User, P2POrder, P2PTrade } = require('../database/models');
-const config = require('../config/configuration');
+const { User, P2POrder, P2PTrade } = require('../../database/models');
+const config = require('../../config/configuration');
 // Remove direct bot import to avoid circular dependencies
 // const bot = require('../bot/telegramBot').getInstance();
 

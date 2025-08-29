@@ -4,7 +4,7 @@
  */
 
 const { User, EscrowTransaction } = require('../../../database/models');
-const { walletService } = require('../../wallet');
+const walletService = require('../../wallet/walletService');
 const smartContractService = require('../../smartContractService');
 const config = require('../../../config/configuration');
 

@@ -3,7 +3,7 @@
  * Handles assignment of moderators to disputes
  */
 
-const { Moderator } = require('../../../database/models');
+const { Moderator } = require('../../database/models');
 
 class ModeratorAssignmentService {
   constructor(parentService) {

@@ -4,14 +4,14 @@
  */
 
 const { Markup } = require('telegraf');
-const priceService = require('../services/priceService');
-const commissionTrackingService = require('../services/commissionTrackingService');
-const visitorStatsService = require('../services/visitorStatsService');
-const { User, PriceHistory, isDatabaseConnected } = require('../database/models');
-const sessionManager = require('./SessionManager');
+const priceService = require('../../services/utility/priceService');
+const commissionTrackingService = require('../../services/commissionTrackingService');
+const visitorStatsService = require('../../services/visitorStatsService');
+const { User, PriceHistory, isDatabaseConnected } = require('../../database/models');
+const sessionManager = require('../SessionManager');
 const fs = require('fs').promises;
-const LocalizationHelper = require('../utils/localizationHelper');
-const languageService = require('../services/utility/languageService');
+const LocalizationHelper = require('../../utils/localizationHelper');
+const languageService = require('../../services/utility/languageService');
 
 class BaseCommandHandler {
   constructor() {

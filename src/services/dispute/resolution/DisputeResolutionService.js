@@ -3,7 +3,7 @@
  * Handles the resolution of disputes by moderators
  */
 
-const { P2PTrade, User } = require('../../../database/models');
+const { P2PTrade, User } = require('../../database/models');
 const escrowService = require('../../escrow/escrowServiceInstance');
 
 class DisputeResolutionService {

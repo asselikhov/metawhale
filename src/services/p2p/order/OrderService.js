@@ -3,10 +3,10 @@
  * Handles creation, management, and lifecycle of P2P orders
  */
 
-const { P2POrder, User } = require('../../database/models');
+const { P2POrder, User } = require('../../../database/models');
 const walletService = require('../../wallet/walletService');
-const rubleReserveService = require('../../utility/rubleReserveService');
-const config = require('../../config/configuration');
+const rubleReserveService = require('../../rubleReserveService');
+const config = require('../../../config/configuration');
 
 class OrderService {
   constructor() {

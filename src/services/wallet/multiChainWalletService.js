@@ -1,26 +1,14 @@
 /**
  * Multi-Chain Wallet Service
- * Handles wallet operations across different blockchain networks
+ * Handles wallet operations across multiple blockchain networks
  */
 
 const { ethers } = require('ethers');
-let TronWeb = null;
-try {
-  TronWeb = require('tronweb');
-  // Проверяем, что TronWeb является конструктором
-  if (typeof TronWeb !== 'function') {
-    console.warn('⚠️ TronWeb loaded but not a constructor, checking .default');
-    TronWeb = TronWeb.default || null;
-  }
-} catch (error) {
-  console.warn('⚠️ TronWeb not installed or failed to load:', error.message);
-  TronWeb = null;
-}
-const multiChainService = require('./multiChainService');
-const userNetworkService = require('./userNetworkService');
-const { walletService } = require('./wallet');
-const priceService = require('./priceService');
-const rpcService = require('./rpcService');
+const config = require('../../config/configuration');
+const { User, Wallet } = require('../../database/models');
+const walletService = require('./walletService');
+const multiChainService = require('../multiChainService');
+const userNetworkService = require('../userNetworkService');
 
 class MultiChainWalletService {
   constructor() {

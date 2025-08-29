@@ -3,7 +3,7 @@
  * Handles the initiation of disputes for P2P trades
  */
 
-const { P2PTrade, User } = require('../../database/models');
+const { P2PTrade, User } = require('../database/models');
 const escrowService = require('../escrow/escrowServiceInstance');
 const antiFraudService = require('../utility/antiFraudService');
 

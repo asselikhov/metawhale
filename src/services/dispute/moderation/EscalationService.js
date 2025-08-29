@@ -3,7 +3,7 @@
  * Handles escalation of disputes when they are not resolved in time
  */
 
-const { P2PTrade } = require('../../../database/models');
+const { P2PTrade } = require('../../database/models');
 
 class EscalationService {
   constructor(parentService) {

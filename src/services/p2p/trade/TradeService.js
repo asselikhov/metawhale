@@ -3,13 +3,13 @@
  * Handles creation, execution, and lifecycle of P2P trades
  */
 
-const { P2PTrade, P2POrder, User } = require('../../database/models');
+const { P2PTrade, P2POrder, User } = require('../../../database/models');
 const walletService = require('../../wallet/walletService');
 const escrowService = require('../../escrow/escrowServiceInstance');
 const smartNotificationService = require('../../notification/smartNotificationService');
-const reputationService = require('../../analytics/reputationService');
+const reputationService = require('../../reputationService');
 const PrecisionUtil = require('../../../utils/PrecisionUtil');
-const config = require('../../config/configuration');
+const config = require('../../../config/configuration');
 
 class TradeService {
   constructor() {

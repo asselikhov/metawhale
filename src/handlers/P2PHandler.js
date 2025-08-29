@@ -5,7 +5,7 @@
 
 const { Markup } = require('telegraf');
 const p2pService = require('../services/p2p');
-const walletService = require('../services/walletService');
+const walletService = require('../services/wallet/walletService');
 const { User, P2PTrade } = require('../database/models');
 const sessionManager = require('./SessionManager');
 const fiatCurrencyService = require('../services/fiatCurrencyService');
@@ -83,7 +83,7 @@ class P2PHandler {
       const chatId = ctx.chat.id.toString();
       
       // Validate user profile completion before allowing order creation
-      const P2PDataHandler = require('./P2PDataHandler');
+      const P2PDataHandler = require('./p2p/index');
       const dataHandler = new P2PDataHandler();
       const validation = await dataHandler.validateUserForP2POperations(chatId);
       
@@ -128,7 +128,7 @@ class P2PHandler {
       const chatId = ctx.chat.id.toString();
       
       // Validate user profile completion before allowing order creation
-      const P2PDataHandler = require('./P2PDataHandler');
+      const P2PDataHandler = require('./p2p/index');
       const dataHandler = new P2PDataHandler();
       const validation = await dataHandler.validateUserForP2POperations(chatId);
       
@@ -866,7 +866,7 @@ class P2PHandler {
       console.log(`💱 User ${chatId} selecting currency for ${orderType} ${tokenSymbol} order`);
       
       // Validate user profile completion before allowing order creation
-      const P2PDataHandler = require('./P2PDataHandler');
+      const P2PDataHandler = require('./p2p/index');
       const dataHandler = new P2PDataHandler();
       const validation = await dataHandler.validateUserForP2POperations(chatId);
       
@@ -927,4 +927,24 @@ class P2PHandler {
   async handleP2PCurrencySelected(ctx, orderType, tokenSymbol, currencyCode) {
     try {
       const chatId = ctx.chat.id.toString();
-      console.log(`
+      console.log(`Currency selected for user ${chatId}: ${orderType} ${tokenSymbol} in ${currencyCode}`);
+
+      // Set user's preferred currency
+      const fiatCurrencyService = require('../services/utility/fiatCurrencyService');
+      await fiatCurrencyService.setUserCurrency(chatId, currencyCode);
+
+      // Continue with order creation flow
+      if (orderType === 'buy') {
+        await this.handleP2PBuyCES(ctx);
+      } else {
+        await this.handleP2PSellCES(ctx);
+      }
+
+    } catch (error) {
+      console.error('P2P currency selection confirmation error:', error);
+      await ctx.reply('❌ Ошибка установки валюты.');
+    }
+  }
+}
+
+module.exports = P2PHandler;

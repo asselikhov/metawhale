@@ -3,7 +3,7 @@
  * Handles evidence submission and management for P2P trade disputes
  */
 
-const { P2PTrade, User } = require('../../database/models');
+const { P2PTrade, User } = require('../database/models');
 
 class EvidenceService {
   constructor(parentService) {

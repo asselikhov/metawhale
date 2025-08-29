@@ -4,11 +4,11 @@
  */
 
 const { Markup } = require('telegraf');
-const { p2pService } = require('../../services/p2p');
-const { walletService } = require('../../services/wallet');
+const p2pService = require('../../services/p2p');
+const walletService = require('../../services/wallet/walletService');
 const { User, P2PTrade } = require('../../database/models');
 const sessionManager = require('../SessionManager');
-const { fiatCurrencyService } = require('../../services/utility');
+const fiatCurrencyService = require('../../services/fiatCurrencyService');
 const LocalizationHelper = require('../../utils/localizationHelper');
 
 class P2PTradeHandler {
@@ -141,7 +141,7 @@ class P2PTradeHandler {
       const walletInfo = await walletService.getUserWallet(chatId);
       
       if (walletInfo.cesBalance < 1) {
-        const message = `📉 ПРОДАЖА CES ТОКЕНОВ\n` +
+        const message = `.DataGridViewColumn ПРОДАЖА CES ТОКЕНОВ\n` +
                        `➖➖➖➖➖➖➖➖➖➖➖\n` +
                        `⚠️ Недостаточно CES для продажи\n` +
                        `Баланс: ${walletInfo.cesBalance.toFixed(4)} CES\n\n` +
@@ -158,7 +158,7 @@ class P2PTradeHandler {
       }
       
       // Send initial message with loading price
-      const initialMessage = `📉 ПРОДАЖА CES ТОКЕНОВ\n` +
+      const initialMessage = `.DataGridViewColumn ПРОДАЖА CES ТОКЕНОВ\n` +
                             `➖➖➖➖➖➖➖➖➖➖➖\n` +
                             `⏳ Загружаем актуальную цену...\n` +
                             `Баланс: ${walletInfo.cesBalance.toFixed(4)} CES\n\n` +

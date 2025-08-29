@@ -4,14 +4,17 @@
  */
 
 const { Markup } = require('telegraf');
-const BaseCommandHandler = require('./BaseCommandHandler');
-const WalletHandler = require('./WalletHandler');
-const TransferHandler = require('./TransferHandler');
+const BaseCommandHandler = require('./base/BaseCommandHandler');
+const WalletHandler = require('./wallet/index');
+const TransferHandler = require('./transfer/TransferHandler');
 const P2PHandler = require('./P2PHandler');
 const P2POrdersHandler = require('./P2POrdersHandler');
-const P2PDataHandler = require('./P2PDataHandler');
+const P2PDataHandler = require('./p2p/index');
 const sessionManager = require('./SessionManager');
 const config = require('../config/configuration');
+
+
+
 
 class MessageHandler {
   constructor() {

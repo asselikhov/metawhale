@@ -3,7 +3,7 @@
  * Handles statistics and analytics for disputes
  */
 
-const { P2PTrade } = require('../../database/models');
+const { P2PTrade } = require('../database/models');
 
 class DisputeStatisticsService {
   constructor(parentService) {

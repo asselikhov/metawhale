@@ -1,11 +1,11 @@
 /**
- * Price Service with CoinGecko API
- * Handles all price-related API calls and data aggregation
+ * Price Service
+ * Handles price fetching and chart generation for tokens
  */
 
 const axios = require('axios');
-const config = require('../config/configuration');
-const { PriceHistory } = require('../database/models');
+const config = require('../../config/configuration');
+const { ExchangeRate } = require('../../database/models');
 
 class PriceService {
   constructor() {

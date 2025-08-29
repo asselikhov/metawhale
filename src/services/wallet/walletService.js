@@ -5,9 +5,9 @@
 
 const { ethers } = require('ethers');
 const crypto = require('crypto');
-const config = require('../config/configuration');
-const { User, Wallet, Transaction } = require('../database/models');
-const rpcService = require('./rpcService');
+const config = require('../../config/configuration');
+const { User, Wallet, Transaction } = require('../../database/models');
+const rpcService = require('../rpcService');
 
 // Ensure ethers providers are available
 const providers = ethers.providers || ethers;

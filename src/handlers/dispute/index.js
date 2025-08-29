@@ -6,7 +6,7 @@
 const { Markup } = require('telegraf');
 const { P2PTrade, User, DisputeLog } = require('../database/models');
 const disputeService = require('../services/dispute/disputeServiceInstance');
-const sessionManager = require('./SessionManager');
+const sessionManager = require('../SessionManager');
 
 class DisputeHandler {
   constructor() {

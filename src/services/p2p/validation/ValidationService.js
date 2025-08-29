@@ -3,9 +3,9 @@
  * Handles validation of orders, trades, and user data
  */
 
-const { P2POrder, P2PTrade, User } = require('../../database/models');
+const { P2POrder, P2PTrade, User } = require('../../../database/models');
 const walletService = require('../../wallet/walletService');
-const rubleReserveService = require('../../utility/rubleReserveService');
+const rubleReserveService = require('../../rubleReserveService');
 
 class ValidationService {
   // Validate user rights for P2P operations

@@ -5,7 +5,7 @@
 
 const { ethers } = require('ethers');
 const { P2PTrade } = require('../database/models');
-const walletService = require('./walletService');
+const walletService = require('../services/wallet/walletService');
 const config = require('../config/configuration');
 
 const ADMIN_WALLET_ADDRESS = '0xC2D5FABd53F537A1225460AE30097198aB14FF32';

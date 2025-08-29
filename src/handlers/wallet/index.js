@@ -4,14 +4,14 @@
  */
 
 const { Markup } = require('telegraf');
-const walletService = require('../services/walletService');
-const priceService = require('../services/priceService');
-const multiChainWalletService = require('../services/multiChainWalletService');
-const userNetworkService = require('../services/userNetworkService');
-const multiChainService = require('../services/multiChainService');
-const { isDatabaseConnected } = require('../database/models');
-const sessionManager = require('./SessionManager');
-const LocalizationHelper = require('../utils/localizationHelper');
+const walletService = require('../../services/wallet/walletService');
+const priceService = require('../../services/utility/priceService');
+const multiChainWalletService = require('../../services/wallet/multiChainWalletService');
+const userNetworkService = require('../../services/userNetworkService');
+const multiChainService = require('../../services/multiChainService');
+const { isDatabaseConnected } = require('../../database/models');
+const sessionManager = require('../SessionManager');
+const LocalizationHelper = require('../../utils/localizationHelper');
 
 class WalletHandler {
   // Handle Personal Cabinet from text message

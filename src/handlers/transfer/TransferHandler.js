@@ -4,8 +4,8 @@
  */
 
 const { Markup } = require('telegraf');
-const walletService = require('../services/walletService');
-const sessionManager = require('./SessionManager');
+const walletService = require('../../services/wallet/walletService');
+const sessionManager = require('../SessionManager');
 
 class TransferHandler {
   // Handle transfer menu
@@ -180,7 +180,6 @@ class TransferHandler {
       const chatId = ctx.chat.id.toString();
       
       // ONLY handle main menu buttons if we're actually in a transfer session
-      const sessionManager = require('./SessionManager');
       const userState = sessionManager.getUserState(chatId);
       
       if (userState === 'transfer') {
@@ -188,7 +187,7 @@ class TransferHandler {
         if (transferData.includes('Личный кабинет') || transferData.includes('👤')) {
           console.log('📝 TransferHandler: Detected main menu button - Personal Cabinet');
           sessionManager.clearUserSession(chatId);
-          const WalletHandler = require('./WalletHandler');
+          const WalletHandler = require('../../handlers/wallet/index');
           const handler = new WalletHandler();
           return await handler.handlePersonalCabinetText(ctx);
         }
@@ -196,103 +195,47 @@ class TransferHandler {
         if (transferData.includes('P2P Биржа') || transferData.includes('🔄 P2P')) {
           console.log('📝 TransferHandler: Detected main menu button - P2P Exchange');
           sessionManager.clearUserSession(chatId);
-          const P2PHandler = require('./P2PHandler');
+          const P2PHandler = require('../../handlers/P2PHandler');
           const handler = new P2PHandler();
           return await handler.handleP2PMenu(ctx);
         }
       }
       
-      // Parse transfer data (address amount)
-      const parts = transferData.trim().split(/\s+/);
-      
-      if (parts.length !== 2) {
-        return await ctx.reply(`❌ Неверный формат. Используйте: \`адрес сумма\``, {
-          parse_mode: 'Markdown'
-        });
-      }
-      
-      const [toAddress, amountStr] = parts;
+      // Process normal transfer command
+      const [toAddress, amountStr] = transferData.trim().split(' ');
       const amount = parseFloat(amountStr);
       
-      if (isNaN(amount) || amount <= 0) {
-        return await ctx.reply('❌ Неверная сумма. Укажите число больше 0.');
+      if (!toAddress || !amount || isNaN(amount)) {
+        const message = '❌ Неверный формат команды.\n\n' +
+                       '📝 Отправьте сообщение в формате:\n' +
+                       'Адрес_кошелька Сумма\n\n' +
+                       '📝 Пример:\n' +
+                       '0x742d35Cc6734C0532925a3b8D4321F...89 10.5';
+        
+        const keyboard = Markup.inlineKeyboard([
+          [Markup.button.callback('❌ Отмена', 'transfer_menu')]
+        ]);
+        
+        return await ctx.reply(message, keyboard);
       }
       
-      if (amount < 0.001) {
-        return await ctx.reply(`❌ Минимальная сумма перевода: 0.001 ${tokenType}`);
+      // Validate address format
+      if (!toAddress.startsWith('0x') || toAddress.length !== 42) {
+        return await ctx.reply('❌ Неверный формат адреса кошелька.');
       }
       
-      // Show confirmation with fee estimation for POL transfers
-      const recipient = await walletService.findUserByAddress(toAddress);
-      const recipientInfo = recipient ? 
-        `👤 Пользователь: @${recipient.username || recipient.firstName || 'Неизвестный'}` :
-        '👤 Внешний кошелек';
-      
-      let message = `🔒 Подтверждение перевода
-` +
-                   `➖➖➖➖➖➖➖➖➖➖➖
-` +
-                   `Сумма: ${amount} ${tokenType}
-` +
-                   `Кому: ${toAddress}
-` +
-                   `${recipientInfo}
-
-`;
-      
-      // Add fee estimation for POL transfers
-      if (tokenType === 'POL') {
-        try {
-          const { User } = require('../database/models');
-          const user = await User.findOne({ chatId });
-          if (user && user.walletAddress) {
-            const feeEstimate = await walletService.calculatePOLTransferFee(
-              user.walletAddress, 
-              toAddress, 
-              amount
-            );
-            message += `💰 Сумма к переводу: ${amount} POL
-`;
-            message += `⛽ Примерная комиссия: ~${feeEstimate.estimatedFee.toFixed(6)} POL
-`;
-            message += `📊 Итого спишется: ~${(amount + feeEstimate.estimatedFee).toFixed(6)} POL
-
-`;
-          }
-        } catch (feeError) {
-          console.log('Fee estimation error:', feeError.message);
-          message += `⛽ Примерная комиссия: ~0.001 POL
-
-`;
-        }
+      // Validate amount
+      if (amount <= 0) {
+        return await ctx.reply('❌ Сумма должна быть больше 0.');
       }
       
-      // Add fee estimation for CES transfers (paid in POL)
-      if (tokenType === 'CES') {
-        try {
-          const { User } = require('../database/models');
-          const user = await User.findOne({ chatId });
-          if (user && user.walletAddress) {
-            const feeEstimate = await walletService.calculateCESTransferFee(
-              user.walletAddress, 
-              toAddress, 
-              amount
-            );
-            message += `💰 Сумма к переводу: ${amount} CES
-`;
-            message += `⛽ Комиссия в POL: ~${feeEstimate.estimatedFee.toFixed(6)} POL
-
-`;
-          }
-        } catch (feeError) {
-          console.log('CES fee estimation error:', feeError.message);
-          message += `⛽ Комиссия в POL: ~0.0015 POL
-
-`;
-        }
-      }
-      
-      message += '⚠️ Перевод нельзя отменить!';
+      // Show confirmation message
+      const message = `⚠️ ПОДТВЕРЖДЕНИЕ ПЕРЕВОДА\n` +
+                     `➖➖➖➖➖➖➖➖➖➖➖\n` +
+                     `Токен: ${tokenType}\n` +
+                     `Сумма: ${amount} ${tokenType}\n` +
+                     `Кому: ${toAddress.substring(0, 10)}...${toAddress.substring(38)}\n\n` +
+                     `⚠️ Перевод нельзя отменить!`;
       
       // Store transfer data in session to avoid callback data length limits
       sessionManager.setPendingTransfer(chatId, {
@@ -407,8 +350,8 @@ class TransferHandler {
       // If it's a partial hash (10 characters), try to find the full hash
       if (txHashPart.length === 10) {
         // Look up recent transactions for this user to find the full hash
-        const { Transaction } = require('../database/models');
-        const { User } = require('../database/models');
+        const { Transaction } = require('../../database/models');
+        const { User } = require('../../database/models');
         
         const user = await User.findOne({ chatId });
         if (user) {
@@ -430,7 +373,7 @@ class TransferHandler {
         }
       }
       
-      const rpcService = require('../services/rpcService');
+      const rpcService = require('../../services/rpcService');
       
       await ctx.reply('🔍 Проверяем статус транзакции...');
       

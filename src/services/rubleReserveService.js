@@ -3,6 +3,8 @@
  * Управление резервами рублей у мейкеров
  */
 
+const { RubleReserve } = require('../database/models');
+
 class RubleReserveService {
   constructor() {
     this.reserveAmounts = new Map(); // userId -> total reserved amount
@@ -17,8 +19,6 @@ class RubleReserveService {
    */
   async reserveForOrder(userId, orderId, amount) {
     try {
-      const { RubleReserve } = require('../database/models');
-      
       // Проверяем, есть ли уже резерв для этого ордера
       const existingReserve = await RubleReserve.findOne({ 
         userId, 
@@ -65,8 +65,6 @@ class RubleReserveService {
    */
   async transferOrderToTrade(userId, orderId, tradeId, amount) {
     try {
-      const { RubleReserve } = require('../database/models');
-      
       // Находим резерв ордера
       const orderReserve = await RubleReserve.findOne({
         userId,
@@ -121,8 +119,6 @@ class RubleReserveService {
    */
   async releaseOrderReserve(userId, orderId) {
     try {
-      const { RubleReserve } = require('../database/models');
-      
       const reserve = await RubleReserve.findOne({
         userId,
         orderId,
@@ -161,8 +157,6 @@ class RubleReserveService {
    */
   async releaseTradeReserve(userId, tradeId) {
     try {
-      const { RubleReserve } = require('../database/models');
-      
       const reserve = await RubleReserve.findOne({
         userId,
         tradeId,
@@ -201,8 +195,6 @@ class RubleReserveService {
    */
   async refundTradeReserve(userId, tradeId) {
     try {
-      const { RubleReserve } = require('../database/models');
-      
       const reserve = await RubleReserve.findOne({
         userId,
         tradeId,
@@ -240,8 +232,6 @@ class RubleReserveService {
    */
   async getTotalReserved(userId) {
     try {
-      const { RubleReserve } = require('../database/models');
-      
       const reserves = await RubleReserve.find({
         userId,
         status: 'reserved'
